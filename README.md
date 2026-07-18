@@ -1,24 +1,168 @@
 # Mesh
 
-Open-source agent access-control mesh (MCP gateway + control plane).
+Open-source, self-hostable **MCP policy gateway** + control-plane API and admin UI.
+
+Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server. Mesh authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
 
 ## Status
 
-Phase 1 foundation in progress.
+**Phase 1 — foundation (in progress)**
+
+| Area | Status |
+| --- | --- |
+| Monorepo (`pnpm`, TypeScript) | Done |
+| Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
+| Envelope crypto (`@mesh/crypto`) | Done |
+| Better Auth (email/password + sessions) | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, OpenAPI | Done |
+| Tenancy gate (`single` / `multi`) | Done |
+| Admin UI (`@mesh/web`) | Stub |
+| MCP gateway (`@mesh/gateway`) | Stub |
+
+Next: domain tables (connections, roles, credentials, audit), then gateway + UI.
+
+## Stack
+
+- **API:** Hono + `@hono/zod-openapi`
+- **DB:** Drizzle + Postgres
+- **Auth:** Better Auth (identity only; Mesh owns tenants/memberships)
+- **Errors:** neverthrow in services; HTTP envelope at the API edge
+- **License:** MIT
 
 ## Prerequisites
 
 - Node 22+
 - pnpm 9+
-- Postgres 16 (later in Phase 1)
+- Postgres 16+
 
 ## Setup
 
 ```bash
 pnpm install
 cp .env.example .env
-# fill MESH_MASTER_KEY and BETTER_AUTH_SECRET later
-pnpm dev
+```
+
+Generate secrets and put them in `.env`:
+
+```bash
+openssl rand -base64 32   # MESH_MASTER_KEY (base64)
+openssl rand -base64 32   # BETTER_AUTH_SECRET
+```
+
+Set `DATABASE_URL` to your Postgres instance, for example:
+
+```bash
+# local Postgres on default port
+DATABASE_URL=postgresql://mesh:mesh@127.0.0.1:5432/mesh
+
+# or Docker (example: publish container 5432 → host 5433)
+docker run -d --name mesh-pg \
+  -e POSTGRES_USER=mesh \
+  -e POSTGRES_PASSWORD=mesh \
+  -e POSTGRES_DB=mesh \
+  -p 5433:5432 postgres:16
+
+DATABASE_URL=postgresql://mesh:mesh@127.0.0.1:5433/mesh
+```
+
+Also set:
+
+```bash
+BETTER_AUTH_URL=http://127.0.0.1:8080
+WEB_ORIGIN=http://127.0.0.1:5173
+MESH_TENANCY=single   # or multi
+```
+
+Migrate and start:
+
+```bash
+pnpm db:migrate
+pnpm --filter @mesh/api dev
+# or all apps: pnpm dev
+```
+
+API listens on `http://127.0.0.1:8080` by default.
+
+- Health: `GET /health`
+- OpenAPI JSON: `GET /docs`
+- Better Auth: `/api/auth/*`
+- Mesh v1: `/api/v1/*`
+
+## Smoke test
+
+### Create organization (first org in `single` mode)
+
+```bash
+curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signup \
+  -H 'content-type: application/json' \
+  -d '{
+    "email": "you@example.com",
+    "password": "password123",
+    "name": "You",
+    "organizationName": "Acme"
+  }' | jq .
+```
+
+Expect `201` with `user`, `tenant`, `membership`, and session cookies.
+
+In **`MESH_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
+
+### Sign in (if an org already exists)
+
+```bash
+curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/auth/sign-in/email \
+  -H 'content-type: application/json' \
+  -d '{
+    "email": "you@example.com",
+    "password": "password123"
+  }' | jq .
+```
+
+### Current user + memberships
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt http://127.0.0.1:8080/api/v1/me | jq .
+```
+
+Expect `200` with:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user": { "id": "...", "email": "...", "name": "..." },
+    "memberships": [
+      {
+        "id": "...",
+        "role": "full_admin",
+        "tenant": { "id": "...", "name": "...", "slug": "..." }
+      }
+    ]
+  }
+}
+```
+
+Without cookies, `/me` returns `401` `UNAUTHORIZED`.
+
+## API notes
+
+- Success: `{ "success": true, "data": ... }`
+- Error: `{ "success": false, "error": { "code", "message", "details?" } }`
+- `/me` returns **all** memberships for the session user (client chooses active tenant later)
+- Signup creates Better Auth user + Mesh tenant + `full_admin` membership
+
+## Repo layout
+
+```
+apps/
+  api/       # control-plane (Hono)
+  web/       # Vite/React admin UI (stub)
+  gateway/   # MCP gateway (stub)
+packages/
+  shared/    # env, errors, tenancy, public DTOs
+  db/        # Drizzle schema + migrations
+  auth/      # Better Auth instance
+  crypto/    # AES-GCM envelope encryption
 ```
 
 ## License

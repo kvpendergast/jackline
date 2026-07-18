@@ -1,16 +1,14 @@
-// apps/api/src/app.ts
-import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { auth } from "@mesh/auth";
 import { getConfig } from "@mesh/shared";
-// import { signupRoutes } from "./routes/signup.js";
-// import { meRoutes } from "./routes/me.js";
+import { createMeshApp } from "./lib/http/createApp.js";
+import { rootFeatures, v1Features } from "./registry.js";
 
 const configResult = getConfig();
 if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 
-export const app = new Hono();
+export const app = createMeshApp();
 
 app.use(
   "*",
@@ -20,11 +18,28 @@ app.use(
   }),
 );
 
-app.get("/health", (c) => c.json({ ok: true }));
+for (const feature of rootFeatures) {
+  for (const { route, handler } of feature.routes) {
+    app.openapi(route, handler);
+  }
+}
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
 
-// app.route("/", signupRoutes); // POST /api/signup
-// app.route("/", meRoutes);     // GET /api/me
+const v1 = createMeshApp();
+for (const feature of v1Features) {
+  for (const { route, handler } of feature.routes) {
+    v1.openapi(route, handler);
+  }
+}
+app.route("/api/v1", v1);
+
+app.doc("/docs", {
+  openapi: "3.0.0",
+  info: {
+    version: "1.0.0",
+    title: "Mesh API",
+  },
+});

@@ -10,6 +10,7 @@ export {
   TenantLimitReachedError,
   NotImplementedError,
   EncryptionError,
-  SetupError
+  SetupError,
 } from "./errors/index.js";
-export { isSingleTenancy } from "./tenancy/index.js";
+export { isSingleTenancy, isMultiTenancy, assertCanCreateTenant } from "./tenancy/index.js";
+export * from "./types/index.js";

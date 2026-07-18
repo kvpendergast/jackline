@@ -18,9 +18,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.10",
+    "@hono/zod-openapi": "^1.5.1",
     "@mesh/auth": "workspace:*",
     "@mesh/db": "workspace:*",
     "@mesh/shared": "workspace:*",
-    "hono": "^4.12.30"
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.30",
+    "neverthrow": "^8.2.0",
+    "zod": "^4.4.3"
   }
 }
