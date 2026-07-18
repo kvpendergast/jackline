@@ -15,6 +15,34 @@
       "when": 1784336867016,
       "tag": "0001_flowery_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784391825961,
+      "tag": "0002_damp_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784400742839,
+      "tag": "0003_special_wild_child",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784400847301,
+      "tag": "0004_slimy_bushwacker",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784401591375,
+      "tag": "0005_minor_blizzard",
+      "breakpoints": true
     }
   ]
 }

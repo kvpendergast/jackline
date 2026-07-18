@@ -16,8 +16,18 @@ export const auth = betterAuth({
         provider: 'pg',
         schema,
     }),
+    user: {
+        additionalFields: {
+            kind: {
+                type: 'string'
+                required: true,
+                defaultValue: "human",
+                input: false
+            }
+        }
+    },
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: [config.WEB_ORIGIN],
-    emailAndPassword: { enabled: true, disableSignUp: false }
+    emailAndPassword: { enabled: true, disableSignUp: false },
 })
