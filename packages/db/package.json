@@ -1,0 +1,29 @@
+{
+  "name": "@mesh/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "studio": "drizzle-kit studio",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "dependencies": {
+    "@mesh/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10"
+  }
+}

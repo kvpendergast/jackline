@@ -1,0 +1,20 @@
+{
+  "name": "@mesh/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "dependencies": {
+    "neverthrow": "^8.2.0",
+    "@mesh/shared": "workspace:*"
+  }
+}

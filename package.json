@@ -1,0 +1,19 @@
+{
+  "name": "mesh",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @mesh/api --filter @mesh/web --filter @mesh/gateway dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @mesh/db generate",
+    "db:migrate": "pnpm --filter @mesh/db migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
+  }
+}

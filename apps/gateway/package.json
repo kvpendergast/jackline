@@ -1,0 +1,19 @@
+{
+  "name": "@mesh/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

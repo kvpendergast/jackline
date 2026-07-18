@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-ff30edbf-905c-40da-964b-7a26a3f8003a/styles.css">
+  <script src="_ds/organic-ff30edbf-905c-40da-964b-7a26a3f8003a/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; }
+    a { color: var(--color-accent-700); }
+    a:hover { color: var(--color-accent-800); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
+    .table th { padding: var(--mesh-th-pad-v, 10px) var(--space-2) var(--mesh-th-pad-v, 10px); }
+    .table td { padding: var(--mesh-td-pad-v, 14px) var(--space-2); }
+    .table tbody tr:last-child td { border-bottom: none; }
+    .card { padding: var(--mesh-card-pad, var(--space-4)); }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);display:flex;flex-direction:column;{{rootVars}}">
+
+  <sc-if value="{{showLogin}}" hint-placeholder-val="{{false}}">
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+      <div class="card elev-md" style="width:min(400px,100%);text-align:center">
+        <div style="width:44px;height:44px;border-radius:999px;background:var(--color-accent);display:flex;align-items:center;justify-content:center;color:var(--color-bg);font-family:var(--font-heading);font-size:18px;margin:0 auto 12px">M</div>
+
+        <sc-if value="{{login.isSignin}}" hint-placeholder-val="{{true}}">
+          <div style="font-family:var(--font-heading);font-size:22px;margin-bottom:4px">Sign in to Mesh</div>
+          <p class="text-muted" style="margin:0 0 20px">Your company's tool security mesh — access is managed by IT &amp; Security.</p>
+          <button class="btn btn-primary btn-block" onClick="{{onSsoLogin}}">Continue with Company SSO</button>
+          <button class="btn btn-secondary btn-block" style="margin-top:8px" onClick="{{onSsoLogin}}">Continue with Google</button>
+          <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><div style="flex:1;height:1px;background:var(--color-divider)"></div><span class="text-muted" style="font-size:12px">or</span><div style="flex:1;height:1px;background:var(--color-divider)"></div></div>
+          <div class="field" style="text-align:left">
+            <label>Work email</label>
+            <input class="input" placeholder="you@company.com" value="{{login.email}}" onChange="{{login.onEmail}}"/>
+          </div>
+          <div class="field" style="text-align:left">
+            <label>Password</label>
+            <input class="input" type="password" placeholder="••••••••" value="{{login.password}}" onChange="{{login.onPassword}}"/>
+          </div>
+          <sc-if value="{{login.error}}" hint-placeholder-val="{{false}}">
+            <p style="color:var(--color-accent-700);font-size:12px;text-align:left;margin:0 0 8px">{{login.error}}</p>
+          </sc-if>
+          <button class="btn btn-primary btn-block" onClick="{{login.onSubmitSignin}}">Sign in</button>
+          <p class="text-muted" style="font-size:12px;margin:14px 0 0">First time here? <a href="#" onClick="{{login.onGoSignup}}">Create your organization</a></p>
+        </sc-if>
+
+        <sc-if value="{{login.isSignup}}" hint-placeholder-val="{{false}}">
+          <div style="font-family:var(--font-heading);font-size:22px;margin-bottom:4px">Create your organization</div>
+          <p class="text-muted" style="margin:0 0 20px">You'll be the first admin — set up SSO for everyone else once you're in.</p>
+          <div class="field" style="text-align:left">
+            <label>Organization name</label>
+            <input class="input" placeholder="Acme Corp" value="{{login.orgName}}" onChange="{{login.onOrgName}}"/>
+          </div>
+          <div class="field" style="text-align:left">
+            <label>Work email</label>
+            <input class="input" placeholder="you@acmecorp.com" value="{{login.email}}" onChange="{{login.onEmail}}"/>
+          </div>
+          <div class="field" style="text-align:left">
+            <label>Password</label>
+            <input class="input" type="password" placeholder="Choose a password" value="{{login.password}}" onChange="{{login.onPassword}}"/>
+          </div>
+          <sc-if value="{{login.error}}" hint-placeholder-val="{{false}}">
+            <p style="color:var(--color-accent-700);font-size:12px;text-align:left;margin:0 0 8px">{{login.error}}</p>
+          </sc-if>
+          <button class="btn btn-primary btn-block" onClick="{{login.onSubmitSignup}}">Create organization</button>
+          <p class="text-muted" style="font-size:12px;margin:14px 0 0">Already set up? <a href="#" onClick="{{login.onGoSignin}}">Sign in</a></p>
+        </sc-if>
+
+        <p class="text-muted" style="font-size:11px;margin:14px 0 0">Email/password sign-in also stays available as a break-glass admin path if your SSO provider ever has an outage.</p>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isAuthenticated}}" hint-placeholder-val="{{false}}">
+
+  <div style="display:flex;align-items:center;gap:20px;padding:14px 32px;border-bottom:1px solid var(--color-divider);position:sticky;top:0;background:var(--color-bg);z-index:20">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent);display:flex;align-items:center;justify-content:center;color:var(--color-bg);font-family:var(--font-heading);font-size:15px;flex:none">M</div>
+      <div style="font-family:var(--font-heading);font-size:19px">Mesh</div>
+    </div>
+
+    <sc-if value="{{isAdmin}}" hint-placeholder-val="{{true}}">
+      <div style="display:flex;gap:2px;margin-left:8px">
+        <button onClick="{{setTabDashboard}}" style="{{tabDashboardStyle}}">Dashboard</button>
+        <button onClick="{{setTabConnections}}" style="{{tabConnectionsStyle}}">Connections</button>
+        <button onClick="{{setTabRoles}}" style="{{tabRolesStyle}}">Roles</button>
+        <button onClick="{{setTabTools}}" style="{{tabToolsStyle}}">Tools &amp; Servers</button>
+        <button onClick="{{setTabAudit}}" style="{{tabAuditStyle}}">Audit Log</button>
+        <button onClick="{{setTabSettings}}" style="{{tabSettingsStyle}}">Settings</button>
+      </div>
+    </sc-if>
+
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="persona" checked="{{personaAdminChecked}}" onChange="{{setPersonaAdmin}}"/>Admin</label>
+        <label class="seg-opt"><input type="radio" name="persona" checked="{{personaEmployeeChecked}}" onChange="{{setPersonaEmployee}}"/>My Access</label>
+      </div>
+      <button class="btn btn-ghost" onClick="{{onLogout}}">Sign out</button>
+    </div>
+  </div>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}">
+    <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100;background:var(--color-neutral-900);color:var(--color-neutral-100);padding:12px 20px;border-radius:999px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:14px;font-size:13px">
+      <span>{{toast}}</span>
+      <button onClick="{{clearToast}}" style="background:transparent;border:none;color:var(--color-neutral-100);cursor:pointer;font-size:15px;opacity:0.7">✕</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isEmployee}}" hint-placeholder-val="{{false}}">
+    <div style="max-width:920px;margin:0 auto;padding:40px 32px 80px;width:100%">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap">
+        <div>
+          <h1 style="margin-bottom:4px">My Access</h1>
+          <p style="opacity:0.7;margin:0">What each of your tools is allowed to call, and its recent activity.</p>
+        </div>
+        <select class="input" style="width:auto;min-width:260px" value="{{emp.selectedConnId}}" onChange="{{emp.onSelectConn}}">
+          <sc-for list="{{emp.connOptions}}" as="opt" hint-placeholder-count="2">
+            <option value="{{opt.id}}">{{opt.label}}</option>
+          </sc-for>
+        </select>
+      </div>
+
+      <sc-if value="{{emp.bannerText}}" hint-placeholder-val="{{false}}">
+        <div style="background:var(--color-accent-100);color:var(--color-accent-800);border-radius:var(--radius-md);padding:14px 18px;margin-bottom:20px;font-size:14px">
+          {{emp.bannerText}}
+        </div>
+      </sc-if>
+
+      <div class="card elev-sm" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="card-title">{{emp.conn.clientName}}</div>
+            <div class="card-meta" style="margin-top:4px">{{emp.conn.team}} · last active {{emp.conn.lastActive}}</div>
+          </div>
+          <span class="tag" style="background:{{emp.conn.statusBg}};color:{{emp.conn.statusColor}}">{{emp.conn.statusLabel}}</span>
+        </div>
+      </div>
+
+      <div class="card elev-sm" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="card-kicker">What it can access</div>
+          <button class="btn btn-primary" onClick="{{emp.onOpenRequest}}">Request access</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
+          <sc-for list="{{emp.roleChips}}" as="rc" hint-placeholder-count="2">
+            <span class="tag tag-accent-2">{{rc.name}}</span>
+          </sc-for>
+        </div>
+        <table class="table">
+          <thead><tr><th>Tool</th><th>Source</th><th>Sensitivity</th></tr></thead>
+          <tbody>
+            <sc-for list="{{emp.accessRows}}" as="row" hint-placeholder-count="4">
+              <tr>
+                <td>{{row.toolName}}<div class="text-muted" style="font-size:11px">{{row.serverName}}</div></td>
+                <td class="text-muted">{{row.sourceLabel}}</td>
+                <td><span class="tag" style="background:{{row.riskBg}};color:{{row.riskColor}}">{{row.riskTag}}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <p class="text-muted" style="font-size:12px;margin-top:10px;margin-bottom:0">Access is set by IT &amp; Security. Need more? Use "Request access" above.</p>
+      </div>
+
+      <div class="card elev-sm">
+        <div class="card-kicker">Recent activity</div>
+        <table class="table">
+          <thead><tr><th>When</th><th>Tool</th><th>Result</th></tr></thead>
+          <tbody>
+            <sc-for list="{{emp.activity}}" as="a" hint-placeholder-count="5">
+              <tr>
+                <td class="text-muted">{{a.ts}}</td>
+                <td>{{a.toolLabel}}</td>
+                <td><span class="tag" style="background:{{a.outcomeBg}};color:{{a.outcomeColor}}">{{a.outcomeLabel}}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <sc-if value="{{requestModalOpen}}" hint-placeholder-val="{{false}}">
+      <div class="dialog-backdrop">
+        <div class="dialog">
+          <div class="dialog-title">Request access</div>
+          <div class="dialog-body">Ask IT &amp; Security to grant this connection an additional tool.</div>
+          <div class="field">
+            <label>Tool</label>
+            <select class="input" value="{{req.selectedToolId}}" onChange="{{req.onSelectTool}}">
+              <sc-for list="{{req.toolOptions}}" as="t" hint-placeholder-count="3">
+                <option value="{{t.id}}">{{t.label}}</option>
+              </sc-for>
+            </select>
+          </div>
+          <div class="field">
+            <label>Reason</label>
+            <textarea class="input" placeholder="Why do you need this?" value="{{req.reason}}" onChange="{{req.onReasonChange}}"></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn btn-secondary" onClick="{{req.onClose}}">Cancel</button>
+            <button class="btn btn-primary" onClick="{{req.onSubmit}}">Send request</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </sc-if>
+
+  <sc-if value="{{isAdmin}}" hint-placeholder-val="{{true}}">
+    <div style="width:100%;max-width:1240px;margin:0 auto;padding:32px 32px 80px;flex:1">
+
+      <sc-if value="{{isTabDashboard}}" hint-placeholder-val="{{true}}">
+        <h1 style="margin-bottom:4px">Dashboard</h1>
+        <p style="opacity:0.7;margin:0 0 20px">What's happening across the mesh right now.</p>
+
+        <sc-if value="{{setupChecklist.visible}}" hint-placeholder-val="{{false}}">
+          <div class="card elev-sm" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div class="card-kicker" style="margin-bottom:0">Finish setup</div>
+              <button class="btn btn-icon btn-ghost" onClick="{{setupChecklist.onDismiss}}">✕</button>
+            </div>
+            <sc-for list="{{setupChecklist.steps}}" as="step" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:14px">{{step.icon}}</span>
+                  <span style="font-size:13px">{{step.label}}</span>
+                </div>
+                <sc-if value="{{step.showGo}}" hint-placeholder-val="{{true}}">
+                  <button class="btn btn-ghost" onClick="{{step.onGo}}">Go →</button>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px">
+          <sc-for list="{{dash.stats}}" as="st" hint-placeholder-count="6">
+            <div class="card elev-sm" style="padding:12px 14px">
+              <div class="text-muted" style="font-size:11px">{{st.label}}</div>
+              <div style="font-family:var(--font-heading);font-size:20px;margin-top:2px">{{st.value}}</div>
+              <sc-if value="{{st.subLabel}}" hint-placeholder-val="{{false}}">
+                <div class="text-muted" style="font-size:10px;margin-top:1px">{{st.subLabel}}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <div class="card-kicker" style="margin-bottom:0">Most-used tools</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select class="input" style="width:auto" value="{{dashChart.metric}}" onChange="{{dashChart.onMetric}}">
+                <option value="calls">All calls</option>
+                <option value="deny">Denials only</option>
+              </select>
+              <select class="input" style="width:auto" value="{{dashChart.serverId}}" onChange="{{dashChart.onServer}}">
+                <sc-for list="{{dashChart.serverOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+              <select class="input" style="width:auto" value="{{dashChart.team}}" onChange="{{dashChart.onTeam}}">
+                <sc-for list="{{dashChart.teamOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+            </div>
+          </div>
+          <sc-for list="{{dashChart.bars}}" as="b" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:10px;padding:5px 0">
+              <div style="width:160px;font-size:12px;flex:none">{{b.name}}</div>
+              <div style="flex:1;background:var(--color-neutral-100);border-radius:999px;height:14px;overflow:hidden">
+                <div style="height:100%;background:var(--color-accent);width:{{b.pct}}%;border-radius:999px"></div>
+              </div>
+              <div style="width:30px;text-align:right;font-size:12px;flex:none" class="text-muted">{{b.count}}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{dashChart.empty}}" hint-placeholder-val="{{false}}">
+            <p class="text-muted" style="font-size:13px;margin:4px 0 0">No calls match these filters.</p>
+          </sc-if>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <div class="card elev-sm">
+            <div class="card-kicker" style="margin-bottom:8px">Riskiest connections</div>
+            <sc-for list="{{dash.riskiest}}" as="r" hint-placeholder-count="4">
+              <div onClick="{{r.onOpen}}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent)">
+                <div>
+                  <div style="font-size:13px">{{r.clientName}}</div>
+                  <div class="text-muted" style="font-size:11px">{{r.subjectLabel}} · {{r.team}}</div>
+                </div>
+                <span class="tag tag-outline">{{r.reasonTag}}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{dash.riskiestEmpty}}" hint-placeholder-val="{{false}}">
+              <p class="text-muted" style="font-size:13px;margin:4px 0 0">No flagged connections right now.</p>
+            </sc-if>
+          </div>
+
+          <div class="card elev-sm">
+            <div class="card-kicker" style="margin-bottom:8px">Needs review</div>
+            <sc-for list="{{dash.needsReview}}" as="n" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent)">
+                <div>
+                  <div style="font-size:13px">{{n.name}}</div>
+                  <div class="text-muted" style="font-size:11px">{{n.detail}}</div>
+                </div>
+                <button class="btn btn-ghost" onClick="{{n.onGo}}">Review →</button>
+              </div>
+            </sc-for>
+            <sc-if value="{{dash.needsReviewEmpty}}" hint-placeholder-val="{{false}}">
+              <p class="text-muted" style="font-size:13px;margin:4px 0 0">Nothing waiting on review.</p>
+            </sc-if>
+          </div>
+        </div>
+
+        <div class="card elev-sm" style="margin-top:16px">
+          <div class="card-kicker" style="margin-bottom:8px">Recent denials</div>
+          <table class="table">
+            <thead><tr><th>When</th><th>Subject</th><th>Client</th><th>Tool</th></tr></thead>
+            <tbody>
+              <sc-for list="{{dash.recentDenials}}" as="d" hint-placeholder-count="4">
+                <tr>
+                  <td class="text-muted" style="font-size:12px">{{d.ts}}</td>
+                  <td>{{d.subjectLabel}}</td>
+                  <td class="text-muted">{{d.clientName}}</td>
+                  <td>{{d.toolLabel}}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTabConnections}}" hint-placeholder-val="{{false}}">
+        <h1 style="margin-bottom:4px">Connections</h1>
+        <p style="opacity:0.7;margin:0 0 20px">Every credentialed client calling through the mesh — an interactive tool like Cursor or Claude Code acting as a person, or a service integration acting on its own. Disable, quarantine, or manage fine-grained tool access.</p>
+
+        <div class="card elev-sm" style="margin-bottom:14px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="flex:1;min-width:200px">
+              <label>Search</label>
+              <input class="input" placeholder="client or subject…" value="{{connFilters.q}}" onChange="{{onConnFilterQ}}"/>
+            </div>
+            <div class="field" style="min-width:160px">
+              <label>Team</label>
+              <select class="input" value="{{connFilters.team}}" onChange="{{onConnFilterTeam}}">
+                <sc-for list="{{connTeamOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label>Status</label>
+              <select class="input" value="{{connFilters.status}}" onChange="{{onConnFilterStatus}}">
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="quarantined">Quarantined</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label>Kind</label>
+              <select class="input" value="{{connFilters.kind}}" onChange="{{onConnFilterKind}}">
+                <option value="all">All</option>
+                <option value="interactive">Interactive</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" onClick="{{onClearConnFilters}}">Clear</button>
+          </div>
+        </div>
+
+        <sc-if value="{{bulk.active}}" hint-placeholder-val="{{false}}">
+          <div class="card elev-sm" style="margin-bottom:14px;display:flex;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:13px">{{bulk.countLabel}}</span>
+            <button class="btn btn-secondary" onClick="{{bulk.onQuarantine}}">Quarantine</button>
+            <button class="btn btn-secondary" onClick="{{bulk.onDisable}}">Disable</button>
+            <button class="btn btn-secondary" onClick="{{bulk.onEnable}}">Re-enable</button>
+            <select class="input" style="width:auto;min-width:200px" value="__assign" onChange="{{bulk.onAssignRole}}">
+              <option value="__assign">+ Assign role to selected…</option>
+              <sc-for list="{{bulk.roleOptions}}" as="ro" hint-placeholder-count="3">
+                <option value="{{ro.id}}">{{ro.name}}</option>
+              </sc-for>
+            </select>
+            <button class="btn btn-ghost" style="margin-left:auto" onClick="{{bulk.onClear}}">Clear selection</button>
+          </div>
+        </sc-if>
+
+        <div class="card elev-sm">
+          <table class="table">
+            <thead><tr><th><input type="checkbox" checked="{{bulk.allChecked}}" onChange="{{bulk.onToggleAll}}"/></th><th>Client</th><th>Subject</th><th>Team</th><th>Roles</th><th>Status</th><th>Last active</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{connRows}}" as="crow" hint-placeholder-count="8">
+                <tr style="cursor:pointer">
+                  <td><input type="checkbox" checked="{{crow.selected}}" onChange="{{crow.onToggleSelect}}"/></td>
+                  <td onClick="{{crow.onOpen}}">
+                    {{crow.clientName}}
+                    <span class="tag tag-neutral" style="margin-left:6px;font-size:10px">{{crow.kindLabel}}</span>
+                    <sc-if value="{{crow.riskFlag}}" hint-placeholder-val="{{false}}">
+                      <span class="tag tag-outline" style="margin-left:6px">high risk</span>
+                    </sc-if>
+                  </td>
+                  <td class="text-muted" style="font-size:12px">{{crow.subjectLabel}}</td>
+                  <td>{{crow.team}}</td>
+                  <td class="text-muted" style="font-size:12px">{{crow.roleNames}}</td>
+                  <td><span class="tag" style="background:{{crow.statusBg}};color:{{crow.statusColor}}">{{crow.statusLabel}}</span></td>
+                  <td class="text-muted">{{crow.lastActive}}</td>
+                  <td><button class="btn btn-ghost" onClick="{{crow.onOpen}}">Manage →</button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTabRoles}}" hint-placeholder-val="{{false}}">
+        <h1 style="margin-bottom:4px">Roles</h1>
+        <p style="opacity:0.7;margin:0 0 20px">Bundle tool grants into reusable roles — assign roles to connections instead of managing tools one by one.</p>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="flex:1;min-width:200px">
+              <label>Search</label>
+              <input class="input" placeholder="role name…" value="{{roleFilters.q}}" onChange="{{onRoleFilterQ}}"/>
+            </div>
+            <div class="field" style="min-width:180px">
+              <label>Type</label>
+              <select class="input" value="{{roleFilters.type}}" onChange="{{onRoleFilterType}}">
+                <option value="all">All</option>
+                <option value="grant">Grants tools</option>
+                <option value="deny">Guardrail (blocks)</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onClick="{{onNewRole}}">+ New role</button>
+          </div>
+        </div>
+
+        <div class="card elev-sm">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--space-2)">
+            <div class="card-kicker" style="margin-bottom:0">Results</div>
+            <div class="text-muted" style="font-size:12px">{{roleCount}} roles</div>
+          </div>
+          <div class="hr" style="margin:0 0 var(--space-2)"></div>
+          <table class="table">
+            <thead><tr><th>Role</th><th>Type</th><th>Tools</th><th>Connections</th><th>Last modified</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{roleRows}}" as="r" hint-placeholder-count="6">
+                <tr style="cursor:pointer" onClick="{{r.onSelect}}">
+                  <td style="font-family:var(--font-heading);font-size:14px">{{r.name}}{{r.systemBadge}}</td>
+                  <td><span class="tag" style="background:{{r.typeBg}};color:{{r.typeColor}}">{{r.typeLabel}}</span></td>
+                  <td class="text-muted">{{r.toolCount}}</td>
+                  <td class="text-muted">{{r.connCount}}</td>
+                  <td class="text-muted" style="font-size:12px">{{r.lastModified}}</td>
+                  <td><button class="btn btn-ghost" onClick="{{r.onSelect}}">Edit →</button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTabTools}}" hint-placeholder-val="{{false}}">
+        <h1 style="margin-bottom:4px">Tools &amp; Servers</h1>
+        <p style="opacity:0.7;margin:0 0 20px">Connect internal and third-party MCP servers, then control exactly which tools are exposed through the mesh.</p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-kicker">Connected &amp; available servers</div>
+          <button class="btn btn-primary" onClick="{{onOpenConnect}}">+ Connect a server</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px">
+          <sc-for list="{{serverCards}}" as="s" hint-placeholder-count="5">
+            <div class="card elev-sm">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div class="card-title">{{s.name}}</div>
+                <span class="tag" style="background:{{s.statusBg}};color:{{s.statusColor}}">{{s.statusLabel}}</span>
+              </div>
+              <div class="text-muted" style="font-size:12px">{{s.authLabel}} · {{s.toolCount}} tools</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <sc-for list="{{s.scopeTags}}" as="sc" hint-placeholder-count="2">
+                  <span class="tag tag-neutral">{{sc}}</span>
+                </sc-for>
+              </div>
+              <sc-if value="{{s.connected}}" hint-placeholder-val="{{true}}">
+                <button class="btn btn-secondary btn-block" onClick="{{s.onDisconnect}}">Disconnect</button>
+              </sc-if>
+              <sc-if value="{{s.showConnect}}" hint-placeholder-val="{{false}}">
+                <button class="btn btn-primary btn-block" onClick="{{s.onQuickConnect}}">Connect</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-kicker" style="margin-bottom:0">Tool catalog</div>
+          <button class="btn btn-secondary" onClick="{{onOpenCreateTool}}">+ Create tool</button>
+        </div>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="flex:1;min-width:200px">
+              <label>Search</label>
+              <input class="input" placeholder="tool name…" value="{{toolFilters.q}}" onChange="{{onToolFilterQ}}"/>
+            </div>
+            <div class="field" style="min-width:160px">
+              <label>Server</label>
+              <select class="input" value="{{toolFilters.serverId}}" onChange="{{onToolFilterServer}}">
+                <sc-for list="{{toolServerOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label>Action</label>
+              <select class="input" value="{{toolFilters.risk}}" onChange="{{onToolFilterRisk}}">
+                <option value="all">All</option>
+                <option value="read">Read</option>
+                <option value="write">Write</option>
+                <option value="delete">Delete</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label>Status</label>
+              <select class="input" value="{{toolFilters.status}}" onChange="{{onToolFilterStatus}}">
+                <option value="all">All</option>
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+                <option value="shadow">Needs review</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" onClick="{{onClearToolFilters}}">Clear</button>
+          </div>
+        </div>
+
+        <div class="card elev-sm">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--space-2)">
+            <div class="card-kicker" style="margin-bottom:0">Results</div>
+            <div class="text-muted" style="font-size:12px">{{toolRowCount}} tools</div>
+          </div>
+          <div class="hr" style="margin:0 0 var(--space-2)"></div>
+          <table class="table">
+            <thead><tr><th>Tool</th><th>Server</th><th>Action</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{toolRows}}" as="t" hint-placeholder-count="8">
+                <tr>
+                  <td>
+                    {{t.name}}
+                    <sc-if value="{{t.shadowBadge}}" hint-placeholder-val="{{false}}">
+                      <span class="tag tag-outline" style="margin-left:6px">new — needs review</span>
+                    </sc-if>
+                  </td>
+                  <td class="text-muted">{{t.serverName}}</td>
+                  <td><span class="tag" style="background:{{t.riskBg}};color:{{t.riskColor}}">{{t.riskTag}}</span></td>
+                  <td><span class="tag" style="background:{{t.classBg}};color:{{t.classColor}}">{{t.classTag}}</span></td>
+                  <td><span class="tag" style="background:{{t.enabledBg}};color:{{t.enabledColor}}">{{t.enabledLabel}}</span></td>
+                  <td style="display:flex;gap:6px;justify-content:flex-end">
+                    <sc-if value="{{t.shadow}}" hint-placeholder-val="{{false}}">
+                      <button class="btn btn-secondary" onClick="{{t.onApprove}}">Approve</button>
+                      <button class="btn btn-ghost" onClick="{{t.onReject}}">Reject</button>
+                    </sc-if>
+                    <sc-if value="{{t.showToggle}}" hint-placeholder-val="{{true}}">
+                      <button class="btn btn-ghost" onClick="{{t.onToggleEnabled}}">{{t.toggleLabel}}</button>
+                    </sc-if>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTabAudit}}" hint-placeholder-val="{{false}}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+          <div>
+            <h1 style="margin-bottom:4px">Audit Log</h1>
+            <p style="opacity:0.7;margin:0">Every tool call the mesh has seen, with the policy outcome.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="tag" style="background:{{otel.statusBg}};color:{{otel.statusColor}}">{{otel.statusLabel}}</span>
+            <button class="btn btn-secondary" onClick="{{onOpenOtel}}">Configure OTEL export</button>
+          </div>
+        </div>
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="min-width:200px">
+              <label>Connection</label>
+              <select class="input" value="{{auditFilters.connId}}" onChange="{{onFilterConn}}">
+                <sc-for list="{{auditConnOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div class="field" style="min-width:160px">
+              <label>Server</label>
+              <select class="input" value="{{auditFilters.serverId}}" onChange="{{onFilterServer}}">
+                <sc-for list="{{auditServerOptions}}" as="o" hint-placeholder-count="4">
+                  <option value="{{o.value}}">{{o.label}}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div class="field" style="min-width:180px">
+              <label>Result</label>
+              <select class="input" value="{{auditFilters.outcome}}" onChange="{{onFilterOutcome}}">
+                <option value="all">All</option>
+                <option value="allow">Allowed (success)</option>
+                <option value="allow_upstream_error">Allowed, upstream failure</option>
+                <option value="deny">Denied by policy</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1;min-width:180px">
+              <label>Search</label>
+              <input class="input" placeholder="tool, client or subject…" value="{{auditFilters.q}}" onChange="{{onFilterQ}}"/>
+            </div>
+            <button class="btn btn-secondary" onClick="{{onClearFilters}}">Clear</button>
+          </div>
+        </div>
+        <div class="card elev-sm">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--space-2)">
+            <div class="card-kicker" style="margin-bottom:0">Results</div>
+            <div class="text-muted" style="font-size:12px">{{auditCount}} calls</div>
+          </div>
+          <div class="hr" style="margin:0 0 var(--space-2)"></div>
+          <table class="table">
+            <thead><tr><th>When</th><th>Subject</th><th>Client</th><th>Tool</th><th>Server</th><th>Sensitivity</th><th>Outcome</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{auditRows}}" as="a" hint-placeholder-count="10">
+                <tr style="cursor:pointer" onClick="{{a.onToggle}}">
+                  <td class="text-muted" style="font-size:12px">{{a.ts}}</td>
+                  <td>{{a.subjectLabel}}</td>
+                  <td class="text-muted">{{a.clientName}}</td>
+                  <td>{{a.toolLabel}}</td>
+                  <td class="text-muted">{{a.serverName}}</td>
+                  <td><span class="tag" style="background:{{a.classBg}};color:{{a.classColor}}">{{a.classTag}}</span></td>
+                  <td><span class="tag" style="background:{{a.outcomeBg}};color:{{a.outcomeColor}}">{{a.outcomeLabel}}</span></td>
+                  <td class="text-muted" style="font-size:12px">{{a.expandIcon}}</td>
+                </tr>
+                <sc-if value="{{a.expanded}}" hint-placeholder-val="{{false}}">
+                  <tr>
+                    <td colspan="8" style="background:var(--color-surface);border-radius:var(--radius-md)">
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:14px 6px">
+                        <div>
+                          <div class="card-kicker" style="margin-bottom:6px">Request</div>
+                          <div style="font-size:12px;line-height:1.7">
+                            <div><span class="text-muted">Request ID:</span> {{a.requestId}}</div>
+                            <div><span class="text-muted">Transport:</span> {{a.transport}}</div>
+                            <div><span class="text-muted">Source:</span> {{a.source}}</div>
+                            <div><span class="text-muted">Latency:</span> {{a.latency}}</div>
+                          </div>
+                          <div class="card-kicker" style="margin:10px 0 4px">Arguments</div>
+                          <pre style="font-size:11px;background:var(--color-bg);border-radius:var(--radius-sm);padding:8px 10px;margin:0;white-space:pre-wrap">{{a.argsJson}}</pre>
+                        </div>
+                        <div>
+                          <div class="card-kicker" style="margin-bottom:6px">Response</div>
+                          <pre style="font-size:11px;background:var(--color-bg);border-radius:var(--radius-sm);padding:8px 10px;margin:0 0 10px;white-space:pre-wrap">{{a.responseSummary}}</pre>
+                          <div class="card-kicker" style="margin-bottom:6px">Policy decision</div>
+                          <div style="font-size:12px;line-height:1.6">{{a.decisionTrail}}</div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </sc-if>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTabSettings}}" hint-placeholder-val="{{false}}">
+        <h1 style="margin-bottom:4px">Settings</h1>
+        <p style="opacity:0.7;margin:0 0 20px">Organization, identity provider, admin access, and alert routing.</p>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div class="card-kicker" style="margin-bottom:8px">Organization</div>
+          <div class="field" style="max-width:340px">
+            <label>Organization name</label>
+            <input class="input" value="{{settings.orgName}}" onChange="{{settings.onOrgName}}"/>
+          </div>
+        </div>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="card-kicker" style="margin-bottom:0">Identity provider (SSO)</div>
+            <span class="tag" style="background:{{settings.ssoStatusBg}};color:{{settings.ssoStatusColor}}">{{settings.ssoStatusLabel}}</span>
+          </div>
+          <p class="text-muted" style="font-size:12px;margin:6px 0 10px">Everyone signs in through this connection once configured. Email/password sign-in stays available as a break-glass admin path.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="field" style="min-width:180px">
+              <label>Provider</label>
+              <select class="input" value="{{settings.ssoProvider}}" onChange="{{settings.onSsoProvider}}">
+                <option value="okta">Okta</option>
+                <option value="entra">Microsoft Entra ID</option>
+                <option value="google">Google Workspace</option>
+                <option value="other">Other SAML/OIDC</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1;min-width:220px">
+              <label>Metadata URL</label>
+              <input class="input" placeholder="https://idp.company.com/metadata" value="{{settings.ssoMetadataUrl}}" onChange="{{settings.onSsoMetadataUrl}}"/>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" checked="{{settings.scimEnabled}}" onChange="{{settings.onToggleScim}}"/><span style="font-size:13px">Sync groups automatically via SCIM</span></label>
+          <button class="btn btn-primary" onClick="{{settings.onSaveSso}}">Save &amp; connect</button>
+        </div>
+
+        <div class="card elev-sm" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="card-kicker" style="margin-bottom:0">Admins</div>
+            <button class="btn btn-secondary" onClick="{{settings.onOpenInvite}}">+ Invite admin</button>
+          </div>
+          <table class="table">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Scope</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{settings.admins}}" as="a" hint-placeholder-count="3">
+                <tr>
+                  <td>{{a.name}}</td>
+                  <td class="text-muted">{{a.email}}</td>
+                  <td><span class="tag tag-neutral">{{a.roleLabel}}</span></td>
+                  <td class="text-muted">{{a.scope}}</td>
+                  <td><button class="btn btn-ghost" onClick="{{a.onRemove}}">Remove</button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card elev-sm">
+          <div class="card-kicker" style="margin-bottom:8px">Alert routing</div>
+          <div class="field" style="max-width:400px">
+            <label>Slack webhook URL</label>
+            <input class="input" placeholder="https://hooks.slack.com/services/…" value="{{settings.slackWebhook}}" onChange="{{settings.onSlackWebhook}}"/>
+          </div>
+          <div class="field" style="max-width:400px">
+            <label>Email for critical alerts</label>
+            <input class="input" placeholder="security-team@company.com" value="{{settings.alertEmail}}" onChange="{{settings.onAlertEmail}}"/>
+          </div>
+          <button class="btn btn-primary" onClick="{{settings.onSaveAlerts}}">Save routing</button>
+        </div>
+      </sc-if>
+
+    </div>
+  </sc-if>
+
+  <sc-if value="{{inviteModalOpen}}" hint-placeholder-val="{{false}}">
+    <div class="dialog-backdrop" style="z-index:60">
+      <div class="dialog" style="width:min(440px,100%)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dialog-title">Invite admin</div>
+          <button class="btn btn-icon btn-ghost" onClick="{{onCloseInvite}}">✕</button>
+        </div>
+        <div class="dialog-body">Invite another IT/security teammate to manage Mesh. Regular employees never need an invite — they appear automatically via SSO.</div>
+        <div class="field">
+          <label>Name</label>
+          <input class="input" placeholder="Jordan Lee" value="{{invite.name}}" onChange="{{invite.onName}}"/>
+        </div>
+        <div class="field">
+          <label>Work email</label>
+          <input class="input" placeholder="jordan@company.com" value="{{invite.email}}" onChange="{{invite.onEmail}}"/>
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select class="input" value="{{invite.role}}" onChange="{{invite.onRole}}">
+            <option value="full">Full admin</option>
+            <option value="delegated">Delegated admin (team-scoped)</option>
+          </select>
+        </div>
+        <sc-if value="{{invite.showTeam}}" hint-placeholder-val="{{false}}">
+          <div class="field">
+            <label>Team scope</label>
+            <select class="input" value="{{invite.team}}" onChange="{{invite.onTeam}}">
+              <sc-for list="{{invite.teamOptions}}" as="o" hint-placeholder-count="4">
+                <option value="{{o}}">{{o}}</option>
+              </sc-for>
+            </select>
+          </div>
+        </sc-if>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{onCloseInvite}}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{invite.onSend}}">Send invite</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{connDrawerOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);z-index:40;display:flex;justify-content:flex-end" onClick="{{selConn.closeDrawer}}">
+      <div style="width:min(560px,100%);background:var(--color-bg);height:100%;overflow-y:auto;padding:28px;box-shadow:var(--shadow-lg)" onClick="{{stopClick}}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <h2 style="margin:0">{{selConn.clientName}}</h2>
+          <button class="btn btn-icon btn-ghost" onClick="{{selConn.closeDrawer}}">✕</button>
+        </div>
+        <div class="text-muted" style="margin-bottom:4px">{{selConn.subjectLabel}} · {{selConn.team}} · {{selConn.kindLabel}}</div>
+        <span class="tag" style="background:{{selConn.statusBg}};color:{{selConn.statusColor}}">{{selConn.statusLabel}}</span>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Identity &amp; credential</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;margin-bottom:8px">
+          <div><span class="text-muted">Subject:</span> {{selConn.subjectLabel}}</div>
+          <div><span class="text-muted">Client registration:</span> {{selConn.clientRegistration}}</div>
+          <div><span class="text-muted">Token binding:</span> {{selConn.tokenBinding}}</div>
+        </div>
+        <div class="text-muted" style="font-size:11px;line-height:1.5;background:var(--color-surface);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px">
+          This confirms a valid token issued to this client registration — not that the vendor's unmodified application made the call. Treat it as "who holds this credential," not verified software attestation.
+        </div>
+        <button class="btn btn-secondary" onClick="{{selConn.onRotateCredential}}">Revoke &amp; rotate credential</button>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Credentials in use</div>
+        <p class="text-muted" style="font-size:11px;margin:0 0 8px">Downstream credentials are keyed per subject, shared across every client that subject uses — not duplicated per connection.</p>
+        <sc-for list="{{selConn.credentialRows}}" as="cr" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent)">
+            <span style="font-size:13px">{{cr.name}}</span>
+            <span class="tag" style="background:{{cr.stateBg}};color:{{cr.stateColor}}">{{cr.stateLabel}}</span>
+          </div>
+        </sc-for>
+
+        <sc-if value="{{selConn.reason}}" hint-placeholder-val="{{false}}">
+          <div style="background:var(--color-accent-100);color:var(--color-accent-800);border-radius:var(--radius-md);padding:12px 16px;margin-top:14px;font-size:13px">{{selConn.reason}}</div>
+        </sc-if>
+
+        <div style="display:flex;gap:8px;margin:16px 0">
+          <sc-if value="{{selConn.isActive}}" hint-placeholder-val="{{true}}">
+            <button class="btn btn-secondary" onClick="{{selConn.onQuarantine}}">Quarantine</button>
+            <button class="btn btn-secondary" onClick="{{selConn.onDisable}}">Disable (kill switch)</button>
+          </sc-if>
+          <sc-if value="{{selConn.isQuarantined}}" hint-placeholder-val="{{false}}">
+            <button class="btn btn-primary" onClick="{{selConn.onEnable}}">Restore to active</button>
+            <button class="btn btn-secondary" onClick="{{selConn.onDisable}}">Disable (kill switch)</button>
+          </sc-if>
+          <sc-if value="{{selConn.isDisabled}}" hint-placeholder-val="{{false}}">
+            <button class="btn btn-primary" onClick="{{selConn.onEnable}}">Re-enable connection</button>
+          </sc-if>
+        </div>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Roles</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <sc-for list="{{selConn.roleChips}}" as="rc" hint-placeholder-count="2">
+            <span class="tag tag-accent-2" style="display:inline-flex;align-items:center;gap:6px">{{rc.name}} <button onClick="{{rc.onRemove}}" style="background:none;border:none;cursor:pointer;color:inherit;padding:0;font-size:12px">✕</button></span>
+          </sc-for>
+        </div>
+        <select class="input" style="max-width:260px" value="__add" onChange="{{selConn.onAddRole}}">
+          <option value="__add">+ Assign a role…</option>
+          <sc-for list="{{selConn.availableRolesToAdd}}" as="ar" hint-placeholder-count="2">
+            <option value="{{ar.id}}">{{ar.name}}</option>
+          </sc-for>
+        </select>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Fine-grained tool access</div>
+        <sc-for list="{{selConn.accessGroups}}" as="grp" hint-placeholder-count="3">
+          <div style="margin-bottom:10px">
+            <div style="font-family:var(--font-heading);font-size:13px;margin-bottom:2px">{{grp.serverName}}</div>
+            <sc-for list="{{grp.rows}}" as="row" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent)">
+                <div style="flex:1">
+                  <div style="font-size:13px">{{row.toolName}}</div>
+                  <div class="text-muted" style="font-size:11px">{{row.sourceLabel}}</div>
+                </div>
+                <span class="tag" style="background:{{row.stateBg}};color:{{row.stateColor}}">{{row.stateLabel}}</span>
+                <div class="seg">
+                  <button class="btn btn-icon" style="border-radius:0;width:28px;height:28px" onClick="{{row.onAllow}}" title="Force allow">✓</button>
+                  <button class="btn btn-icon" style="border-radius:0;width:28px;height:28px;border-left:1px solid var(--color-divider)" onClick="{{row.onDeny}}" title="Force deny">✕</button>
+                  <button class="btn btn-icon" style="border-radius:0;width:28px;height:28px;border-left:1px solid var(--color-divider)" onClick="{{row.onClear}}" title="Clear override">↺</button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Recent activity</div>
+        <table class="table">
+          <tbody>
+            <sc-for list="{{selConn.activity}}" as="a" hint-placeholder-count="4">
+              <tr>
+                <td class="text-muted" style="font-size:12px">{{a.ts}}</td>
+                <td style="font-size:13px">{{a.toolLabel}}</td>
+                <td><span class="tag" style="background:{{a.outcomeBg}};color:{{a.outcomeColor}}">{{a.outcomeLabel}}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{otelModalOpen}}" hint-placeholder-val="{{false}}">
+    <div class="dialog-backdrop" style="z-index:60">
+      <div class="dialog" style="width:min(520px,100%)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dialog-title">Configure OTEL export</div>
+          <button class="btn btn-icon btn-ghost" onClick="{{onCloseOtel}}">✕</button>
+        </div>
+        <div class="dialog-body">Stream mesh audit events to your observability stack as OTLP logs — SIEM, Datadog, Honeycomb, an internal collector, anything that speaks OTLP.</div>
+
+        <div class="field">
+          <label>OTLP endpoint</label>
+          <input class="input" placeholder="https://otel-collector.internal.company.com:4318/v1/logs" value="{{otel.endpoint}}" onChange="{{otel.onEndpoint}}"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="field" style="width:160px">
+            <label>Protocol</label>
+            <select class="input" value="{{otel.protocol}}" onChange="{{otel.onProtocol}}">
+              <option value="http">OTLP/HTTP</option>
+              <option value="grpc">OTLP/gRPC</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1">
+            <label>Authentication</label>
+            <select class="input" value="{{otel.authMethod}}" onChange="{{otel.onAuthMethod}}">
+              <option value="none">None</option>
+              <option value="bearer">Bearer token</option>
+              <option value="api_key">API key header</option>
+            </select>
+          </div>
+        </div>
+        <sc-if value="{{otel.showAuthField}}" hint-placeholder-val="{{false}}">
+          <div class="field">
+            <label>{{otel.authFieldLabel}}</label>
+            <input class="input" type="password" placeholder="••••••••" value="{{otel.authValue}}" onChange="{{otel.onAuthValue}}"/>
+          </div>
+        </sc-if>
+
+        <div class="field">
+          <label>Which events to export</label>
+          <label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" checked="{{otel.exportAllowed}}" onChange="{{otel.onToggleAllowed}}"/><span style="font-size:13px">Allowed calls</span></label>
+          <label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" checked="{{otel.exportDenied}}" onChange="{{otel.onToggleDenied}}"/><span style="font-size:13px">Denied calls</span></label>
+          <label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" checked="{{otel.exportUpstreamErrors}}" onChange="{{otel.onToggleUpstreamErrors}}"/><span style="font-size:13px">Allowed, but upstream failure</span></label>
+          <label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" checked="{{otel.exportPolicyChanges}}" onChange="{{otel.onTogglePolicyChanges}}"/><span style="font-size:13px">Policy/role/connection changes</span></label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{otel.onTest}}">Send test event</button>
+          <button class="btn btn-primary" onClick="{{otel.onSave}}">Save &amp; enable</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{createToolModalOpen}}" hint-placeholder-val="{{false}}">
+    <div class="dialog-backdrop" style="z-index:60">
+      <div class="dialog" style="width:min(480px,100%)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dialog-title">Create tool</div>
+          <button class="btn btn-icon btn-ghost" onClick="{{onCloseCreateTool}}">✕</button>
+        </div>
+        <div class="dialog-body">Wrap a specific endpoint as a callable tool. It can belong to an existing connected server, or stand on its own with its own address and credentials.</div>
+        <div class="field">
+          <label>Ownership</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="toolowner" checked="{{createTool.isServerOwned}}" onChange="{{createTool.onOwnerServer}}"/>Belongs to a server</label>
+            <label class="seg-opt"><input type="radio" name="toolowner" checked="{{createTool.isStandalone}}" onChange="{{createTool.onOwnerStandalone}}"/>Standalone tool</label>
+          </div>
+        </div>
+        <sc-if value="{{createTool.isServerOwned}}" hint-placeholder-val="{{true}}">
+          <div class="field">
+            <label>Server</label>
+            <select class="input" value="{{createTool.serverId}}" onChange="{{createTool.onServerId}}">
+              <sc-for list="{{createTool.serverOptions}}" as="o" hint-placeholder-count="3">
+                <option value="{{o.value}}">{{o.label}}</option>
+              </sc-for>
+            </select>
+          </div>
+        </sc-if>
+        <sc-if value="{{createTool.isStandalone}}" hint-placeholder-val="{{false}}">
+          <div class="field">
+            <label>Credential</label>
+            <select class="input" value="{{createTool.credentialChoice}}" onChange="{{createTool.onCredentialChoice}}">
+              <option value="__new">+ New credential</option>
+              <sc-for list="{{createTool.credentialOptions}}" as="co" hint-placeholder-count="2">
+                <option value="{{co.value}}">{{co.label}}</option>
+              </sc-for>
+            </select>
+          </div>
+          <sc-if value="{{createTool.isNewCredential}}" hint-placeholder-val="{{true}}">
+            <div class="field">
+              <label>Credential name</label>
+              <input class="input" placeholder="Partner Shipping API" value="{{createTool.credentialName}}" onChange="{{createTool.onCredentialName}}"/>
+            </div>
+            <div class="field">
+              <label>Base URL</label>
+              <input class="input" placeholder="https://api.partner.com" value="{{createTool.baseUrl}}" onChange="{{createTool.onBaseUrl}}"/>
+            </div>
+            <div class="field">
+              <label>Authentication method</label>
+              <select class="input" value="{{createTool.authMethod}}" onChange="{{createTool.onAuthMethod}}">
+                <option value="api_key">API key</option>
+                <option value="oauth_cc">OAuth (client credentials)</option>
+                <option value="mtls">mTLS</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+          </sc-if>
+        </sc-if>
+        <div class="field">
+          <label>Tool name</label>
+          <input class="input" placeholder="Get shipment status" value="{{createTool.name}}" onChange="{{createTool.onName}}"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="field" style="width:110px">
+            <label>Method</label>
+            <select class="input" value="{{createTool.method}}" onChange="{{createTool.onMethod}}">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1">
+            <label>Endpoint path</label>
+            <input class="input" placeholder="/v1/shipments/{id}" value="{{createTool.path}}" onChange="{{createTool.onPath}}"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <input class="input" placeholder="What this tool does, for reviewers" value="{{createTool.description}}" onChange="{{createTool.onDescription}}"/>
+        </div>
+        <div class="field">
+          <label>Sensitivity</label>
+          <select class="input" value="{{createTool.risk}}" onChange="{{createTool.onRisk}}">
+            <option value="read">Read</option>
+            <option value="write">Write</option>
+            <option value="delete">Delete</option>
+          </select>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{onCloseCreateTool}}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{createTool.onCreate}}">Create tool</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{roleDrawerOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);z-index:40;display:flex;justify-content:flex-end" onClick="{{selRole.closeDrawer}}">
+      <div style="width:min(560px,100%);background:var(--color-bg);height:100%;overflow-y:auto;padding:28px;box-shadow:var(--shadow-lg)" onClick="{{stopClick}}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <input class="input" style="font-family:var(--font-heading);font-size:18px;flex:1;margin-right:10px" value="{{selRole.name}}" onChange="{{selRole.onNameChange}}" disabled="{{selRole.system}}"/>
+          <button class="btn btn-icon btn-ghost" onClick="{{selRole.closeDrawer}}">✕</button>
+        </div>
+        <span class="tag" style="background:{{selRole.typeBg}};color:{{selRole.typeColor}}">{{selRole.typeLabel}}</span>
+        <textarea class="input" style="margin-top:10px" value="{{selRole.description}}" onChange="{{selRole.onDescChange}}" disabled="{{selRole.system}}"></textarea>
+        <div class="text-muted" style="font-size:12px;margin:6px 0 4px">Assigned to {{selRole.connCount}} connection(s){{selRole.systemNote}}</div>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">Assigned groups (SSO teams)</div>
+        <p class="text-muted" style="font-size:11px;margin:0 0 8px">Every connection whose team matches an assigned group inherits this role automatically — no per-connection setup needed.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <sc-for list="{{selRole.groupChips}}" as="gc" hint-placeholder-count="2">
+            <span class="tag tag-accent-2" style="display:inline-flex;align-items:center;gap:6px">{{gc.name}} <button onClick="{{gc.onRemove}}" style="background:none;border:none;cursor:pointer;color:inherit;padding:0;font-size:12px">✕</button></span>
+          </sc-for>
+        </div>
+        <select class="input" style="max-width:260px" value="__add" onChange="{{selRole.onAddGroup}}">
+          <option value="__add">+ Assign to a group…</option>
+          <sc-for list="{{selRole.availableGroupsToAdd}}" as="ag" hint-placeholder-count="2">
+            <option value="{{ag}}">{{ag}}</option>
+          </sc-for>
+        </select>
+
+        <div class="hr"></div>
+        <div class="card-kicker" style="margin-bottom:6px">{{selRole.toolPickerLabel}}</div>
+        <sc-for list="{{selRole.toolGroups}}" as="grp" hint-placeholder-count="3">
+          <div style="margin-bottom:12px">
+            <div style="font-family:var(--font-heading);font-size:13px;margin-bottom:4px">{{grp.serverName}}</div>
+            <sc-for list="{{grp.tools}}" as="t" hint-placeholder-count="3">
+              <label style="display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:var(--radius-sm);cursor:pointer">
+                <input type="checkbox" checked="{{t.checked}}" onChange="{{t.onToggle}}" disabled="{{selRole.system}}"/>
+                <span style="flex:1;font-size:13px">{{t.toolName}}</span>
+                <span class="tag" style="background:{{t.riskBg}};color:{{t.riskColor}}">{{t.riskTag}}</span>
+              </label>
+            </sc-for>
+          </div>
+        </sc-for>
+
+        <sc-if value="{{selRole.canDelete}}" hint-placeholder-val="{{false}}">
+          <div style="margin-top:8px"><button class="btn btn-secondary" onClick="{{selRole.onDelete}}">Delete role</button></div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{confirmDialog}}" hint-placeholder-val="{{false}}">
+    <div class="dialog-backdrop" style="z-index:60">
+      <div class="dialog">
+        <div class="dialog-title">{{confirmDialog.title}}</div>
+        <div class="dialog-body">{{confirmDialog.body}}</div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{confirmDialog.onCancel}}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{confirmDialog.onConfirm}}">{{confirmDialog.confirmLabel}}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{connectModalOpen}}" hint-placeholder-val="{{false}}">
+    <div class="dialog-backdrop" style="z-index:60">
+      <div class="dialog" style="width:min(520px,100%)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dialog-title">Connect a server</div>
+          <button class="btn btn-icon btn-ghost" onClick="{{onCloseConnect}}">✕</button>
+        </div>
+
+        <sc-if value="{{connect.step0}}" hint-placeholder-val="{{true}}">
+          <div class="dialog-body">Choose a server to connect through the mesh.</div>
+          <sc-for list="{{connect.choices}}" as="c" hint-placeholder-count="3">
+            <div onClick="{{c.onSelect}}" style="cursor:pointer;padding:12px 14px;border-radius:var(--radius-md);background:var(--color-surface);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-family:var(--font-heading);font-size:14px">{{c.name}}</div>
+                <div class="text-muted" style="font-size:11px">{{c.subtitle}}</div>
+              </div>
+              <span class="btn btn-ghost">Select →</span>
+            </div>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{connect.step1}}" hint-placeholder-val="{{false}}">
+          <div class="dialog-body">{{connect.step1Copy}}</div>
+          <sc-if value="{{connect.isOauth}}" hint-placeholder-val="{{true}}">
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:14px;margin-bottom:10px">
+              <div class="text-muted" style="font-size:12px;margin-bottom:8px">{{connect.selectedName}} will ask you to approve:</div>
+              <sc-for list="{{connect.scopes}}" as="s" hint-placeholder-count="3">
+                <div style="font-size:13px;padding:3px 0">• {{s.label}}</div>
+              </sc-for>
+            </div>
+            <button class="btn btn-primary btn-block" onClick="{{connect.onAuthorize}}">Authorize with {{connect.selectedName}}</button>
+          </sc-if>
+          <sc-if value="{{connect.isApi}}" hint-placeholder-val="{{false}}">
+            <div class="field">
+              <label>Base URL</label>
+              <input class="input" placeholder="https://api.internal.company.com" value="{{connect.baseUrl}}" onChange="{{connect.onBaseUrl}}"/>
+            </div>
+            <div class="field">
+              <label>Authentication method</label>
+              <div class="seg">
+                <label class="seg-opt"><input type="radio" name="authmethod" checked="{{connect.authIsKey}}" onChange="{{connect.onAuthMethodKey}}"/>API key</label>
+                <label class="seg-opt"><input type="radio" name="authmethod" checked="{{connect.authIsOauth}}" onChange="{{connect.onAuthMethodOauth}}"/>OAuth (client credentials)</label>
+                <label class="seg-opt"><input type="radio" name="authmethod" checked="{{connect.authIsMtls}}" onChange="{{connect.onAuthMethodMtls}}"/>mTLS</label>
+              </div>
+            </div>
+            <sc-if value="{{connect.authIsKey}}" hint-placeholder-val="{{true}}">
+              <div class="field">
+                <label>API key</label>
+                <input class="input" type="password" placeholder="sk-••••••••" value="{{connect.apiKey}}" onChange="{{connect.onApiKey}}"/>
+              </div>
+            </sc-if>
+            <sc-if value="{{connect.authIsOauth}}" hint-placeholder-val="{{false}}">
+              <div class="field">
+                <label>Client ID</label>
+                <input class="input" placeholder="mesh-internal-billing" value="{{connect.oauthClientId}}" onChange="{{connect.onOauthClientId}}"/>
+              </div>
+              <div class="field">
+                <label>Client secret</label>
+                <input class="input" type="password" placeholder="••••••••" value="{{connect.oauthClientSecret}}" onChange="{{connect.onOauthClientSecret}}"/>
+              </div>
+            </sc-if>
+            <sc-if value="{{connect.authIsMtls}}" hint-placeholder-val="{{false}}">
+              <div class="field">
+                <label>Client certificate</label>
+                <input class="input" placeholder="Paste PEM certificate or upload…" value="{{connect.mtlsCert}}" onChange="{{connect.onMtlsCert}}"/>
+              </div>
+            </sc-if>
+            <div class="field">
+              <label>OpenAPI / Swagger spec URL</label>
+              <input class="input" placeholder="https://api.internal.company.com/openapi.json" value="{{connect.openApiUrl}}" onChange="{{connect.onOpenApiUrl}}"/>
+            </div>
+            <button class="btn btn-primary btn-block" onClick="{{connect.onDiscover}}">Import endpoints from spec</button>
+            <p class="text-muted" style="font-size:12px;margin:8px 0 0">No spec available? You can still connect and add tools one at a time by hand in the next step.</p>
+          </sc-if>
+          <button class="btn btn-ghost" style="margin-top:8px" onClick="{{connect.onBack}}">← Back</button>
+        </sc-if>
+
+        <sc-if value="{{connect.step2}}" hint-placeholder-val="{{false}}">
+          <div class="dialog-body">{{connect.selectedName}} exposes these tools. Choose which ones the mesh should actually make available — you can allow-list a narrower set than what was authorized.</div>
+          <sc-for list="{{connect.foundTools}}" as="t" hint-placeholder-count="3">
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0">
+              <input type="checkbox" checked="{{t.checked}}" onChange="{{t.onToggle}}"/>
+              <div style="flex:1">
+                <div style="font-size:13px">{{t.name}}</div>
+                <sc-if value="{{t.endpointLabel}}" hint-placeholder-val="{{false}}">
+                  <div class="text-muted" style="font-size:11px;font-family:monospace">{{t.endpointLabel}}</div>
+                </sc-if>
+              </div>
+              <span class="tag" style="background:{{t.riskBg}};color:{{t.riskColor}}">{{t.riskTag}}</span>
+            </label>
+          </sc-for>
+
+          <sc-if value="{{connect.isApi}}" hint-placeholder-val="{{false}}">
+            <div class="hr"></div>
+            <sc-if value="{{connect.manualOpen}}" hint-placeholder-val="{{false}}">
+              <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:12px;margin-bottom:8px">
+                <div class="field">
+                  <label>Tool name</label>
+                  <input class="input" placeholder="Get shipment status" value="{{connect.manualName}}" onChange="{{connect.onManualName}}"/>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <div class="field" style="width:110px">
+                    <label>Method</label>
+                    <select class="input" value="{{connect.manualMethod}}" onChange="{{connect.onManualMethod}}">
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="DELETE">DELETE</option>
+                    </select>
+                  </div>
+                  <div class="field" style="flex:1">
+                    <label>Endpoint path</label>
+                    <input class="input" placeholder="/v1/shipments/{id}" value="{{connect.manualPath}}" onChange="{{connect.onManualPath}}"/>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Description</label>
+                  <input class="input" placeholder="What this tool does, for reviewers" value="{{connect.manualDescription}}" onChange="{{connect.onManualDescription}}"/>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+                  <button class="btn btn-ghost" onClick="{{connect.onManualCancel}}">Cancel</button>
+                  <button class="btn btn-primary" onClick="{{connect.onManualAdd}}">Add tool</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{connect.showManualOpenBtn}}" hint-placeholder-val="{{true}}">
+              <button class="btn btn-secondary btn-block" onClick="{{connect.onManualOpen}}">+ Add a tool manually</button>
+            </sc-if>
+          </sc-if>
+
+          <div class="dialog-actions">
+            <button class="btn btn-secondary" onClick="{{connect.onBack}}">← Back</button>
+            <button class="btn btn-primary" onClick="{{connect.onFinish}}">Connect &amp; expose selected</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;density&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;comfortable&quot;, &quot;options&quot;: [&quot;comfortable&quot;, &quot;compact&quot;], &quot;tsType&quot;: &quot;'comfortable' | 'compact'&quot;, &quot;section&quot;: &quot;Layout&quot; },
+  &quot;defaultPersona&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;admin&quot;, &quot;options&quot;: [&quot;admin&quot;, &quot;employee&quot;], &quot;tsType&quot;: &quot;'admin' | 'employee'&quot;, &quot;section&quot;: &quot;Behavior&quot; },
+  &quot;showRiskBadges&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot; }
+}">
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+
+    const tools = [
+      { id:'drive-search', serverId:'srv-drive', name:'Search files', risk:'read', cls:'none', enabled:true, shadow:false },
+      { id:'drive-read', serverId:'srv-drive', name:'Read file contents', risk:'read', cls:'none', enabled:true, shadow:false },
+      { id:'drive-create', serverId:'srv-drive', name:'Create file', risk:'write', cls:'none', enabled:true, shadow:false },
+      { id:'drive-share', serverId:'srv-drive', name:'Share file externally', risk:'write', cls:'none', enabled:true, shadow:false },
+      { id:'drive-delete', serverId:'srv-drive', name:'Delete file', risk:'delete', cls:'none', enabled:false, shadow:true },
+
+      { id:'slack-read', serverId:'srv-slack', name:'Read channel messages', risk:'read', cls:'none', enabled:true, shadow:false },
+      { id:'slack-post', serverId:'srv-slack', name:'Post message', risk:'write', cls:'none', enabled:true, shadow:false },
+      { id:'slack-search', serverId:'srv-slack', name:'Search messages', risk:'read', cls:'none', enabled:true, shadow:false },
+      { id:'slack-users', serverId:'srv-slack', name:'List workspace users', risk:'read', cls:'pii', enabled:true, shadow:false },
+      { id:'slack-upload', serverId:'srv-slack', name:'Upload file to channel', risk:'write', cls:'none', enabled:true, shadow:true },
+
+      { id:'github-read', serverId:'srv-github', name:'Read repository contents', risk:'read', cls:'none', enabled:false, shadow:false },
+      { id:'github-pr-create', serverId:'srv-github', name:'Open pull request', risk:'write', cls:'none', enabled:false, shadow:false },
+      { id:'github-pr-merge', serverId:'srv-github', name:'Merge pull request', risk:'write', cls:'none', enabled:false, shadow:false },
+
+      { id:'notion-read', serverId:'srv-notion', name:'Read page content', risk:'read', cls:'none', enabled:false, shadow:false },
+      { id:'notion-write', serverId:'srv-notion', name:'Edit page', risk:'write', cls:'none', enabled:false, shadow:false },
+
+      { id:'billing-get-invoice', serverId:'srv-billing', name:'Get invoice', risk:'read', cls:'financial', enabled:true, shadow:false },
+      { id:'billing-list-customers', serverId:'srv-billing', name:'List customers', risk:'read', cls:'pii', enabled:true, shadow:false },
+      { id:'billing-issue-refund', serverId:'srv-billing', name:'Issue refund', risk:'write', cls:'financial', enabled:true, shadow:true },
+    ];
+
+    const servers = [
+      { id:'srv-drive', name:'Google Drive', kind:'mcp', auth:'oauth', connected:true, scopes:['drive.readonly','drive.file'] },
+      { id:'srv-slack', name:'Slack', kind:'mcp', auth:'oauth', connected:true, scopes:['channels:read','chat:write'] },
+      { id:'srv-github', name:'GitHub', kind:'mcp', auth:'oauth', connected:false, scopes:[] },
+      { id:'srv-notion', name:'Notion', kind:'mcp', auth:'oauth', connected:false, scopes:[] },
+      { id:'srv-billing', name:'Internal Billing API', kind:'api', auth:'api_key', connected:true, scopes:['read','write'] },
+    ];
+
+    const roles = [
+      { id:'role-readonly-research', name:'Read-Only Research', type:'grant', system:false, lastModified:'Jul 3',
+        description:'Search and read across approved knowledge sources. No writes.',
+        grants:['drive-search','drive-read','slack-search','github-read'], denies:[] },
+      { id:'role-support-base', name:'Support Base', type:'grant', system:false, lastModified:'Jun 28',
+        description:'Baseline access for customer-support connections.',
+        grants:['slack-read','slack-post','billing-get-invoice'], denies:[] },
+      { id:'role-eng-assist', name:'Engineering Assistant', type:'grant', system:false, lastModified:'Jul 9',
+        description:'Read code, open PRs, reference design docs.',
+        grants:['github-read','github-pr-create','drive-read'], denies:[] },
+      { id:'role-finance-ops', name:'Finance Operations', type:'grant', system:false, lastModified:'Jul 1',
+        description:'Access to invoices, customer records, and refund issuance.',
+        grants:['billing-get-invoice','billing-list-customers','billing-issue-refund'], denies:[] },
+      { id:'role-no-external-write', name:'No External Write', type:'deny', system:true, lastModified:'Jun 12',
+        description:'Guardrail applied org-wide: blocks external-facing writes regardless of other roles.',
+        grants:[], denies:['drive-share','slack-upload','github-pr-merge'] },
+      { id:'role-full-admin', name:'Full Admin', type:'grant', system:true, lastModified:'Jun 12',
+        description:'Unrestricted tool access. Reserved for break-glass use.',
+        grants: tools.map(t=>t.id), denies:[] },
+    ];
+
+    // Clients: what actually holds credentials at the gateway.
+    // kind 'interactive' = a human authenticates via SSO through this app (many subjects can use one client).
+    // kind 'service' = a non-interactive credential owned by a team (no human subject per call).
+    const clients = [
+      { id:'client-cursor', name:'Cursor', kind:'interactive', vendor:'Anysphere' },
+      { id:'client-claude-code', name:'Claude Code', kind:'interactive', vendor:'Anthropic' },
+      { id:'client-support-copilot', name:'Support Copilot', kind:'service', vendor:'Internal', serviceOwner:'Dana K.' },
+      { id:'client-eng-assistant', name:'Eng Assistant Bot', kind:'service', vendor:'Internal', serviceOwner:'Priyanka R.' },
+      { id:'client-sales-research', name:'Sales Research Agent', kind:'service', vendor:'Internal', serviceOwner:'Marco T.' },
+      { id:'client-finance-analyst', name:'Finance Analyst Agent', kind:'service', vendor:'Internal', serviceOwner:'Wen L.' },
+      { id:'client-hr-onboarding', name:'HR Onboarding Bot', kind:'service', vendor:'Internal', serviceOwner:'Ife A.' },
+      { id:'client-marketing-content', name:'Marketing Content Agent', kind:'service', vendor:'Internal', serviceOwner:'Elle F.' },
+      { id:'client-legal-research', name:'Legal Research Agent', kind:'service', vendor:'Internal', serviceOwner:'Grace H.' },
+      { id:'client-data-analytics', name:'Data Analytics Agent', kind:'service', vendor:'Internal', serviceOwner:'Noor B.' },
+      { id:'client-exec-assistant', name:'Exec Assistant Bot', kind:'service', vendor:'Internal', serviceOwner:'Board Office' },
+      { id:'client-recruiting', name:'Recruiting Agent', kind:'service', vendor:'Internal', serviceOwner:'Kim S.' },
+      { id:'client-vendor-onboarding', name:'Vendor Onboarding Bot', kind:'service', vendor:'Internal', serviceOwner:'Priya S.' },
+      { id:'client-incident-response', name:'Incident Response Agent', kind:'service', vendor:'Internal', serviceOwner:'Security Team' },
+      { id:'client-customer-success', name:'Customer Success Bot', kind:'service', vendor:'Internal', serviceOwner:'Dana K.' },
+      { id:'client-vapi', name:'Vapi Voice Integration', kind:'service', vendor:'Vapi', serviceOwner:'Support Eng' },
+    ];
+
+    // Connections: the actual policy target = (client, subject). Service clients have subject: null.
+    const connections = [
+      { id:'conn-support-copilot', clientId:'client-support-copilot', subject:null, team:'Customer Success', status:'active', roleIds:['role-support-base','role-no-external-write'], overrides:[], riskFlag:false, lastActive:'12m ago' },
+      { id:'conn-eng-assistant', clientId:'client-eng-assistant', subject:null, team:'Platform Eng', status:'active', roleIds:['role-eng-assist','role-no-external-write'], overrides:[], riskFlag:false, lastActive:'3m ago' },
+      { id:'conn-sales-research', clientId:'client-sales-research', subject:null, team:'Sales', status:'active', roleIds:['role-readonly-research'], overrides:[{toolId:'slack-post', type:'allow'}], riskFlag:false, lastActive:'1h ago' },
+      { id:'conn-finance-analyst', clientId:'client-finance-analyst', subject:null, team:'Finance', status:'active', roleIds:['role-finance-ops','role-no-external-write'], overrides:[], riskFlag:true, lastActive:'40m ago' },
+      { id:'conn-hr-onboarding', clientId:'client-hr-onboarding', subject:null, team:'People Ops', status:'quarantined', roleIds:['role-readonly-research'], overrides:[], riskFlag:false, lastActive:'2h ago', reason:'Quarantined: unusual Drive access outside the onboarding folder set.' },
+      { id:'conn-marketing-content', clientId:'client-marketing-content', subject:null, team:'Marketing', status:'disabled', roleIds:['role-readonly-research','role-support-base'], overrides:[], riskFlag:false, lastActive:'1d ago', reason:'Disabled: requested Slack file uploads beyond its mandate.' },
+      { id:'conn-legal-research', clientId:'client-legal-research', subject:null, team:'Legal', status:'active', roleIds:['role-readonly-research'], overrides:[], riskFlag:false, lastActive:'5h ago' },
+      { id:'conn-data-analytics', clientId:'client-data-analytics', subject:null, team:'Data', status:'active', roleIds:['role-readonly-research','role-eng-assist'], overrides:[], riskFlag:false, lastActive:'8m ago' },
+      { id:'conn-exec-assistant', clientId:'client-exec-assistant', subject:null, team:'Executive Office', status:'active', roleIds:['role-readonly-research','role-support-base'], overrides:[], riskFlag:false, lastActive:'2h ago' },
+      { id:'conn-recruiting', clientId:'client-recruiting', subject:null, team:'People Ops', status:'active', roleIds:['role-readonly-research'], overrides:[], riskFlag:false, lastActive:'6h ago' },
+      { id:'conn-vendor-onboarding', clientId:'client-vendor-onboarding', subject:null, team:'Procurement', status:'active', roleIds:['role-support-base'], overrides:[], riskFlag:false, lastActive:'4h ago' },
+      { id:'conn-incident-response', clientId:'client-incident-response', subject:null, team:'Security', status:'active', roleIds:['role-eng-assist','role-finance-ops'], overrides:[], riskFlag:true, lastActive:'1m ago' },
+      { id:'conn-customer-success', clientId:'client-customer-success', subject:null, team:'Customer Success', status:'active', roleIds:['role-support-base'], overrides:[], riskFlag:false, lastActive:'18m ago' },
+      { id:'conn-vapi-voice', clientId:'client-vapi', subject:null, team:'Support Eng', status:'active', roleIds:['role-support-base'], overrides:[], riskFlag:true, lastActive:'9m ago' },
+
+      { id:'conn-you-cursor', clientId:'client-cursor', subject:'You', team:'Sales', status:'active', roleIds:['role-readonly-research'], overrides:[], riskFlag:false, lastActive:'3m ago' },
+      { id:'conn-you-claudecode', clientId:'client-claude-code', subject:'You', team:'Customer Success', status:'active', roleIds:['role-support-base'], overrides:[], riskFlag:false, lastActive:'1h ago' },
+      { id:'conn-priyanka-cursor', clientId:'client-cursor', subject:'Priyanka R.', team:'Platform Eng', status:'active', roleIds:['role-eng-assist','role-no-external-write'], overrides:[], riskFlag:false, lastActive:'22m ago' },
+      { id:'conn-noor-claudecode', clientId:'client-claude-code', subject:'Noor B.', team:'Data', status:'active', roleIds:['role-readonly-research','role-eng-assist'], overrides:[], riskFlag:false, lastActive:'14m ago' },
+      { id:'conn-sam-claudecode', clientId:'client-claude-code', subject:'Sam O.', team:'IT', status:'active', roleIds:['role-eng-assist','role-no-external-write'], overrides:[], riskFlag:false, lastActive:'26m ago' },
+    ];
+
+    const auditLog = [
+      { id:1, ts:'Jul 11, 9:42 AM', connId:'conn-incident-response', toolId:'github-read', outcome:'allow' },
+      { id:2, ts:'Jul 11, 9:40 AM', connId:'conn-eng-assistant', toolId:'github-pr-create', outcome:'allow' },
+      { id:3, ts:'Jul 11, 9:35 AM', connId:'conn-finance-analyst', toolId:'billing-issue-refund', outcome:'allow' },
+      { id:4, ts:'Jul 11, 9:20 AM', connId:'conn-support-copilot', toolId:'slack-post', outcome:'allow' },
+      { id:5, ts:'Jul 11, 9:12 AM', connId:'conn-marketing-content', toolId:'slack-upload', outcome:'deny' },
+      { id:6, ts:'Jul 11, 9:05 AM', connId:'conn-you-cursor', toolId:'drive-search', outcome:'allow' },
+      { id:7, ts:'Jul 11, 8:58 AM', connId:'conn-hr-onboarding', toolId:'drive-share', outcome:'deny' },
+      { id:8, ts:'Jul 11, 8:50 AM', connId:'conn-sales-research', toolId:'drive-read', outcome:'allow' },
+      { id:9, ts:'Jul 11, 8:44 AM', connId:'conn-data-analytics', toolId:'github-read', outcome:'allow', deliveryStatus:'timeout' },
+      { id:10, ts:'Jul 11, 8:30 AM', connId:'conn-sam-claudecode', toolId:'drive-read', outcome:'allow' },
+      { id:11, ts:'Jul 11, 8:22 AM', connId:'conn-you-claudecode', toolId:'billing-get-invoice', outcome:'allow' },
+      { id:12, ts:'Jul 11, 8:15 AM', connId:'conn-customer-success', toolId:'slack-read', outcome:'allow' },
+      { id:13, ts:'Jul 11, 8:02 AM', connId:'conn-exec-assistant', toolId:'slack-post', outcome:'allow' },
+      { id:14, ts:'Jul 11, 7:55 AM', connId:'conn-legal-research', toolId:'drive-search', outcome:'allow' },
+      { id:15, ts:'Jul 11, 7:40 AM', connId:'conn-recruiting', toolId:'slack-search', outcome:'deny' },
+      { id:16, ts:'Jul 10, 6:12 PM', connId:'conn-finance-analyst', toolId:'billing-list-customers', outcome:'allow' },
+      { id:17, ts:'Jul 10, 5:58 PM', connId:'conn-vendor-onboarding', toolId:'slack-post', outcome:'allow' },
+      { id:18, ts:'Jul 10, 5:40 PM', connId:'conn-eng-assistant', toolId:'github-pr-merge', outcome:'deny' },
+      { id:19, ts:'Jul 10, 5:22 PM', connId:'conn-incident-response', toolId:'billing-get-invoice', outcome:'allow' },
+      { id:20, ts:'Jul 10, 5:05 PM', connId:'conn-support-copilot', toolId:'billing-get-invoice', outcome:'allow' },
+      { id:21, ts:'Jul 10, 4:48 PM', connId:'conn-data-analytics', toolId:'drive-read', outcome:'allow', deliveryStatus:'upstream_error' },
+      { id:22, ts:'Jul 10, 4:30 PM', connId:'conn-marketing-content', toolId:'drive-search', outcome:'allow' },
+      { id:23, ts:'Jul 10, 4:15 PM', connId:'conn-you-cursor', toolId:'github-read', outcome:'deny' },
+      { id:24, ts:'Jul 10, 3:58 PM', connId:'conn-sales-research', toolId:'slack-post', outcome:'allow' },
+      { id:25, ts:'Jul 10, 3:40 PM', connId:'conn-priyanka-cursor', toolId:'github-pr-create', outcome:'allow' },
+      { id:26, ts:'Jul 10, 3:22 PM', connId:'conn-hr-onboarding', toolId:'drive-read', outcome:'allow' },
+      { id:27, ts:'Jul 10, 3:05 PM', connId:'conn-customer-success', toolId:'slack-post', outcome:'allow' },
+      { id:28, ts:'Jul 10, 2:48 PM', connId:'conn-exec-assistant', toolId:'drive-search', outcome:'allow' },
+      { id:29, ts:'Jul 10, 2:30 PM', connId:'conn-recruiting', toolId:'drive-read', outcome:'allow' },
+      { id:30, ts:'Jul 10, 2:12 PM', connId:'conn-legal-research', toolId:'github-read', outcome:'deny' },
+      { id:31, ts:'Jul 9, 11:40 AM', connId:'conn-finance-analyst', toolId:'billing-issue-refund', outcome:'allow' },
+      { id:32, ts:'Jul 9, 11:20 AM', connId:'conn-you-claudecode', toolId:'slack-read', outcome:'allow' },
+      { id:33, ts:'Jul 9, 10:58 AM', connId:'conn-vendor-onboarding', toolId:'billing-get-invoice', outcome:'allow', deliveryStatus:'rate_limited' },
+      { id:34, ts:'Jul 9, 10:40 AM', connId:'conn-noor-claudecode', toolId:'drive-read', outcome:'allow' },
+    ];
+
+    // Credentials: the actual (base URL + auth) unit tools reference. Servers each get one implicitly.
+    // Standalone tools reference a credential explicitly and can share one across several tools.
+    const credentials = servers.map(srv => ({ id: 'cred-' + srv.id, name: srv.name, kind: 'server', serverId: srv.id, authMethod: srv.auth }));
+
+    this.state = {
+      isAuthenticated: false,
+      loginMode: 'signin',
+      loginEmail: '', loginPassword: '', loginOrgName: '', loginError: null,
+      persona: (props && props.defaultPersona) || 'admin',
+      tab: 'dashboard',
+      tools, servers, roles, clients, connections, auditLog, credentials,
+      selectedConnId: null,
+      selectedRoleId: 'role-readonly-research',
+      auditFilters: { connId:'all', serverId:'all', outcome:'all', q:'' },
+      expandedAuditId: null,
+      roleFilters: { q:'', type:'all' },
+      roleDrawerOpen: false,
+      roleGroupAssignments: {},
+      toolFilters: { q:'', serverId:'all', risk:'all', status:'all' },
+      selectedConnIds: [],
+      connFilters: { q:'', team:'all', status:'all', kind:'all' },
+      dashChartFilters: { metric:'calls', serverId:'all', team:'all' },
+      employeeConnId: 'conn-you-cursor',
+      requestModalOpen: false,
+      requestToolId: '',
+      requestReason: '',
+      confirmDialog: null,
+      connectModalOpen: false,
+      connectStep: 0,
+      connectSelected: null,
+      connectScopeSelections: {},
+      connectFoundTools: [],
+      connectBaseUrl: '',
+      connectApiKey: '',
+      connectAuthMethod: 'api_key',
+      connectOauthClientId: '',
+      connectOauthClientSecret: '',
+      connectMtlsCert: '',
+      connectOpenApiUrl: '',
+      connectManualOpen: false,
+      connectManualName: '',
+      connectManualMethod: 'GET',
+      connectManualPath: '',
+      connectManualDescription: '',
+      createToolModalOpen: false,
+      createToolOwner: 'server',
+      createToolServerId: '',
+      createToolCredentialChoice: '__new',
+      createToolCredentialName: '',
+      createToolBaseUrl: '',
+      createToolAuthMethod: 'api_key',
+      createToolName: '',
+      createToolMethod: 'GET',
+      createToolPath: '',
+      createToolDescription: '',
+      createToolRisk: 'read',
+      otelModalOpen: false,
+      otelConfigured: false,
+      otelEndpoint: '',
+      otelProtocol: 'http',
+      otelAuthMethod: 'none',
+      otelAuthValue: '',
+      otelExportAllowed: true,
+      otelExportDenied: true,
+      otelExportUpstreamErrors: true,
+      otelExportPolicyChanges: true,
+      orgName: 'Acme Corp',
+      ssoStatus: 'not_configured',
+      ssoProvider: 'okta',
+      ssoMetadataUrl: '',
+      scimEnabled: true,
+      admins: [
+        { id: 'admin-1', name: 'You', email: 'you@acmecorp.com', role: 'full', team: null },
+        { id: 'admin-2', name: 'Grace H.', email: 'grace.h@acmecorp.com', role: 'delegated', team: 'Legal' },
+      ],
+      inviteModalOpen: false,
+      inviteName: '', inviteEmail: '', inviteRole: 'full', inviteTeam: '',
+      slackWebhook: '', alertEmail: '',
+      setupChecklistDismissed: false,
+      toast: null,
+    };
+  }
+
+  tool(id) { return this.state.tools.find(t => t.id === id); }
+  role(id) { return this.state.roles.find(r => r.id === id); }
+  server(id) { return this.state.servers.find(s => s.id === id); }
+  client(id) { return this.state.clients.find(c => c.id === id); }
+  conn(id) { return this.state.connections.find(c => c.id === id); }
+  credential(id) { return this.state.credentials.find(c => c.id === id); }
+
+  subjectLabelFor(c) {
+    const cl = this.client(c.clientId);
+    if (c.subject) return c.subject === 'You' ? 'You (SSO)' : c.subject + ' (SSO)';
+    return cl && cl.serviceOwner ? 'Service credential · owned by ' + cl.serviceOwner : 'Service credential';
+  }
+
+  riskColors(risk) {
+    if (risk === 'delete') return { bg:'var(--color-accent-200)', color:'var(--color-accent-800)' };
+    if (risk === 'write') return { bg:'var(--color-accent-100)', color:'var(--color-accent-700)' };
+    return { bg:'var(--color-neutral-100)', color:'var(--color-neutral-700)' };
+  }
+  clsColors(cls) {
+    if (cls === 'financial') return { bg:'var(--color-accent-100)', color:'var(--color-accent-800)', label:'Financial' };
+    if (cls === 'pii') return { bg:'var(--color-accent-200)', color:'var(--color-accent-900)', label:'PII' };
+    return { bg:'var(--color-neutral-100)', color:'var(--color-neutral-700)', label:'Standard' };
+  }
+  statusColors(status) {
+    if (status === 'active') return { bg:'var(--color-accent-2-100)', color:'var(--color-accent-2-800)', label:'Active' };
+    if (status === 'quarantined') return { bg:'var(--color-accent-200)', color:'var(--color-accent-800)', label:'Quarantined' };
+    return { bg:'var(--color-neutral-200)', color:'var(--color-neutral-700)', label:'Disabled' };
+  }
+
+  effectiveRoleIdsFor(connObj) {
+    const fromGroup = Object.keys(this.state.roleGroupAssignments).filter(rid => (this.state.roleGroupAssignments[rid] || []).includes(connObj.team));
+    return [...new Set([...connObj.roleIds, ...fromGroup])];
+  }
+
+  effectiveFor(connObj) {
+    const allow = new Set();
+    const source = {};
+    const roleIds = this.effectiveRoleIdsFor(connObj);
+    roleIds.forEach(rid => {
+      const r = this.role(rid);
+      if (r && r.type === 'grant') r.grants.forEach(tid => { allow.add(tid); if (!source[tid]) source[tid] = r.name + (connObj.roleIds.includes(rid) ? '' : ' (via group)'); });
+    });
+    roleIds.forEach(rid => {
+      const r = this.role(rid);
+      if (r && r.type === 'deny') r.denies.forEach(tid => { if (allow.has(tid)) { allow.delete(tid); source[tid] = 'Blocked by ' + r.name; } });
+    });
+    connObj.overrides.forEach(o => {
+      if (o.type === 'allow') { allow.add(o.toolId); source[o.toolId] = 'Manual override: allow'; }
+      if (o.type === 'deny') { allow.delete(o.toolId); source[o.toolId] = 'Manual override: deny'; }
+    });
+    return { allow, source };
+  }
+
+  isToolLive(t) {
+    if (!t.serverId) return t.enabled;
+    const srv = this.server(t.serverId);
+    return !!(srv && srv.connected) && t.enabled;
+  }
+
+  callDetailsFor(entry, tool) {
+    const argSamples = {
+      'drive-search': { query: 'Q3 renewal terms', folder: 'Shared/Sales' },
+      'drive-read': { fileId: 'file_8a2f...', fileName: 'Renewal-Terms-Q3.docx' },
+      'drive-create': { fileName: 'Meeting-Notes.docx', folder: 'Shared/Sales' },
+      'drive-share': { fileId: 'file_8a2f...', shareWith: 'external:vendor@partnerco.com' },
+      'drive-delete': { fileId: 'file_19c0...' },
+      'slack-read': { channel: '#customer-escalations', limit: 50 },
+      'slack-post': { channel: '#support-eng', text: '[redacted message body]' },
+      'slack-search': { query: 'refund policy' },
+      'slack-users': { workspace: 'acme-corp' },
+      'slack-upload': { channel: '#eng-releases', fileName: 'release-notes.pdf' },
+      'github-read': { repo: 'acme/platform', path: 'src/billing/refunds.ts' },
+      'github-pr-create': { repo: 'acme/platform', branch: 'fix/refund-rounding' },
+      'github-pr-merge': { repo: 'acme/platform', pr: 482 },
+      'billing-get-invoice': { invoiceId: 'inv_3391', customerId: 'cust_7710' },
+      'billing-list-customers': { region: 'NA', limit: 100 },
+      'billing-issue-refund': { invoiceId: 'inv_3391', amount: '$142.00', reason: 'duplicate charge' },
+    };
+    const args = argSamples[tool ? tool.id : ''] || { param: 'value' };
+    const ok = entry.outcome === 'allow';
+    const ds = entry.deliveryStatus || (ok ? 'success' : null);
+    let responseSummary;
+    if (!ok) {
+      responseSummary = 'HTTP 403 · blocked by mesh policy before reaching ' + (tool ? tool.name.split(' ')[0] : 'the tool');
+    } else if (ds === 'upstream_error') {
+      responseSummary = 'HTTP 503 · ' + (tool ? tool.name.split(' ')[0] : 'the upstream server') + ' returned a server error. Mesh permitted the call; the failure happened downstream.';
+    } else if (ds === 'timeout') {
+      responseSummary = 'Timed out waiting on the upstream server (10s). Mesh permitted the call; no response was returned.';
+    } else if (ds === 'rate_limited') {
+      responseSummary = 'HTTP 429 · rate-limited by the upstream server. Mesh permitted the call; retry backed off by the client.';
+    } else {
+      responseSummary = tool && tool.risk === 'write' ? 'HTTP 200 · operation completed' : 'HTTP 200 · ' + (2 + (entry.id % 8)) + ' record(s) returned';
+    }
+    const decisionTrail = ok
+      ? 'Allowed by mesh policy — granted by an assigned role, no denying guardrail matched.' + (ds && ds !== 'success' ? ' The policy decision was a pass; what failed was the downstream server itself, not the mesh.' : '')
+      : 'Denied — no active grant covered this tool, or an explicit deny guardrail matched. Blocked before the call reached the underlying server.';
+    return {
+      requestId: 'req_' + entry.id.toString(36) + Math.abs(entry.id * 7919).toString(36).slice(0,6),
+      transport: entry.id % 3 === 0 ? 'HTTP (remote MCP)' : 'stdio (local subprocess)',
+      source: entry.id % 3 === 0 ? '10.20.' + (entry.id % 255) + '.' + ((entry.id * 3) % 255) + ' (corp VPN)' : 'local process — no network hop',
+      latency: (80 + (entry.id * 37) % 900) + ' ms',
+      argsJson: JSON.stringify(args, null, 2),
+      responseSummary,
+      decisionTrail,
+    };
+  }
+
+  setOverride(connId, toolId, type) {
+    this.setState(s => ({
+      connections: s.connections.map(c => {
+        if (c.id !== connId) return c;
+        const overrides = c.overrides.filter(o => o.toolId !== toolId);
+        if (type) overrides.push({ toolId, type });
+        return { ...c, overrides };
+      })
+    }));
+  }
+
+  setConnStatus(connId, status, reason) {
+    this.setState(s => ({
+      connections: s.connections.map(c => c.id === connId ? { ...c, status, reason: reason || null } : c),
+      confirmDialog: null,
+    }));
+  }
+
+  renderVals() {
+    const s = this.state;
+    const isAdmin = s.persona === 'admin';
+    const showRisk = this.props.showRiskBadges ?? true;
+    const compact = (this.props.density ?? 'comfortable') === 'compact';
+    const rootVars = compact
+      ? '--mesh-th-pad-v: 7px; --mesh-td-pad-v: 8px; --mesh-card-pad: 13.2px;'
+      : '--mesh-th-pad-v: 12px; --mesh-td-pad-v: 16px; --mesh-card-pad: 22px;';
+
+    const tabBtnStyle = (active) => `font-family:var(--font-heading);font-size:13px;border:none;background:transparent;cursor:pointer;padding:8px 14px;border-radius:999px;color:${active ? 'var(--color-bg)' : 'var(--color-text)'};background:${active ? 'var(--color-accent)' : 'transparent'}`;
+
+    // ---------- Connections tab (filter + bulk selection) ----------
+    const cq = s.connFilters.q.toLowerCase();
+    const filteredConns = s.connections.filter(c => {
+      const cl = this.client(c.clientId);
+      if (s.connFilters.team !== 'all' && c.team !== s.connFilters.team) return false;
+      if (s.connFilters.status !== 'all' && c.status !== s.connFilters.status) return false;
+      if (s.connFilters.kind !== 'all' && (!cl || cl.kind !== s.connFilters.kind)) return false;
+      if (cq) {
+        const hay = ((cl ? cl.name : '') + ' ' + this.subjectLabelFor(c)).toLowerCase();
+        if (!hay.includes(cq)) return false;
+      }
+      return true;
+    });
+    const connTeamOptions = [{ value: 'all', label: 'All teams' }, ...[...new Set(s.connections.map(c => c.team))].map(team => ({ value: team, label: team }))];
+
+    const selectedSet = new Set(s.selectedConnIds);
+    const toggleSelect = (id) => this.setState(st2 => {
+      const set = new Set(st2.selectedConnIds);
+      if (set.has(id)) set.delete(id); else set.add(id);
+      return { selectedConnIds: [...set] };
+    });
+    const filteredIds = filteredConns.map(c => c.id);
+    const bulk = {
+      active: selectedSet.size > 0,
+      countLabel: selectedSet.size + ' selected',
+      allChecked: filteredIds.length > 0 && filteredIds.every(id => selectedSet.has(id)),
+      onToggleAll: () => this.setState(st2 => {
+        const currentlyAll = filteredIds.length > 0 && filteredIds.every(id => new Set(st2.selectedConnIds).has(id));
+        return { selectedConnIds: currentlyAll ? st2.selectedConnIds.filter(id => !filteredIds.includes(id)) : [...new Set([...st2.selectedConnIds, ...filteredIds])] };
+      }),
+      onClear: () => this.setState({ selectedConnIds: [] }),
+      roleOptions: s.roles.map(r => ({ id: r.id, name: r.name })),
+      onQuarantine: () => this.setState(st2 => ({ connections: st2.connections.map(c => selectedSet.has(c.id) ? { ...c, status: 'quarantined', reason: 'Bulk-quarantined for review.' } : c), toast: selectedSet.size + ' connection(s) quarantined.', selectedConnIds: [] })),
+      onDisable: () => this.setState(st2 => ({ connections: st2.connections.map(c => selectedSet.has(c.id) ? { ...c, status: 'disabled', reason: 'Bulk-disabled by IT & Security.' } : c), toast: selectedSet.size + ' connection(s) disabled.', selectedConnIds: [] })),
+      onEnable: () => this.setState(st2 => ({ connections: st2.connections.map(c => selectedSet.has(c.id) ? { ...c, status: 'active', reason: null } : c), toast: selectedSet.size + ' connection(s) re-enabled.', selectedConnIds: [] })),
+      onAssignRole: (e) => {
+        const rid = e.target.value; if (rid === '__assign') return;
+        this.setState(st2 => ({ connections: st2.connections.map(c => selectedSet.has(c.id) && !c.roleIds.includes(rid) ? { ...c, roleIds: [...c.roleIds, rid] } : c), toast: 'Role assigned to ' + selectedSet.size + ' connection(s).', selectedConnIds: [] }));
+      },
+    };
+
+    const connRows = filteredConns.map(c => {
+      const cl = this.client(c.clientId);
+      const st = this.statusColors(c.status);
+      const roleNames = this.effectiveRoleIdsFor(c).map(rid => { const r = this.role(rid); return r ? r.name : ''; }).filter(Boolean).join(', ');
+      return {
+        id: c.id, clientName: cl ? cl.name : c.clientId, team: c.team, lastActive: c.lastActive,
+        subjectLabel: this.subjectLabelFor(c),
+        kindLabel: cl ? (cl.kind === 'interactive' ? 'Interactive' : 'Service') : '',
+        roleNames, riskFlag: c.riskFlag && showRisk,
+        statusLabel: st.label, statusBg: st.bg, statusColor: st.color,
+        selected: selectedSet.has(c.id), onToggleSelect: () => toggleSelect(c.id),
+        onOpen: () => this.setState({ selectedConnId: c.id }),
+      };
+    });
+
+    // ---------- Connection drawer ----------
+    let selConn = null;
+    if (s.selectedConnId) {
+      const c = this.conn(s.selectedConnId);
+      if (c) {
+        const cl = this.client(c.clientId);
+        const st = this.statusColors(c.status);
+        const { allow, source } = this.effectiveFor(c);
+        const assignedIds = new Set(c.roleIds);
+        const accessGroups = [...s.servers.map(srv => ({ id: srv.id, name: srv.name, connected: srv.connected })), { id: null, name: 'Standalone tools', connected: true }].map(srv => ({
+          serverName: srv.name,
+          rows: s.tools.filter(t => t.serverId === srv.id).map(t => {
+            const granted = allow.has(t.id);
+            let stateLabel, stateBg, stateColor;
+            if (!srv.connected) { stateLabel = 'Server not connected'; stateBg='var(--color-neutral-200)'; stateColor='var(--color-neutral-700)'; }
+            else if (!t.enabled) { stateLabel = 'Disabled mesh-wide'; stateBg='var(--color-neutral-200)'; stateColor='var(--color-neutral-700)'; }
+            else if (granted) { stateLabel = 'Allowed'; stateBg='var(--color-accent-2-100)'; stateColor='var(--color-accent-2-800)'; }
+            else { stateLabel = 'Not granted'; stateBg='var(--color-neutral-100)'; stateColor='var(--color-neutral-600)'; }
+            return {
+              toolId: t.id, toolName: t.name,
+              sourceLabel: source[t.id] || 'No grant', stateLabel, stateBg, stateColor,
+              onAllow: () => this.setOverride(c.id, t.id, 'allow'),
+              onDeny: () => this.setOverride(c.id, t.id, 'deny'),
+              onClear: () => this.setOverride(c.id, t.id, null),
+            };
+          }),
+        })).filter(g => g.rows.length);
+
+        // Credentials this connection's granted tools actually touch — per (subject, credential).
+        const touchedCredIds = new Set();
+        s.tools.forEach(t => {
+          if (!allow.has(t.id)) return;
+          const credId = t.serverId ? ('cred-' + t.serverId) : t.credentialId;
+          if (credId) touchedCredIds.add(credId);
+        });
+        const credentialRows = [...touchedCredIds].map(credId => {
+          const cred = this.credential(credId);
+          const isService = !c.subject;
+          let stateLabel, stateBg, stateColor;
+          if (isService) { stateLabel = 'Shared service credential'; stateBg = 'var(--color-neutral-200)'; stateColor = 'var(--color-neutral-700)'; }
+          else {
+            // Mock: deterministic pseudo-random authorized/not-yet based on ids, for a realistic mix.
+            const authorized = ((c.id.length + credId.length) % 3) !== 0;
+            if (authorized) { stateLabel = 'Authorized · ' + c.subject; stateBg = 'var(--color-accent-2-100)'; stateColor = 'var(--color-accent-2-800)'; }
+            else { stateLabel = 'Not yet authorized — first call will prompt ' + c.subject; stateBg = 'var(--color-accent-100)'; stateColor = 'var(--color-accent-700)'; }
+          }
+          return { id: credId, name: cred ? cred.name : credId, stateLabel, stateBg, stateColor };
+        });
+
+        const activity = s.auditLog.filter(e => e.connId === c.id).slice(0, 8).map(e => {
+          const t = this.tool(e.toolId);
+          const ok = e.outcome === 'allow';
+          return { ts: e.ts, toolLabel: t ? t.name : e.toolId, outcomeLabel: ok ? 'Allowed' : 'Denied',
+            outcomeBg: ok ? 'var(--color-accent-2-100)' : 'var(--color-accent-200)', outcomeColor: ok ? 'var(--color-accent-2-800)' : 'var(--color-accent-800)' };
+        });
+        selConn = {
+          clientName: cl ? cl.name : c.clientId,
+          subjectLabel: this.subjectLabelFor(c),
+          team: c.team,
+          kindLabel: cl ? (cl.kind === 'interactive' ? 'Interactive client' : 'Service credential') : '',
+          statusLabel: st.label, statusBg: st.bg, statusColor: st.color,
+          isActive: c.status === 'active', isQuarantined: c.status === 'quarantined', isDisabled: c.status === 'disabled',
+          reason: c.reason || null,
+          clientRegistration: cl ? (cl.name + ' · ' + cl.vendor) : c.clientId,
+          tokenBinding: c.tokenBinding || 'Bearer token (no proof-of-possession)',
+          onRotateCredential: () => this.setState({ confirmDialog: { title: 'Revoke & rotate credential for ' + (cl ? cl.name : 'this connection') + '?', body: 'The current token is invalidated immediately. Every call using it — regardless of what invoked it — starts failing until a new token is issued.', confirmLabel: 'Revoke & rotate', onCancel: () => this.setState({ confirmDialog: null }), onConfirm: () => this.setState({ confirmDialog: null, toast: 'Credential rotated. Old token revoked.' }) } }),
+          roleChips: this.effectiveRoleIdsFor(c).map(rid => {
+            const r = this.role(rid);
+            const isIndividual = c.roleIds.includes(rid);
+            return { name: (r ? r.name : rid) + (isIndividual ? '' : ' · via group'),
+              onRemove: isIndividual ? (() => this.setState(st2 => ({ connections: st2.connections.map(x => x.id === c.id ? { ...x, roleIds: x.roleIds.filter(id => id !== rid) } : x) }))) : (() => {}) };
+          }),
+          availableRolesToAdd: s.roles.filter(r => !assignedIds.has(r.id)).map(r => ({ id: r.id, name: r.name })),
+          onAddRole: (e) => { const rid = e.target.value; if (rid === '__add') return; this.setState(st2 => ({ connections: st2.connections.map(x => x.id === c.id ? { ...x, roleIds: [...x.roleIds, rid] } : x) })); },
+          accessGroups, credentialRows, activity,
+          closeDrawer: () => this.setState({ selectedConnId: null }),
+          onDisable: () => this.setState({ confirmDialog: { title: 'Disable this connection?', body: 'This immediately blocks every tool call from this client/subject pair. It can be re-enabled at any time.', confirmLabel: 'Disable connection', onCancel: () => this.setState({ confirmDialog: null }), onConfirm: () => this.setConnStatus(c.id, 'disabled', 'Disabled by IT & Security.') } }),
+          onQuarantine: () => this.setConnStatus(c.id, 'quarantined', 'Quarantined for review — calls are being logged and held.'),
+          onEnable: () => this.setConnStatus(c.id, 'active', null),
+        };
+      }
+    }
+
+    // ---------- Roles tab ----------
+    const rq = s.roleFilters.q.toLowerCase();
+    const roleRows = s.roles
+      .filter(r => (s.roleFilters.type === 'all' || r.type === s.roleFilters.type) && (!rq || r.name.toLowerCase().includes(rq)))
+      .sort((a, b) => (s.connections.filter(c => c.roleIds.includes(b.id)).length) - (s.connections.filter(c => c.roleIds.includes(a.id)).length))
+      .map(r => ({
+        id: r.id, name: r.name,
+        systemBadge: r.system ? ' · system' : '',
+        typeLabel: r.type === 'deny' ? 'Guardrail' : 'Grant',
+        typeBg: r.type === 'deny' ? 'var(--color-accent-200)' : 'var(--color-accent-2-100)',
+        typeColor: r.type === 'deny' ? 'var(--color-accent-800)' : 'var(--color-accent-2-800)',
+        toolCount: r.type === 'deny' ? r.denies.length : r.grants.length,
+        connCount: s.connections.filter(c => this.effectiveRoleIdsFor(c).includes(r.id)).length,
+        lastModified: r.lastModified,
+        onSelect: () => this.setState({ selectedRoleId: r.id, roleDrawerOpen: true }),
+      }));
+    const roleCount = roleRows.length;
+
+    let selRole = null;
+    if (s.roleDrawerOpen && s.selectedRoleId) {
+      const r = this.role(s.selectedRoleId);
+      if (r) {
+        const groups = s.servers.map(srv => ({
+          serverName: srv.name,
+          tools: s.tools.filter(t => t.serverId === srv.id).map(t => {
+            const rc = this.riskColors(t.risk);
+            const checked = r.type === 'deny' ? r.denies.includes(t.id) : r.grants.includes(t.id);
+            return {
+              toolId: t.id, toolName: t.name, riskTag: t.risk, riskBg: rc.bg, riskColor: rc.color, checked,
+              onToggle: () => this.setState(st2 => ({
+                roles: st2.roles.map(rr => {
+                  if (rr.id !== r.id) return rr;
+                  if (rr.type === 'deny') {
+                    const has = rr.denies.includes(t.id);
+                    return { ...rr, denies: has ? rr.denies.filter(x => x !== t.id) : [...rr.denies, t.id] };
+                  }
+                  const has = rr.grants.includes(t.id);
+                  return { ...rr, grants: has ? rr.grants.filter(x => x !== t.id) : [...rr.grants, t.id] };
+                })
+              })),
+            };
+          }),
+        })).filter(g => g.tools.length);
+        selRole = {
+          name: r.name, description: r.description, system: r.system,
+          typeLabel: r.type === 'deny' ? 'Blocks tools' : 'Grants tools',
+          typeBg: r.type === 'deny' ? 'var(--color-accent-200)' : 'var(--color-accent-2-100)',
+          typeColor: r.type === 'deny' ? 'var(--color-accent-800)' : 'var(--color-accent-2-800)',
+          connCount: s.connections.filter(c => this.effectiveRoleIdsFor(c).includes(r.id)).length,
+          systemNote: r.system ? ' · system role (read-only)' : '',
+          toolPickerLabel: r.type === 'deny' ? 'Blocked tools' : 'Granted tools',
+          toolGroups: groups,
+          groupChips: (s.roleGroupAssignments[r.id] || []).map(team => ({ name: team, onRemove: () => this.setState(st2 => ({ roleGroupAssignments: { ...st2.roleGroupAssignments, [r.id]: (st2.roleGroupAssignments[r.id] || []).filter(t => t !== team) } })) })),
+          availableGroupsToAdd: [...new Set(s.connections.map(c => c.team))].filter(team => !(s.roleGroupAssignments[r.id] || []).includes(team)),
+          onAddGroup: (e) => { const team = e.target.value; if (team === '__add') return; this.setState(st2 => ({ roleGroupAssignments: { ...st2.roleGroupAssignments, [r.id]: [...(st2.roleGroupAssignments[r.id] || []), team] } })); },
+          canDelete: !r.system,
+          closeDrawer: () => this.setState({ roleDrawerOpen: false }),
+          onNameChange: (e) => this.setState(st2 => ({ roles: st2.roles.map(rr => rr.id === r.id ? { ...rr, name: e.target.value } : rr) })),
+          onDescChange: (e) => this.setState(st2 => ({ roles: st2.roles.map(rr => rr.id === r.id ? { ...rr, description: e.target.value } : rr) })),
+          onDelete: () => this.setState(st2 => ({ roles: st2.roles.filter(rr => rr.id !== r.id), connections: st2.connections.map(c => ({ ...c, roleIds: c.roleIds.filter(id => id !== r.id) })), selectedRoleId: null, roleDrawerOpen: false })),
+        };
+      }
+    }
+
+    // ---------- Tools & Servers tab ----------
+    const serverCards = s.servers.map(srv => {
+      const srvTools = s.tools.filter(t => t.serverId === srv.id);
+      return {
+        id: srv.id, name: srv.name,
+        authLabel: srv.auth === 'oauth' ? 'OAuth' : 'API key',
+        toolCount: srvTools.length,
+        scopeTags: srv.scopes,
+        connected: srv.connected,
+        showConnect: !srv.connected,
+        statusLabel: srv.connected ? 'Connected' : 'Not connected',
+        statusBg: srv.connected ? 'var(--color-accent-2-100)' : 'var(--color-neutral-200)',
+        statusColor: srv.connected ? 'var(--color-accent-2-800)' : 'var(--color-neutral-700)',
+        onDisconnect: () => this.setState({ confirmDialog: { title: 'Disconnect ' + srv.name + '?', body: 'All tools from this server become unavailable to every connection immediately.', confirmLabel: 'Disconnect', onCancel: () => this.setState({ confirmDialog: null }), onConfirm: () => this.setState(st2 => ({ servers: st2.servers.map(x => x.id === srv.id ? { ...x, connected: false } : x), confirmDialog: null, toast: srv.name + ' disconnected.' })) } }),
+        onQuickConnect: () => this.openConnectFor(srv.id),
+      };
+    });
+
+    const toolServerOptions = [{ value: 'all', label: 'All servers' }, { value: '__standalone', label: 'Standalone tools' }, ...s.servers.filter(srv => srv.connected).map(srv => ({ value: srv.id, label: srv.name }))];
+    const tq = s.toolFilters.q.toLowerCase();
+    const toolRows = s.tools
+      .filter(t => {
+        const standalone = !t.serverId;
+        if (!standalone) { const srv = this.server(t.serverId); if (!srv || !srv.connected) return false; }
+        if (s.toolFilters.serverId === '__standalone' && !standalone) return false;
+        else if (s.toolFilters.serverId !== 'all' && s.toolFilters.serverId !== '__standalone' && t.serverId !== s.toolFilters.serverId) return false;
+        if (s.toolFilters.risk !== 'all' && t.risk !== s.toolFilters.risk) return false;
+        if (s.toolFilters.status === 'enabled' && !(t.enabled && !t.shadow)) return false;
+        if (s.toolFilters.status === 'disabled' && !(!t.enabled && !t.shadow)) return false;
+        if (s.toolFilters.status === 'shadow' && !t.shadow) return false;
+        if (tq && !t.name.toLowerCase().includes(tq)) return false;
+        return true;
+      })
+      .map(t => {
+        const srv = t.serverId ? this.server(t.serverId) : null;
+        const rc = this.riskColors(t.risk);
+        const cc = this.clsColors(t.cls);
+        return {
+          id: t.id, name: t.name, serverName: srv ? srv.name : 'Standalone · ' + (this.credential(t.credentialId) ? this.credential(t.credentialId).name : 'own credential'), riskTag: t.risk, riskBg: rc.bg, riskColor: rc.color,
+          classTag: cc.label, classBg: cc.bg, classColor: cc.color,
+          shadow: t.shadow, shadowBadge: t.shadow && showRisk,
+          enabledLabel: t.enabled ? 'Enabled' : 'Disabled',
+          enabledBg: t.enabled ? 'var(--color-accent-2-100)' : 'var(--color-neutral-200)',
+          enabledColor: t.enabled ? 'var(--color-accent-2-800)' : 'var(--color-neutral-700)',
+          showToggle: !t.shadow,
+          toggleLabel: t.enabled ? 'Disable' : 'Enable',
+          onToggleEnabled: () => this.setState(st2 => ({ tools: st2.tools.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })),
+          onApprove: () => this.setState(st2 => ({ tools: st2.tools.map(x => x.id === t.id ? { ...x, shadow: false, enabled: true } : x), toast: t.name + ' approved.' })),
+          onReject: () => this.setState(st2 => ({ tools: st2.tools.map(x => x.id === t.id ? { ...x, shadow: false, enabled: false } : x), toast: t.name + ' rejected — kept disabled.' })),
+        };
+      });
+    const toolRowCount = toolRows.length;
+
+    // ---------- Audit tab ----------
+    const auditConnOptions = [{ value: 'all', label: 'All connections' }, ...s.connections.map(c => { const cl = this.client(c.clientId); return { value: c.id, label: (cl ? cl.name : c.clientId) + ' — ' + this.subjectLabelFor(c) }; })];
+    const auditServerOptions = [{ value: 'all', label: 'All servers' }, ...s.servers.map(srv => ({ value: srv.id, label: srv.name }))];
+    const q = s.auditFilters.q.toLowerCase();
+    const auditRows = s.auditLog.filter(e => {
+      if (s.auditFilters.connId !== 'all' && e.connId !== s.auditFilters.connId) return false;
+      const t = this.tool(e.toolId);
+      if (s.auditFilters.serverId !== 'all' && (!t || t.serverId !== s.auditFilters.serverId)) return false;
+      const dsForFilter = e.deliveryStatus || (e.outcome === 'allow' ? 'success' : null);
+      if (s.auditFilters.outcome === 'allow' && !(e.outcome === 'allow' && dsForFilter === 'success')) return false;
+      if (s.auditFilters.outcome === 'allow_upstream_error' && !(e.outcome === 'allow' && dsForFilter !== 'success')) return false;
+      if (s.auditFilters.outcome === 'deny' && e.outcome !== 'deny') return false;
+      if (q) {
+        const c = this.conn(e.connId);
+        const cl = c ? this.client(c.clientId) : null;
+        const hay = ((cl ? cl.name : '') + ' ' + (c ? this.subjectLabelFor(c) : '') + ' ' + (t ? t.name : '')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).map(e => {
+      const c = this.conn(e.connId);
+      const cl = c ? this.client(c.clientId) : null;
+      const t = this.tool(e.toolId);
+      const srv = t ? this.server(t.serverId) : null;
+      const cc = t ? this.clsColors(t.cls) : this.clsColors('none');
+      const ok = e.outcome === 'allow';
+      const ds = e.deliveryStatus || (ok ? 'success' : null);
+      const dsLabels = { upstream_error: 'Upstream error', timeout: 'Timed out', rate_limited: 'Rate limited' };
+      let outcomeLabel, outcomeBg, outcomeColor;
+      if (!ok) { outcomeLabel = 'Denied'; outcomeBg = 'var(--color-accent-200)'; outcomeColor = 'var(--color-accent-800)'; }
+      else if (ds && ds !== 'success') { outcomeLabel = 'Allowed · ' + dsLabels[ds]; outcomeBg = 'var(--color-accent-100)'; outcomeColor = 'var(--color-accent-700)'; }
+      else { outcomeLabel = 'Allowed'; outcomeBg = 'var(--color-accent-2-100)'; outcomeColor = 'var(--color-accent-2-800)'; }
+      const expanded = s.expandedAuditId === e.id;
+      const details = expanded ? this.callDetailsFor(e, t) : null;
+      return {
+        id: e.id, ts: e.ts, subjectLabel: c ? this.subjectLabelFor(c) : '—', clientName: cl ? cl.name : '—', toolLabel: t ? t.name : e.toolId, serverName: srv ? srv.name : '—',
+        classTag: cc.label, classBg: cc.bg, classColor: cc.color,
+        outcomeLabel, outcomeBg, outcomeColor,
+        expanded, expandIcon: expanded ? '▲ hide' : '▼ details',
+        onToggle: () => this.setState(st2 => ({ expandedAuditId: st2.expandedAuditId === e.id ? null : e.id })),
+        requestId: details ? details.requestId : '', transport: details ? details.transport : '', source: details ? details.source : '', latency: details ? details.latency : '',
+        argsJson: details ? details.argsJson : '', responseSummary: details ? details.responseSummary : '', decisionTrail: details ? details.decisionTrail : '',
+      };
+    });
+
+    // ---------- Employee view ----------
+    const empOptions = s.connections.filter(c => c.subject === 'You').map(c => { const cl = this.client(c.clientId); return { id: c.id, label: cl ? cl.name : c.clientId }; });
+    const empConn = this.conn(s.employeeConnId) || this.conn('conn-you-cursor');
+    const empClient = this.client(empConn.clientId);
+    const empSt = this.statusColors(empConn.status);
+    const { allow: empAllow, source: empSource } = this.effectiveFor(empConn);
+    const empAccessRows = s.tools.filter(t => empAllow.has(t.id) && this.isToolLive(t)).map(t => {
+      const srv = this.server(t.serverId); const cc = this.clsColors(t.cls);
+      return { toolName: t.name, serverName: srv.name, sourceLabel: empSource[t.id] || '', riskTag: cc.label, riskBg: cc.bg, riskColor: cc.color };
+    });
+    const empActivity = s.auditLog.filter(e => e.connId === empConn.id).slice(0, 8).map(e => {
+      const t = this.tool(e.toolId); const ok = e.outcome === 'allow';
+      return { ts: e.ts, toolLabel: t ? t.name : e.toolId, outcomeLabel: ok ? 'Allowed' : 'Denied', outcomeBg: ok ? 'var(--color-accent-2-100)' : 'var(--color-accent-200)', outcomeColor: ok ? 'var(--color-accent-2-800)' : 'var(--color-accent-800)' };
+    });
+    const emp = {
+      connOptions: empOptions, selectedConnId: empConn.id,
+      onSelectConn: (e) => this.setState({ employeeConnId: e.target.value }),
+      conn: { clientName: empClient ? empClient.name : empConn.clientId, team: empConn.team, lastActive: empConn.lastActive, statusLabel: empSt.label, statusBg: empSt.bg, statusColor: empSt.color },
+      bannerText: empConn.reason || null,
+      roleChips: empConn.roleIds.map(rid => { const r = this.role(rid); return { name: r ? r.name : rid }; }),
+      accessRows: empAccessRows,
+      activity: empActivity,
+      onOpenRequest: () => this.setState({ requestModalOpen: true, requestToolId: s.tools[0].id, requestReason: '' }),
+    };
+
+    const req = {
+      selectedToolId: s.requestToolId,
+      toolOptions: s.tools.map(t => ({ id: t.id, label: t.name + ' (' + this.server(t.serverId).name + ')' })),
+      onSelectTool: (e) => this.setState({ requestToolId: e.target.value }),
+      reason: s.requestReason,
+      onReasonChange: (e) => this.setState({ requestReason: e.target.value }),
+      onClose: () => this.setState({ requestModalOpen: false }),
+      onSubmit: () => this.setState({ requestModalOpen: false, toast: 'Request sent to IT & Security — you\u2019ll be notified when it\u2019s reviewed.' }),
+    };
+
+    // ---------- Connect server modal ----------
+    const connect = this.buildConnect();
+
+    // ---------- Dashboard ----------
+    const activeCount = s.connections.filter(c => c.status === 'active').length;
+    const quarantinedCount = s.connections.filter(c => c.status === 'quarantined').length;
+    const disabledCount = s.connections.filter(c => c.status === 'disabled').length;
+    const shadowCount = s.tools.filter(t => t.shadow).length;
+    const deniedLast = s.auditLog.filter(e => e.outcome === 'deny').length;
+    const dash = {
+      stats: [
+        { label: 'Active connections', value: activeCount, subLabel: s.connections.length + ' total' },
+        { label: 'Quarantined', value: quarantinedCount, subLabel: quarantinedCount ? 'awaiting review' : null },
+        { label: 'Disabled', value: disabledCount },
+        { label: 'Connected servers', value: s.servers.filter(sv => sv.connected).length + ' / ' + s.servers.length },
+        { label: 'Tools needing review', value: shadowCount, subLabel: shadowCount ? 'new since last approval' : 'all clear' },
+        { label: 'Denied calls logged', value: deniedLast },
+      ],
+      riskiest: s.connections.filter(c => c.riskFlag).map(c => {
+        const cl = this.client(c.clientId);
+        return { clientName: cl ? cl.name : c.clientId, subjectLabel: this.subjectLabelFor(c), team: c.team, reasonTag: 'flagged', onOpen: () => this.setState({ tab: 'connections', selectedConnId: c.id }) };
+      }),
+      needsReview: [
+        ...s.tools.filter(t => t.shadow).map(t => ({ name: t.name, detail: 'New tool on ' + (this.server(t.serverId) ? this.server(t.serverId).name : 'a server') + ' — needs approval', onGo: () => this.setState({ tab: 'tools' }) })),
+        ...s.connections.filter(c => c.status === 'quarantined').map(c => { const cl = this.client(c.clientId); return { name: (cl ? cl.name : c.clientId) + ' — ' + this.subjectLabelFor(c), detail: c.reason || 'Quarantined', onGo: () => this.setState({ tab: 'connections', selectedConnId: c.id }) }; }),
+      ],
+      recentDenials: s.auditLog.filter(e => e.outcome === 'deny').slice(0, 5).map(e => {
+        const c = this.conn(e.connId); const cl = c ? this.client(c.clientId) : null; const t = this.tool(e.toolId);
+        return { ts: e.ts, subjectLabel: c ? this.subjectLabelFor(c) : '—', clientName: cl ? cl.name : '—', toolLabel: t ? t.name : e.toolId };
+      }),
+    };
+    dash.riskiestEmpty = dash.riskiest.length === 0;
+    dash.needsReviewEmpty = dash.needsReview.length === 0;
+
+    const allTeams = [...new Set(s.connections.map(c => c.team))];
+    const dashChartCounts = {};
+    s.auditLog.forEach(e => {
+      const t = this.tool(e.toolId);
+      if (!t) return;
+      if (s.dashChartFilters.metric === 'deny' && e.outcome !== 'deny') return;
+      if (s.dashChartFilters.serverId !== 'all' && t.serverId !== s.dashChartFilters.serverId) return;
+      if (s.dashChartFilters.team !== 'all') {
+        const c = this.conn(e.connId);
+        if (!c || c.team !== s.dashChartFilters.team) return;
+      }
+      dashChartCounts[t.id] = (dashChartCounts[t.id] || 0) + 1;
+    });
+    const dashChartEntries = Object.keys(dashChartCounts).map(tid => ({ id: tid, name: this.tool(tid) ? this.tool(tid).name : tid, count: dashChartCounts[tid] })).sort((a, b) => b.count - a.count).slice(0, 8);
+    const dashChartMax = dashChartEntries.length ? dashChartEntries[0].count : 1;
+    const dashChart = {
+      metric: s.dashChartFilters.metric, onMetric: (e) => this.setState(st2 => ({ dashChartFilters: { ...st2.dashChartFilters, metric: e.target.value } })),
+      serverId: s.dashChartFilters.serverId, onServer: (e) => this.setState(st2 => ({ dashChartFilters: { ...st2.dashChartFilters, serverId: e.target.value } })),
+      serverOptions: [{ value: 'all', label: 'All servers' }, ...s.servers.filter(sv => sv.connected).map(sv => ({ value: sv.id, label: sv.name }))],
+      team: s.dashChartFilters.team, onTeam: (e) => this.setState(st2 => ({ dashChartFilters: { ...st2.dashChartFilters, team: e.target.value } })),
+      teamOptions: [{ value: 'all', label: 'All teams' }, ...allTeams.map(team => ({ value: team, label: team }))],
+      bars: dashChartEntries.map(en => ({ name: en.name, count: en.count, pct: Math.round((en.count / dashChartMax) * 100) })),
+      empty: dashChartEntries.length === 0,
+    };
+
+    // ---------- Settings ----------
+    const allTeamsForInvite = [...new Set(s.connections.map(c => c.team))];
+    const settings = {
+      orgName: s.orgName, onOrgName: (e) => this.setState({ orgName: e.target.value }),
+      ssoStatusLabel: s.ssoStatus === 'connected' ? 'Connected' : 'Not configured',
+      ssoStatusBg: s.ssoStatus === 'connected' ? 'var(--color-accent-2-100)' : 'var(--color-neutral-200)',
+      ssoStatusColor: s.ssoStatus === 'connected' ? 'var(--color-accent-2-800)' : 'var(--color-neutral-700)',
+      ssoProvider: s.ssoProvider, onSsoProvider: (e) => this.setState({ ssoProvider: e.target.value }),
+      ssoMetadataUrl: s.ssoMetadataUrl, onSsoMetadataUrl: (e) => this.setState({ ssoMetadataUrl: e.target.value }),
+      scimEnabled: s.scimEnabled, onToggleScim: () => this.setState(st2 => ({ scimEnabled: !st2.scimEnabled })),
+      onSaveSso: () => {
+        if (!s.ssoMetadataUrl.trim()) { this.setState({ toast: 'Enter a metadata URL first.' }); return; }
+        this.setState({ ssoStatus: 'connected', toast: 'SSO connected. Employees can now sign in through your IdP.' });
+      },
+      admins: s.admins.map(a => ({
+        id: a.id, name: a.name, email: a.email,
+        roleLabel: a.role === 'full' ? 'Full admin' : 'Delegated admin',
+        scope: a.team || '— all teams —',
+        onRemove: () => this.setState(st2 => ({ admins: st2.admins.filter(x => x.id !== a.id), toast: a.name + ' removed from admins.' })),
+      })),
+      onOpenInvite: () => this.setState({ inviteModalOpen: true, inviteName: '', inviteEmail: '', inviteRole: 'full', inviteTeam: allTeamsForInvite[0] || '' }),
+      slackWebhook: s.slackWebhook, onSlackWebhook: (e) => this.setState({ slackWebhook: e.target.value }),
+      alertEmail: s.alertEmail, onAlertEmail: (e) => this.setState({ alertEmail: e.target.value }),
+      onSaveAlerts: () => this.setState({ toast: 'Alert routing saved.' }),
+    };
+
+    const invite = {
+      name: s.inviteName, onName: (e) => this.setState({ inviteName: e.target.value }),
+      email: s.inviteEmail, onEmail: (e) => this.setState({ inviteEmail: e.target.value }),
+      role: s.inviteRole, onRole: (e) => this.setState({ inviteRole: e.target.value }),
+      showTeam: s.inviteRole === 'delegated',
+      team: s.inviteTeam, onTeam: (e) => this.setState({ inviteTeam: e.target.value }),
+      teamOptions: allTeamsForInvite,
+      onSend: () => {
+        if (!s.inviteName.trim() || !s.inviteEmail.trim()) return;
+        this.setState(st2 => ({
+          admins: [...st2.admins, { id: 'admin-' + Date.now(), name: s.inviteName.trim(), email: s.inviteEmail.trim(), role: s.inviteRole, team: s.inviteRole === 'delegated' ? s.inviteTeam : null }],
+          inviteModalOpen: false, toast: 'Invite sent to ' + s.inviteEmail.trim() + '.',
+        }));
+      },
+    };
+
+    const setupSteps = [
+      { key: 'sso', label: 'Configure your SSO connection', done: s.ssoStatus === 'connected', go: () => this.setState({ tab: 'settings' }) },
+      { key: 'server', label: 'Connect your first server', done: s.servers.some(sv => sv.connected), go: () => this.setState({ tab: 'tools' }) },
+      { key: 'role', label: 'Create a custom role', done: s.roles.some(r => !r.system), go: () => this.setState({ tab: 'roles' }) },
+    ];
+    const setupChecklist = {
+      visible: !s.setupChecklistDismissed && setupSteps.some(st2 => !st2.done),
+      onDismiss: () => this.setState({ setupChecklistDismissed: true }),
+      steps: setupSteps.map(st2 => ({ icon: st2.done ? '✓' : '○', label: st2.label, showGo: !st2.done, onGo: st2.go })),
+    };
+
+    // ---------- Create tool modal ----------
+    const connectedServers = s.servers.filter(srv => srv.connected);
+    const createTool = {
+      isServerOwned: s.createToolOwner === 'server', isStandalone: s.createToolOwner === 'standalone',
+      onOwnerServer: () => this.setState({ createToolOwner: 'server' }),
+      onOwnerStandalone: () => this.setState({ createToolOwner: 'standalone' }),
+      serverOptions: connectedServers.map(srv => ({ value: srv.id, label: srv.name })),
+      serverId: s.createToolServerId || (connectedServers[0] ? connectedServers[0].id : ''),
+      onServerId: (e) => this.setState({ createToolServerId: e.target.value }),
+      baseUrl: s.createToolBaseUrl, onBaseUrl: (e) => this.setState({ createToolBaseUrl: e.target.value }),
+      authMethod: s.createToolAuthMethod, onAuthMethod: (e) => this.setState({ createToolAuthMethod: e.target.value }),
+      credentialChoice: s.createToolCredentialChoice, onCredentialChoice: (e) => this.setState({ createToolCredentialChoice: e.target.value }),
+      isNewCredential: s.createToolCredentialChoice === '__new',
+      credentialOptions: s.credentials.filter(c => c.kind === 'standalone').map(c => ({ value: c.id, label: c.name })),
+      credentialName: s.createToolCredentialName, onCredentialName: (e) => this.setState({ createToolCredentialName: e.target.value }),
+      name: s.createToolName, onName: (e) => this.setState({ createToolName: e.target.value }),
+      method: s.createToolMethod, onMethod: (e) => this.setState({ createToolMethod: e.target.value }),
+      path: s.createToolPath, onPath: (e) => this.setState({ createToolPath: e.target.value }),
+      description: s.createToolDescription, onDescription: (e) => this.setState({ createToolDescription: e.target.value }),
+      risk: s.createToolRisk, onRisk: (e) => this.setState({ createToolRisk: e.target.value }),
+      onCreate: () => {
+        if (!s.createToolName.trim() || !s.createToolPath.trim()) return;
+        if (s.createToolOwner === 'server') {
+          const serverId = s.createToolServerId || (connectedServers[0] ? connectedServers[0].id : '');
+          if (!serverId) return;
+          const srv = this.server(serverId);
+          this.setState(st2 => ({
+            tools: [...st2.tools, { id: 'tool-manual-' + Date.now(), serverId, name: s.createToolName.trim(), risk: s.createToolRisk, cls: 'none', enabled: true, shadow: false }],
+            createToolModalOpen: false, createToolName: '', createToolPath: '', createToolDescription: '',
+            toast: 'Tool created on ' + (srv ? srv.name : 'server') + '.',
+          }));
+        } else {
+          if (s.createToolCredentialChoice === '__new') {
+            if (!s.createToolBaseUrl.trim() || !s.createToolCredentialName.trim()) return;
+            const newCredId = 'cred-standalone-' + Date.now();
+            this.setState(st2 => ({
+              credentials: [...st2.credentials, { id: newCredId, name: s.createToolCredentialName.trim(), kind: 'standalone', baseUrl: s.createToolBaseUrl.trim(), authMethod: s.createToolAuthMethod }],
+              tools: [...st2.tools, { id: 'tool-manual-' + Date.now(), serverId: null, credentialId: newCredId, name: s.createToolName.trim(), risk: s.createToolRisk, cls: 'none', enabled: true, shadow: false }],
+              createToolModalOpen: false, createToolName: '', createToolPath: '', createToolDescription: '', createToolBaseUrl: '', createToolCredentialName: '',
+              toast: 'New credential + standalone tool created.',
+            }));
+          } else {
+            const credId = s.createToolCredentialChoice;
+            const cred = this.credential(credId);
+            this.setState(st2 => ({
+              tools: [...st2.tools, { id: 'tool-manual-' + Date.now(), serverId: null, credentialId: credId, name: s.createToolName.trim(), risk: s.createToolRisk, cls: 'none', enabled: true, shadow: false }],
+              createToolModalOpen: false, createToolName: '', createToolPath: '', createToolDescription: '',
+              toast: 'Tool created, sharing credential "' + (cred ? cred.name : '') + '".',
+            }));
+          }
+        }
+      },
+    };
+
+    return {
+      rootVars,
+      isAdmin, isEmployee: !isAdmin,
+      personaAdminChecked: isAdmin, personaEmployeeChecked: !isAdmin,
+      setPersonaAdmin: () => this.setState({ persona: 'admin' }),
+      setPersonaEmployee: () => this.setState({ persona: 'employee' }),
+
+      showLogin: !s.isAuthenticated, isAuthenticated: s.isAuthenticated,
+      onSsoLogin: () => this.setState({ isAuthenticated: true }),
+      onLogout: () => this.setState({ isAuthenticated: false, loginMode: 'signin', loginEmail: '', loginPassword: '', loginOrgName: '' }),
+      login: {
+        isSignin: s.loginMode === 'signin', isSignup: s.loginMode === 'signup',
+        email: s.loginEmail, onEmail: (e) => this.setState({ loginEmail: e.target.value }),
+        password: s.loginPassword, onPassword: (e) => this.setState({ loginPassword: e.target.value }),
+        orgName: s.loginOrgName, onOrgName: (e) => this.setState({ loginOrgName: e.target.value }),
+        error: s.loginError,
+        onGoSignup: (e) => { e.preventDefault(); this.setState({ loginMode: 'signup', loginError: null }); },
+        onGoSignin: (e) => { e.preventDefault(); this.setState({ loginMode: 'signin', loginError: null }); },
+        onSubmitSignin: () => {
+          const emailOk = /\S+@\S+\.\S+/.test(s.loginEmail.trim());
+          if (!emailOk) { this.setState({ loginError: 'Enter a valid work email.' }); return; }
+          if (!s.loginPassword) { this.setState({ loginError: 'Enter your password.' }); return; }
+          this.setState({ isAuthenticated: true, loginError: null });
+        },
+        onSubmitSignup: () => {
+          if (!s.loginOrgName.trim()) { this.setState({ loginError: 'Enter an organization name.' }); return; }
+          const emailOk = /\S+@\S+\.\S+/.test(s.loginEmail.trim());
+          if (!emailOk) { this.setState({ loginError: 'Enter a valid work email.' }); return; }
+          if (!s.loginPassword || s.loginPassword.length < 8) { this.setState({ loginError: 'Password must be at least 8 characters.' }); return; }
+          this.setState({ isAuthenticated: true, loginError: null, orgName: s.loginOrgName.trim(), toast: 'Organization created — welcome to Mesh.' });
+        },
+      },
+
+      isTabDashboard: s.tab === 'dashboard', isTabConnections: s.tab === 'connections', isTabRoles: s.tab === 'roles', isTabTools: s.tab === 'tools', isTabAudit: s.tab === 'audit', isTabSettings: s.tab === 'settings',
+      tabDashboardStyle: tabBtnStyle(s.tab === 'dashboard'),
+      tabConnectionsStyle: tabBtnStyle(s.tab === 'connections'),
+      tabRolesStyle: tabBtnStyle(s.tab === 'roles'),
+      tabToolsStyle: tabBtnStyle(s.tab === 'tools'),
+      tabAuditStyle: tabBtnStyle(s.tab === 'audit'),
+      tabSettingsStyle: tabBtnStyle(s.tab === 'settings'),
+      setTabDashboard: () => this.setState({ tab: 'dashboard' }),
+      setTabConnections: () => this.setState({ tab: 'connections' }),
+      setTabRoles: () => this.setState({ tab: 'roles' }),
+      setTabTools: () => this.setState({ tab: 'tools' }),
+      setTabAudit: () => this.setState({ tab: 'audit' }),
+      setTabSettings: () => this.setState({ tab: 'settings' }),
+
+      connRows, bulk, connFilters: s.connFilters, connTeamOptions,
+      onConnFilterQ: (e) => this.setState(st2 => ({ connFilters: { ...st2.connFilters, q: e.target.value } })),
+      onConnFilterTeam: (e) => this.setState(st2 => ({ connFilters: { ...st2.connFilters, team: e.target.value } })),
+      onConnFilterStatus: (e) => this.setState(st2 => ({ connFilters: { ...st2.connFilters, status: e.target.value } })),
+      onConnFilterKind: (e) => this.setState(st2 => ({ connFilters: { ...st2.connFilters, kind: e.target.value } })),
+      onClearConnFilters: () => this.setState({ connFilters: { q: '', team: 'all', status: 'all', kind: 'all' } }),
+      connDrawerOpen: !!selConn, selConn: selConn || {},
+      stopClick: (e) => e.stopPropagation(),
+
+      roleRows, roleCount, selRole, roleDrawerOpen: s.roleDrawerOpen && !!selRole,
+      roleFilters: s.roleFilters,
+      onRoleFilterQ: (e) => this.setState(st2 => ({ roleFilters: { ...st2.roleFilters, q: e.target.value } })),
+      onRoleFilterType: (e) => this.setState(st2 => ({ roleFilters: { ...st2.roleFilters, type: e.target.value } })),
+      onNewRole: () => {
+        const id = 'role-custom-' + Date.now();
+        this.setState(st2 => ({ roles: [...st2.roles, { id, name: 'New Role', type: 'grant', system: false, lastModified: 'Just now', description: 'Describe what this role is for.', grants: [], denies: [] }], selectedRoleId: id, roleDrawerOpen: true }));
+      },
+
+      serverCards, toolServerOptions, toolRows, toolRowCount, toolFilters: s.toolFilters,
+      onToolFilterQ: (e) => this.setState(st2 => ({ toolFilters: { ...st2.toolFilters, q: e.target.value } })),
+      onToolFilterServer: (e) => this.setState(st2 => ({ toolFilters: { ...st2.toolFilters, serverId: e.target.value } })),
+      onToolFilterRisk: (e) => this.setState(st2 => ({ toolFilters: { ...st2.toolFilters, risk: e.target.value } })),
+      onToolFilterStatus: (e) => this.setState(st2 => ({ toolFilters: { ...st2.toolFilters, status: e.target.value } })),
+      onClearToolFilters: () => this.setState({ toolFilters: { q: '', serverId: 'all', risk: 'all', status: 'all' } }),
+      onOpenConnect: () => this.setState({ connectModalOpen: true, connectStep: 0, connectSelected: null }),
+
+      auditFilters: s.auditFilters, auditConnOptions, auditServerOptions, auditRows, auditCount: auditRows.length,
+      onFilterConn: (e) => this.setState(st2 => ({ auditFilters: { ...st2.auditFilters, connId: e.target.value } })),
+      onFilterServer: (e) => this.setState(st2 => ({ auditFilters: { ...st2.auditFilters, serverId: e.target.value } })),
+      onFilterOutcome: (e) => this.setState(st2 => ({ auditFilters: { ...st2.auditFilters, outcome: e.target.value } })),
+      onFilterQ: (e) => this.setState(st2 => ({ auditFilters: { ...st2.auditFilters, q: e.target.value } })),
+      onClearFilters: () => this.setState({ auditFilters: { connId: 'all', serverId: 'all', outcome: 'all', q: '' } }),
+
+      dash, dashChart, setupChecklist,
+      settings, inviteModalOpen: s.inviteModalOpen, invite, onCloseInvite: () => this.setState({ inviteModalOpen: false }),
+      emp, requestModalOpen: s.requestModalOpen, req,
+
+      confirmDialog: s.confirmDialog,
+      connectModalOpen: s.connectModalOpen, connect,
+      onCloseConnect: () => this.setState({ connectModalOpen: false }),
+
+      createToolModalOpen: s.createToolModalOpen, createTool,
+      onOpenCreateTool: () => this.setState({ createToolModalOpen: true, createToolOwner: 'server', createToolServerId: connectedServers[0] ? connectedServers[0].id : '', createToolCredentialChoice: '__new', createToolCredentialName: '', createToolBaseUrl: '', createToolAuthMethod: 'api_key', createToolName: '', createToolPath: '', createToolDescription: '', createToolRisk: 'read' }),
+
+      otelModalOpen: s.otelModalOpen, onOpenOtel: () => this.setState({ otelModalOpen: true }), onCloseOtel: () => this.setState({ otelModalOpen: false }),
+      otel: {
+        statusLabel: s.otelConfigured ? 'Exporting to OTEL' : 'Not configured',
+        statusBg: s.otelConfigured ? 'var(--color-accent-2-100)' : 'var(--color-neutral-200)',
+        statusColor: s.otelConfigured ? 'var(--color-accent-2-800)' : 'var(--color-neutral-700)',
+        endpoint: s.otelEndpoint, onEndpoint: (e) => this.setState({ otelEndpoint: e.target.value }),
+        protocol: s.otelProtocol, onProtocol: (e) => this.setState({ otelProtocol: e.target.value }),
+        authMethod: s.otelAuthMethod, onAuthMethod: (e) => this.setState({ otelAuthMethod: e.target.value }),
+        showAuthField: s.otelAuthMethod !== 'none',
+        authFieldLabel: s.otelAuthMethod === 'bearer' ? 'Bearer token' : 'API key',
+        authValue: s.otelAuthValue, onAuthValue: (e) => this.setState({ otelAuthValue: e.target.value }),
+        exportAllowed: s.otelExportAllowed, onToggleAllowed: () => this.setState(st2 => ({ otelExportAllowed: !st2.otelExportAllowed })),
+        exportDenied: s.otelExportDenied, onToggleDenied: () => this.setState(st2 => ({ otelExportDenied: !st2.otelExportDenied })),
+        exportUpstreamErrors: s.otelExportUpstreamErrors, onToggleUpstreamErrors: () => this.setState(st2 => ({ otelExportUpstreamErrors: !st2.otelExportUpstreamErrors })),
+        exportPolicyChanges: s.otelExportPolicyChanges, onTogglePolicyChanges: () => this.setState(st2 => ({ otelExportPolicyChanges: !st2.otelExportPolicyChanges })),
+        onTest: () => this.setState({ toast: s.otelEndpoint.trim() ? 'Test OTEL log event sent — check your collector.' : 'Enter an endpoint first.' }),
+        onSave: () => {
+          if (!s.otelEndpoint.trim()) { this.setState({ toast: 'Enter an OTLP endpoint first.' }); return; }
+          this.setState({ otelConfigured: true, otelModalOpen: false, toast: 'OTEL export enabled — audit events will stream to your collector.' });
+        },
+      },
+      onCloseCreateTool: () => this.setState({ createToolModalOpen: false }),
+
+      toast: s.toast, clearToast: () => this.setState({ toast: null }),
+    };
+  }
+
+  openConnectFor(serverId) {
+    this.setState({ connectModalOpen: true, connectStep: 0 });
+    this.selectConnectChoice(serverId);
+  }
+
+  selectConnectChoice(choiceId) {
+    this.setState({ connectSelected: choiceId, connectStep: 1, connectBaseUrl: '', connectApiKey: '', connectFoundTools: [],
+      connectAuthMethod: 'api_key', connectOauthClientId: '', connectOauthClientSecret: '', connectMtlsCert: '', connectOpenApiUrl: '',
+      connectManualOpen: false, connectManualName: '', connectManualMethod: 'GET', connectManualPath: '', connectManualDescription: '' });
+  }
+
+  buildConnect() {
+    const s = this.state;
+    const choices = [
+      ...s.servers.filter(srv => !srv.connected).map(srv => ({ id: srv.id, name: srv.name, subtitle: 'Third-party MCP server · OAuth', onSelect: () => this.selectConnectChoice(srv.id) })),
+      { id: 'custom', name: 'Custom API endpoint', subtitle: 'Connect an internal or partner API directly', onSelect: () => this.selectConnectChoice('custom') },
+    ];
+    const existingSelSrv = this.server(s.connectSelected);
+    const isApi = s.connectSelected === 'custom' || (existingSelSrv && existingSelSrv.kind === 'api');
+    const isOauth = !!s.connectSelected && !isApi;
+    const selectedSrv = isOauth ? this.server(s.connectSelected) : null;
+    const selectedName = isApi ? (existingSelSrv ? existingSelSrv.name : 'this API') : (isOauth ? (selectedSrv ? selectedSrv.name : '') : 'this API');
+
+    const oauthScopeLabels = { 'srv-github': ['Read repository contents', 'Open pull requests', 'Merge pull requests'], 'srv-notion': ['Read page content', 'Edit pages'] };
+    const scopes = (isOauth && oauthScopeLabels[s.connectSelected]) ? oauthScopeLabels[s.connectSelected].map((label, i) => ({ id: i, label })) : [];
+
+    return {
+      step0: s.connectStep === 0, step1: s.connectStep === 1, step2: s.connectStep === 2,
+      choices, isApi, isOauth, selectedName, scopes,
+      baseUrl: s.connectBaseUrl, onBaseUrl: (e) => this.setState({ connectBaseUrl: e.target.value }),
+      apiKey: s.connectApiKey, onApiKey: (e) => this.setState({ connectApiKey: e.target.value }),
+      authIsKey: s.connectAuthMethod === 'api_key', authIsOauth: s.connectAuthMethod === 'oauth_cc', authIsMtls: s.connectAuthMethod === 'mtls',
+      onAuthMethodKey: () => this.setState({ connectAuthMethod: 'api_key' }),
+      onAuthMethodOauth: () => this.setState({ connectAuthMethod: 'oauth_cc' }),
+      onAuthMethodMtls: () => this.setState({ connectAuthMethod: 'mtls' }),
+      oauthClientId: s.connectOauthClientId, onOauthClientId: (e) => this.setState({ connectOauthClientId: e.target.value }),
+      oauthClientSecret: s.connectOauthClientSecret, onOauthClientSecret: (e) => this.setState({ connectOauthClientSecret: e.target.value }),
+      mtlsCert: s.connectMtlsCert, onMtlsCert: (e) => this.setState({ connectMtlsCert: e.target.value }),
+      openApiUrl: s.connectOpenApiUrl, onOpenApiUrl: (e) => this.setState({ connectOpenApiUrl: e.target.value }),
+      step1Copy: isApi ? 'Point the mesh at your API and how it authenticates. If you have an OpenAPI/Swagger spec, the mesh imports its endpoints as tools automatically.' : ('Connecting ' + selectedName + ' — you will approve access via OAuth.'),
+      onAuthorize: () => {
+        const found = (s.connectSelected === 'srv-github'
+          ? [{ id: 'github-read', name: 'Read repository contents', risk: 'read' }, { id: 'github-pr-create', name: 'Open pull request', risk: 'write' }, { id: 'github-pr-merge', name: 'Merge pull request', risk: 'write' }]
+          : [{ id: 'notion-read', name: 'Read page content', risk: 'read' }, { id: 'notion-write', name: 'Edit page', risk: 'write' }]
+        ).map(t => ({ ...t, checked: true }));
+        this.setState({ connectStep: 2, connectFoundTools: found });
+      },
+      onDiscover: () => {
+        this.setState({ connectStep: 2, connectFoundTools: [
+          { id: 'custom-get-shipments', name: 'List shipments', risk: 'read', checked: true, endpoint: 'GET /v1/shipments' },
+          { id: 'custom-get-shipment', name: 'Get shipment', risk: 'read', checked: true, endpoint: 'GET /v1/shipments/{id}' },
+          { id: 'custom-post-shipment', name: 'Create shipment', risk: 'write', checked: true, endpoint: 'POST /v1/shipments' },
+        ] });
+      },
+      manualOpen: s.connectManualOpen, showManualOpenBtn: !s.connectManualOpen,
+      manualName: s.connectManualName, onManualName: (e) => this.setState({ connectManualName: e.target.value }),
+      manualMethod: s.connectManualMethod, onManualMethod: (e) => this.setState({ connectManualMethod: e.target.value }),
+      manualPath: s.connectManualPath, onManualPath: (e) => this.setState({ connectManualPath: e.target.value }),
+      manualDescription: s.connectManualDescription, onManualDescription: (e) => this.setState({ connectManualDescription: e.target.value }),
+      onManualOpen: () => this.setState({ connectManualOpen: true }),
+      onManualCancel: () => this.setState({ connectManualOpen: false, connectManualName: '', connectManualPath: '', connectManualDescription: '' }),
+      onManualAdd: () => {
+        if (!s.connectManualName.trim() || !s.connectManualPath.trim()) return;
+        const newTool = { id: 'custom-manual-' + Date.now(), name: s.connectManualName.trim(), risk: /GET/.test(s.connectManualMethod) ? 'read' : 'write', checked: true, endpoint: s.connectManualMethod + ' ' + s.connectManualPath.trim(), description: s.connectManualDescription };
+        this.setState(st2 => ({ connectFoundTools: [...st2.connectFoundTools, newTool], connectManualOpen: false, connectManualName: '', connectManualPath: '', connectManualDescription: '' }));
+      },
+      foundTools: s.connectFoundTools.map(t => {
+        const rc = this.riskColors(t.risk);
+        return { id: t.id, name: t.name, riskTag: t.risk, riskBg: rc.bg, riskColor: rc.color, checked: t.checked, endpointLabel: t.endpoint || '',
+          onToggle: () => this.setState(st2 => ({ connectFoundTools: st2.connectFoundTools.map(x => x.id === t.id ? { ...x, checked: !x.checked } : x) })) };
+      }),
+      onBack: () => this.setState(st2 => ({ connectStep: Math.max(0, st2.connectStep - 1) })),
+      onFinish: () => {
+        const sel = s.connectSelected;
+        const chosen = s.connectFoundTools.filter(t => t.checked);
+        const existingSrv = this.server(sel);
+        if (existingSrv && existingSrv.connected) {
+          this.setState(st2 => ({
+            tools: [...st2.tools, ...chosen.map(t => ({ id: t.id + '-' + Date.now(), serverId: sel, name: t.name, risk: t.risk, cls: 'none', enabled: true, shadow: false }))],
+            connectModalOpen: false, toast: chosen.length + ' tool(s) added to ' + existingSrv.name + '.',
+          }));
+        } else if (sel === 'custom') {
+          const newServerId = 'srv-custom-' + Date.now();
+          this.setState(st2 => ({
+            servers: [...st2.servers, { id: newServerId, name: 'Custom API', kind: 'api', auth: s.connectAuthMethod, connected: true, scopes: ['custom'] }],
+            tools: [...st2.tools, ...chosen.map(t => ({ id: t.id + '-' + Date.now(), serverId: newServerId, name: t.name, risk: t.risk, cls: 'none', enabled: true, shadow: false }))],
+            connectModalOpen: false, toast: 'Custom API connected — ' + chosen.length + ' tool(s) exposed.',
+          }));
+        } else {
+          this.setState(st2 => ({
+            servers: st2.servers.map(srv => srv.id === sel ? { ...srv, connected: true } : srv),
+            tools: st2.tools.map(t => t.serverId === sel ? { ...t, enabled: chosen.some(c => c.id === t.id) } : t),
+            connectModalOpen: false, toast: (this.server(sel) ? this.server(sel).name : 'Server') + ' connected — ' + chosen.length + ' tool(s) exposed through the mesh.',
+          }));
+        }
+      },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

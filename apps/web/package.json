@@ -1,0 +1,16 @@
+{
+  "name": "@mesh/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "echo \"@mesh/web stub — Vite comes later in Phase 1\"",
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@mesh/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.23",
+    "@mesh/db": "workspace:*",
+    "@mesh/shared": "workspace:*",
+    "better-auth": "^1.6.23"
+  }
+}
