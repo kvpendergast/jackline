@@ -54,3 +54,9 @@ export {
   type ConnectionToolOverrideType,
   ConnectionToolOverrideTypeSchema,
 } from './connection.js';
+export {
+  type PublicSecret,
+  PublicSecretSchema,
+  type SecretValue,
+  SecretValueSchema,
+} from './secret.js';

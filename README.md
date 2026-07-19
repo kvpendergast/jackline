@@ -14,13 +14,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
 | Envelope crypto (`@mesh/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through connections, OpenAPI | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
 | Admin UI (`@mesh/web`) | Stub |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: secrets API, then gateway + UI.
+Next: MCP gateway + admin UI.
 
 ## Stack
 
@@ -254,6 +254,30 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connectio
 # Overrides: POST|PUT /connections/:id/tool-overrides
 #            DELETE /connections/:id/tool-overrides/:toolId
 # GET /connections  |  GET|PATCH|DELETE /connections/:id
+```
+
+### Secrets (tenant-scoped)
+
+Encrypted credentials via `@mesh/crypto` (local AES-GCM). List/get return **metadata only**. Reveal is admin-only.
+
+Bindings (exactly one):
+- server-level: `serverId`
+- per-user upstream: `serverId` + `userId`
+- gateway token: `connectionId`
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/secrets \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{
+    "kind": "api_key",
+    "name": "example",
+    "value": "super-secret",
+    "serverId": "'"$SERVER_ID"'"
+  }' | jq .
+
+# GET  /api/v1/secrets/:id/value   (decrypt; full_admin)
+# GET|PATCH|DELETE /api/v1/secrets/:id
 ```
 
 ## API notes

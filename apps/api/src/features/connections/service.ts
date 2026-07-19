@@ -25,7 +25,7 @@ import {
   type PublicConnectionDetail,
   type PublicConnectionToolOverride,
 } from "@mesh/shared";
-import { isUniqueViolation } from "../../lib/db/isUniqueViolation.js";
+import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -252,14 +252,7 @@ async function create(
     log.info({ connectionId: row.id, tenantId }, "Connection.services.create");
     return ok(await toDetail(tenantId, row));
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(
-        new BadRequestError(
-          "A connection already exists for this client and user",
-        ),
-      );
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A connection already exists for this client and user"));
   }
 }
 
@@ -397,10 +390,7 @@ async function attachRole(
       tenantId,
     });
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("Role is already attached to this connection"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "Role is already attached to this connection"));
   }
 
   log.info(
@@ -512,12 +502,7 @@ async function attachToolOverride(
       tenantId,
     });
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(
-        new BadRequestError("Tool override already exists on this connection"),
-      );
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "Tool override already exists on this connection"));
   }
 
   log.info(

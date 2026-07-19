@@ -5,6 +5,7 @@ import { meFeature } from "./features/me/index.js";
 import { clientsFeature } from "./features/clients/index.js";
 import { connectionsFeature } from "./features/connections/index.js";
 import { rolesFeature } from "./features/roles/index.js";
+import { secretsFeature } from "./features/secrets/index.js";
 import { serversFeature } from "./features/servers/index.js";
 import { toolsFeature } from "./features/tools/index.js";
 
@@ -20,6 +21,7 @@ export const tenantV1Features: AppSlice[] = [
   rolesFeature,
   clientsFeature,
   connectionsFeature,
+  secretsFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */

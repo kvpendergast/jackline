@@ -13,7 +13,7 @@ import {
   type PublicRoleDetail,
   type RoleType,
 } from "@mesh/shared";
-import { isUniqueViolation } from "../../lib/db/isUniqueViolation.js";
+import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -98,10 +98,7 @@ async function create(
     log.info({ roleId: row.id, tenantId }, "role created");
     return ok({ ...toPublicRole(row), toolIds: [] });
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("A role with this name already exists"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A role with this name already exists"));
   }
 }
 
@@ -214,10 +211,7 @@ async function update(
     log.info({ roleId, tenantId }, "Role.services.update");
     return ok({ ...toPublicRole(row), toolIds });
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("A role with this name already exists"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A role with this name already exists"));
   }
 }
 
@@ -274,10 +268,7 @@ async function attachTool(
   try {
     await db.insert(roleTools).values({ roleId, toolId, tenantId });
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("Tool is already attached to this role"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "Tool is already attached to this role"));
   }
 
   const toolIds = await loadToolIds(tenantId, roleId);

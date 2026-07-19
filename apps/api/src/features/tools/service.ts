@@ -11,7 +11,7 @@ import {
   type PublicTool,
   type ToolStatus,
 } from "@mesh/shared";
-import { isUniqueViolation } from "../../lib/db/isUniqueViolation.js";
+import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -94,12 +94,7 @@ async function create(
     );
     return ok(toPublicTool(row));
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(
-        new BadRequestError("A tool with this name already exists on the server"),
-      );
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A tool with this name already exists on the server"));
   }
 }
 
@@ -206,12 +201,7 @@ async function update(
     log.info({ toolId, tenantId }, "tool updated");
     return ok(toPublicTool(row));
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(
-        new BadRequestError("A tool with this name already exists on the server"),
-      );
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A tool with this name already exists on the server"));
   }
 }
 

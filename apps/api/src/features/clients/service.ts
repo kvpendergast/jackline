@@ -3,7 +3,6 @@ import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { db, clients, type Client as ClientRow } from "@mesh/db";
 import {
-  BadRequestError,
   MeshError,
   NotFoundError,
   SetupError,
@@ -11,7 +10,7 @@ import {
   type CursorPage,
   type PublicClient,
 } from "@mesh/shared";
-import { isUniqueViolation } from "../../lib/db/isUniqueViolation.js";
+import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -66,10 +65,7 @@ async function create(
     log.info({ clientId: row.id, tenantId }, "Client.services.create");
     return ok(toPublicClient(row));
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("A client with this name already exists"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A client with this name already exists"));
   }
 }
 
@@ -176,10 +172,7 @@ async function update(
     log.info({ clientId, tenantId }, "Client.services.update");
     return ok(toPublicClient(row));
   } catch (cause) {
-    if (isUniqueViolation(cause)) {
-      return err(new BadRequestError("A client with this name already exists"));
-    }
-    throw cause;
+    return err(fromDbWriteError(cause, "A client with this name already exists"));
   }
 }
 

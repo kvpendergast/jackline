@@ -20,6 +20,7 @@
     "@hono/node-server": "^2.0.10",
     "@hono/zod-openapi": "^1.5.1",
     "@mesh/auth": "workspace:*",
+    "@mesh/crypto": "workspace:*",
     "@mesh/db": "workspace:*",
     "@mesh/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",

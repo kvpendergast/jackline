@@ -225,6 +225,9 @@ importers:
       '@mesh/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@mesh/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@mesh/db':
         specifier: workspace:*
         version: link:../../packages/db
