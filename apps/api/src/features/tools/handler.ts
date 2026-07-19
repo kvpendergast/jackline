@@ -2,27 +2,27 @@ import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import {
-  createServerRoute,
-  deleteServerRoute,
-  getServerRoute,
-  listServersRoute,
-  updateServerRoute,
+  createToolRoute,
+  deleteToolRoute,
+  getToolRoute,
+  listToolsRoute,
+  updateToolRoute,
 } from "./route.js";
 import {
-  createServer,
-  deleteServer,
-  getServer,
-  listServers,
-  updateServer,
+  createTool,
+  deleteTool,
+  getTool,
+  listTools,
+  updateTool,
 } from "./service.js";
 
-export const listServersRouteHandler: RouteHandler<
-  typeof listServersRoute,
+export const listToolsRouteHandler: RouteHandler<
+  typeof listToolsRoute,
   MeshEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
-  const result = await listServers(log, auth.tenantId, query);
+  const result = await listTools(log, auth.tenantId, query);
   if (result.isErr()) {
     throw result.error;
   }
@@ -30,13 +30,13 @@ export const listServersRouteHandler: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-export const createServerRouteHandler: RouteHandler<
-  typeof createServerRoute,
+export const createToolRouteHandler: RouteHandler<
+  typeof createToolRoute,
   MeshEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
-  const result = await createServer(log, auth.tenantId, body);
+  const result = await createTool(log, auth.tenantId, body);
   if (result.isErr()) {
     throw result.error;
   }
@@ -44,13 +44,13 @@ export const createServerRouteHandler: RouteHandler<
   return c.json(okEnvelope(result.value), 201);
 };
 
-export const getServerRouteHandler: RouteHandler<
-  typeof getServerRoute,
+export const getToolRouteHandler: RouteHandler<
+  typeof getToolRoute,
   MeshEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
-  const result = await getServer(log, auth.tenantId, id);
+  const result = await getTool(log, auth.tenantId, id);
   if (result.isErr()) {
     throw result.error;
   }
@@ -58,14 +58,14 @@ export const getServerRouteHandler: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-export const updateServerRouteHandler: RouteHandler<
-  typeof updateServerRoute,
+export const updateToolRouteHandler: RouteHandler<
+  typeof updateToolRoute,
   MeshEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
-  const result = await updateServer(log, auth.tenantId, id, body);
+  const result = await updateTool(log, auth.tenantId, id, body);
   if (result.isErr()) {
     throw result.error;
   }
@@ -73,13 +73,13 @@ export const updateServerRouteHandler: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-export const deleteServerRouteHandler: RouteHandler<
-  typeof deleteServerRoute,
+export const deleteToolRouteHandler: RouteHandler<
+  typeof deleteToolRoute,
   MeshEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
-  const result = await deleteServer(log, auth.tenantId, id);
+  const result = await deleteTool(log, auth.tenantId, id);
   if (result.isErr()) {
     throw result.error;
   }

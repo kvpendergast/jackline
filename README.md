@@ -14,13 +14,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
 | Envelope crypto (`@mesh/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers CRUD, OpenAPI | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers/tools CRUD, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
 | Admin UI (`@mesh/web`) | Stub |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: tools / roles / clients / connections / secrets APIs, then gateway + UI.
+Next: roles / clients / connections / secrets APIs, then gateway + UI.
 
 ## Stack
 
@@ -182,6 +182,29 @@ List response shape: `{ "success": true, "data": { "items": [...], "nextCursor":
 
 New servers start as `status: pending`, `health: unknown`. `health` is gateway-owned (not patchable here).
 
+### Tools (tenant-scoped)
+
+Tools belong to a server. Mutations require `full_admin`. Names are unique per `(tenant, server)`.
+
+```bash
+# Create (default status: needs_review)
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/tools \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{
+    "name": "search",
+    "serverId": "'"$SERVER_ID"'"
+  }' | jq .
+
+# List (optional serverId filter)
+curl -sS -b /tmp/mesh-cookies.txt \
+  "http://127.0.0.1:8080/api/v1/tools?limit=50&serverId=$SERVER_ID" \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+
+# PATCH /api/v1/tools/:id  e.g. {"status":"active"}
+# GET|DELETE /api/v1/tools/:id
+```
+
 ## API notes
 
 - Success: `{ "success": true, "data": ... }`
@@ -189,8 +212,8 @@ New servers start as `status: pending`, `health: unknown`. `health` is gateway-o
 - List endpoints return cursor pages: `{ items, nextCursor }` (`limit` + optional `cursor` query)
 - `/me` returns **all** memberships for the session user (client chooses active tenant later)
 - Signup creates Better Auth user + Mesh tenant + `full_admin` membership
-- Tenant-scoped routes require `X-Mesh-Tenant-Id` plus a session membership for that tenant
-- Server mutations require `full_admin`; list/get allow any member
+- Tenant-scoped routes run `tenantContextMiddleware` (`X-Mesh-Tenant-Id` + membership)
+- Admin-only routes also declare `middleware: [requireFullAdmin]` on the route (Express-style)
 
 ## Observability
 

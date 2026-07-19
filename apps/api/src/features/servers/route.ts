@@ -13,6 +13,7 @@ import {
   tenantScopedErrors,
 } from "../../lib/http/errorResponses.js";
 import { PaginationQuerySchema } from "../../lib/http/pagination.js";
+import { requireFullAdmin } from "../../lib/request/requireFullAdmin.js";
 import { TenantIdHeaderSchema } from "../../lib/request/tenantHeader.js";
 
 const ServerIdParamSchema = z
@@ -89,6 +90,7 @@ export const createServerRoute = createRoute({
   path: "/servers",
   tags: ["Servers"],
   summary: "Create a server",
+  middleware: [requireFullAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     body: {
@@ -133,6 +135,7 @@ export const updateServerRoute = createRoute({
   path: "/servers/{id}",
   tags: ["Servers"],
   summary: "Update a server",
+  middleware: [requireFullAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ServerIdParamSchema,
@@ -158,6 +161,7 @@ export const deleteServerRoute = createRoute({
   path: "/servers/{id}",
   tags: ["Servers"],
   summary: "Delete a server",
+  middleware: [requireFullAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ServerIdParamSchema,

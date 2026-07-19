@@ -12,14 +12,8 @@ import {
 import type { MeshEnv } from "../http/env.js";
 import type { AuthContext, RequestContext } from "./types.js";
 
-export type RequireTenantOptions = {
-  /** When true, membership.role must be `full_admin`. */
-  requireFullAdmin?: boolean;
-};
-
 export async function requireTenantContext(
   c: Context<MeshEnv>,
-  options: RequireTenantOptions = {},
 ): Promise<Result<RequestContext, MeshError>> {
   const base = c.get("requestContext");
 
@@ -49,10 +43,6 @@ export async function requireTenantContext(
 
   if (!membership) {
     return err(new ForbiddenError("Not a member of this tenant"));
-  }
-
-  if (options.requireFullAdmin && membership.role !== "full_admin") {
-    return err(new ForbiddenError("full_admin role required"));
   }
 
   const authContext: AuthContext = {

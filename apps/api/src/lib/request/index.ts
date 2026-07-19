@@ -5,8 +5,7 @@ export type {
 } from "./types.js";
 export { requestMiddleware } from "./middleware.js";
 export { requireSession } from "./requireSession.js";
-export {
-  requireTenantContext,
-  type RequireTenantOptions,
-} from "./requireTenantContext.js";
+export { requireTenantContext } from "./requireTenantContext.js";
+export { tenantContextMiddleware } from "./tenantContextMiddleware.js";
+export { requireFullAdmin } from "./requireFullAdmin.js";
 export { TenantIdHeaderSchema } from "./tenantHeader.js";
