@@ -36,3 +36,9 @@ export {
   type RoleType,
   RoleTypeSchema,
 } from './role.js';
+export {
+  type PublicClient,
+  PublicClientSchema,
+  type ClientKind,
+  ClientKindSchema,
+} from './client.js';

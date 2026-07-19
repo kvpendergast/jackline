@@ -14,13 +14,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
 | Envelope crypto (`@mesh/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers/tools/roles CRUD, OpenAPI | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers/tools/roles/clients CRUD, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
 | Admin UI (`@mesh/web`) | Stub |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: clients / connections / secrets APIs, then gateway + UI.
+Next: connections / secrets APIs, then gateway + UI.
 
 ## Stack
 
@@ -225,6 +225,20 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/roles \
 ```
 
 `GET /roles/:id` returns `toolIds`.
+
+### Clients (tenant-scoped)
+
+Mesh front-door registrations: `interactive` (human harnesses) or `service` (machine clients). Names unique per tenant.
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{"name":"cursor","kind":"interactive"}' | jq .
+
+# GET /api/v1/clients?kind=interactive
+# GET|PATCH|DELETE /api/v1/clients/:id
+```
 
 ## API notes
 
