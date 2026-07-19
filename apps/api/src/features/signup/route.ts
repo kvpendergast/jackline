@@ -27,7 +27,7 @@ const SignupResponseSchema = successEnvelopeSchema(
   "SignupResponse",
 );
 
-export const signupRoute = createRoute({
+const create = createRoute({
   method: "post",
   path: "/signup",
   tags: ["Auth"],
@@ -61,3 +61,5 @@ export const signupRoute = createRoute({
     },
   },
 });
+
+export const signupRoutes = { create } as const;

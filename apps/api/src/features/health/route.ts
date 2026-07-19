@@ -12,7 +12,7 @@ const HealthResponseSchema = successEnvelopeSchema(
   "HealthResponse",
 );
 
-export const healthRoute = createRoute({
+const get = createRoute({
   method: "get",
   path: "/health",
   tags: ["System"],
@@ -28,3 +28,5 @@ export const healthRoute = createRoute({
     },
   },
 });
+
+export const healthRoutes = { get } as const;

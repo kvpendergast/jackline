@@ -63,7 +63,7 @@ async function assertServerInTenant(
   return ok(undefined);
 }
 
-export async function createTool(
+async function create(
   log: Logger,
   tenantId: string,
   input: CreateToolInput,
@@ -103,7 +103,7 @@ export async function createTool(
   }
 }
 
-export async function listTools(
+async function list(
   log: Logger,
   tenantId: string,
   query: ListToolsQuery,
@@ -160,7 +160,7 @@ export async function listTools(
   });
 }
 
-export async function getTool(
+async function get(
   log: Logger,
   tenantId: string,
   toolId: string,
@@ -179,7 +179,7 @@ export async function getTool(
   return ok(toPublicTool(row));
 }
 
-export async function updateTool(
+async function update(
   log: Logger,
   tenantId: string,
   toolId: string,
@@ -215,7 +215,7 @@ export async function updateTool(
   }
 }
 
-export async function deleteTool(
+async function remove(
   log: Logger,
   tenantId: string,
   toolId: string,
@@ -232,3 +232,11 @@ export async function deleteTool(
   log.info({ toolId, tenantId }, "tool deleted");
   return ok(toPublicTool(row));
 }
+
+export const toolServices = {
+  list,
+  create,
+  get,
+  update,
+  delete: remove,
+} as const;

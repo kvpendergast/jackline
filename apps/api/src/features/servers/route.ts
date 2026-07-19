@@ -65,7 +65,7 @@ const ServerListResponseSchema = successEnvelopeSchema(
 
 const serverNotFound = notFoundError("Server not found");
 
-export const listServersRoute = createRoute({
+const list = createRoute({
   method: "get",
   path: "/servers",
   tags: ["Servers"],
@@ -85,7 +85,7 @@ export const listServersRoute = createRoute({
   },
 });
 
-export const createServerRoute = createRoute({
+const create = createRoute({
   method: "post",
   path: "/servers",
   tags: ["Servers"],
@@ -109,7 +109,7 @@ export const createServerRoute = createRoute({
   },
 });
 
-export const getServerRoute = createRoute({
+const get = createRoute({
   method: "get",
   path: "/servers/{id}",
   tags: ["Servers"],
@@ -130,7 +130,7 @@ export const getServerRoute = createRoute({
   },
 });
 
-export const updateServerRoute = createRoute({
+const update = createRoute({
   method: "patch",
   path: "/servers/{id}",
   tags: ["Servers"],
@@ -156,7 +156,7 @@ export const updateServerRoute = createRoute({
   },
 });
 
-export const deleteServerRoute = createRoute({
+const remove = createRoute({
   method: "delete",
   path: "/servers/{id}",
   tags: ["Servers"],
@@ -177,3 +177,11 @@ export const deleteServerRoute = createRoute({
     ...serverNotFound,
   },
 });
+
+export const serverRoutes = {
+  list,
+  create,
+  get,
+  update,
+  delete: remove,
+} as const;

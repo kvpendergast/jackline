@@ -1,26 +1,16 @@
-import type { Feature } from "../../lib/feature.js";
-import {
-  createToolRouteHandler,
-  deleteToolRouteHandler,
-  getToolRouteHandler,
-  listToolsRouteHandler,
-  updateToolRouteHandler,
-} from "./handler.js";
-import {
-  createToolRoute,
-  deleteToolRoute,
-  getToolRoute,
-  listToolsRoute,
-  updateToolRoute,
-} from "./route.js";
+import { featureRoutes, type AppSlice } from "../../lib/feature.js";
+import { toolHandlers } from "./handler.js";
+import { Tool as ToolCore } from "./resource.js";
 
-export const toolsFeature: Feature = {
+export const Tool = {
+  routes: ToolCore.routes,
+  services: ToolCore.services,
+  handlers: toolHandlers,
+} as const;
+
+const routeOrder = ["list", "create", "get", "update", "delete"] as const;
+
+export const toolsFeature: AppSlice = {
   name: "tools",
-  routes: [
-    { route: listToolsRoute, handler: listToolsRouteHandler },
-    { route: createToolRoute, handler: createToolRouteHandler },
-    { route: getToolRoute, handler: getToolRouteHandler },
-    { route: updateToolRoute, handler: updateToolRouteHandler },
-    { route: deleteToolRoute, handler: deleteToolRouteHandler },
-  ],
+  routes: featureRoutes(Tool.routes, Tool.handlers, routeOrder),
 };

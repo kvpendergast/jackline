@@ -1,26 +1,16 @@
-import type { Feature } from "../../lib/feature.js";
-import {
-  createServerRouteHandler,
-  deleteServerRouteHandler,
-  getServerRouteHandler,
-  listServersRouteHandler,
-  updateServerRouteHandler,
-} from "./handler.js";
-import {
-  createServerRoute,
-  deleteServerRoute,
-  getServerRoute,
-  listServersRoute,
-  updateServerRoute,
-} from "./route.js";
+import { featureRoutes, type AppSlice } from "../../lib/feature.js";
+import { serverHandlers } from "./handler.js";
+import { Server as ServerCore } from "./resource.js";
 
-export const serversFeature: Feature = {
+export const Server = {
+  routes: ServerCore.routes,
+  services: ServerCore.services,
+  handlers: serverHandlers,
+} as const;
+
+const routeOrder = ["list", "create", "get", "update", "delete"] as const;
+
+export const serversFeature: AppSlice = {
   name: "servers",
-  routes: [
-    { route: listServersRoute, handler: listServersRouteHandler },
-    { route: createServerRoute, handler: createServerRouteHandler },
-    { route: getServerRoute, handler: getServerRouteHandler },
-    { route: updateServerRoute, handler: updateServerRouteHandler },
-    { route: deleteServerRoute, handler: deleteServerRouteHandler },
-  ],
+  routes: featureRoutes(Server.routes, Server.handlers, routeOrder),
 };

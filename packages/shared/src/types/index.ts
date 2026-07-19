@@ -28,3 +28,11 @@ export {
   type ToolStatus,
   ToolStatusSchema,
 } from './tool.js';
+export {
+  type PublicRole,
+  PublicRoleSchema,
+  type PublicRoleDetail,
+  PublicRoleDetailSchema,
+  type RoleType,
+  RoleTypeSchema,
+} from './role.js';

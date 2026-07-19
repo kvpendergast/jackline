@@ -1,21 +1,22 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
-import { meRoute } from "./route.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { requireSession } from "../../lib/request/index.js";
-import { getMe } from "./service.js";
+import { Me } from "./resource.js";
 
-export const meRouteHandler: RouteHandler<typeof meRoute, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof Me.routes.get, MeshEnv> = async (c) => {
   const sessionResult = await requireSession(c);
   if (sessionResult.isErr()) {
     throw sessionResult.error;
   }
 
   const { ctx, user } = sessionResult.value;
-  const getMeResult = await getMe(ctx.log, user);
-  if (getMeResult.isErr()) {
-    throw getMeResult.error;
+  const result = await Me.services.get(ctx.log, user);
+  if (result.isErr()) {
+    throw result.error;
   }
 
-  return c.json(okEnvelope(getMeResult.value), 200);
+  return c.json(okEnvelope(result.value), 200);
 };
+
+export const meHandlers = { get } as const;

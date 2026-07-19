@@ -13,7 +13,7 @@ type MeSuccess = {
   }[];
 };
 
-export async function getMe(
+async function get(
   log: Logger,
   user: PublicUser,
 ): Promise<Result<MeSuccess, MeshError>> {
@@ -38,3 +38,5 @@ export async function getMe(
     })),
   });
 }
+
+export const meServices = { get } as const;

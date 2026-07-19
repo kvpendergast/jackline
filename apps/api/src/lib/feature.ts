@@ -7,7 +7,19 @@ export type FeatureRoute = {
   handler: RouteHandler<any, MeshEnv>;
 };
 
-export type Feature = {
+export type AppSlice = {
   name: string;
   routes: FeatureRoute[];
 };
+
+/** Pair matching route/handler keys into an AppSlice route list (stable order). */
+export function featureRoutes<const K extends string>(
+  routes: Record<K, RouteConfig>,
+  handlers: Record<K, RouteHandler<any, MeshEnv>>,
+  order: readonly K[],
+): FeatureRoute[] {
+  return order.map((key) => ({
+    route: routes[key],
+    handler: handlers[key],
+  }));
+}

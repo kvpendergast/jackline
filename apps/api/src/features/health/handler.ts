@@ -1,8 +1,10 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
-import { healthRoute } from "./route.js";
+import { Health } from "./resource.js";
 
-export const healthRouteHandler: RouteHandler<typeof healthRoute, MeshEnv> = (c) => {
+const get: RouteHandler<typeof Health.routes.get, MeshEnv> = (c) => {
   return c.json(okEnvelope({ ok: true as const }), 200);
 };
+
+export const healthHandlers = { get } as const;

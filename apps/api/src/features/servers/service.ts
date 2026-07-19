@@ -59,7 +59,7 @@ function toPublicServer(row: Server): PublicServer {
   };
 }
 
-export async function createServer(
+async function create(
   log: Logger,
   tenantId: string,
   input: CreateServerInput,
@@ -86,7 +86,7 @@ export async function createServer(
   return ok(toPublicServer(row));
 }
 
-export async function listServers(
+async function list(
   log: Logger,
   tenantId: string,
   query: PaginationQuery,
@@ -138,7 +138,7 @@ export async function listServers(
   });
 }
 
-export async function getServer(
+async function get(
   log: Logger,
   tenantId: string,
   serverId: string,
@@ -157,7 +157,7 @@ export async function getServer(
   return ok(toPublicServer(row));
 }
 
-export async function updateServer(
+async function update(
   log: Logger,
   tenantId: string,
   serverId: string,
@@ -190,7 +190,7 @@ export async function updateServer(
   return ok(toPublicServer(row));
 }
 
-export async function deleteServer(
+async function remove(
   log: Logger,
   tenantId: string,
   serverId: string,
@@ -207,3 +207,11 @@ export async function deleteServer(
   log.info({ serverId, tenantId }, "server deleted");
   return ok(toPublicServer(row));
 }
+
+export const serverServices = {
+  list,
+  create,
+  get,
+  update,
+  delete: remove,
+} as const;

@@ -29,7 +29,7 @@ export type SignupSuccess = {
   authResponse: Response;
 };
 
-export async function signupOrg(
+async function create(
   log: Logger,
   input: SignupInput,
 ): Promise<Result<SignupSuccess, MeshError>> {
@@ -136,3 +136,5 @@ export async function signupOrg(
     return err(new SetupError(message));
   }
 }
+
+export const signupServices = { create } as const;

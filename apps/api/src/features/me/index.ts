@@ -1,8 +1,14 @@
-import type { Feature } from "../../lib/feature.js";
-import { meRouteHandler } from "./handler.js";
-import { meRoute } from "./route.js";
+import { featureRoutes, type AppSlice } from "../../lib/feature.js";
+import { meHandlers } from "./handler.js";
+import { Me as MeCore } from "./resource.js";
 
-export const meFeature: Feature = {
+export const Me = {
+  routes: MeCore.routes,
+  services: MeCore.services,
+  handlers: meHandlers,
+} as const;
+
+export const meFeature: AppSlice = {
   name: "me",
-  routes: [{ route: meRoute, handler: meRouteHandler }],
+  routes: featureRoutes(Me.routes, Me.handlers, ["get"] as const),
 };

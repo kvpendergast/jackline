@@ -62,7 +62,7 @@ const ToolListResponseSchema = successEnvelopeSchema(
 
 const toolNotFound = notFoundError("Tool not found");
 
-export const listToolsRoute = createRoute({
+const list = createRoute({
   method: "get",
   path: "/tools",
   tags: ["Tools"],
@@ -82,7 +82,7 @@ export const listToolsRoute = createRoute({
   },
 });
 
-export const createToolRoute = createRoute({
+const create = createRoute({
   method: "post",
   path: "/tools",
   tags: ["Tools"],
@@ -106,7 +106,7 @@ export const createToolRoute = createRoute({
   },
 });
 
-export const getToolRoute = createRoute({
+const get = createRoute({
   method: "get",
   path: "/tools/{id}",
   tags: ["Tools"],
@@ -127,7 +127,7 @@ export const getToolRoute = createRoute({
   },
 });
 
-export const updateToolRoute = createRoute({
+const update = createRoute({
   method: "patch",
   path: "/tools/{id}",
   tags: ["Tools"],
@@ -153,7 +153,7 @@ export const updateToolRoute = createRoute({
   },
 });
 
-export const deleteToolRoute = createRoute({
+const remove = createRoute({
   method: "delete",
   path: "/tools/{id}",
   tags: ["Tools"],
@@ -174,3 +174,11 @@ export const deleteToolRoute = createRoute({
     ...toolNotFound,
   },
 });
+
+export const toolRoutes = {
+  list,
+  create,
+  get,
+  update,
+  delete: remove,
+} as const;

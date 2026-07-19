@@ -1,13 +1,12 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
-import { signupRoute } from "./route.js";
-import { signupOrg } from "./service.js";
+import { Signup } from "./resource.js";
 
-export const signupRouteHandler: RouteHandler<typeof signupRoute, MeshEnv> = async (c) => {
+const create: RouteHandler<typeof Signup.routes.create, MeshEnv> = async (c) => {
   const { log } = c.get("requestContext");
   const body = c.req.valid("json");
-  const result = await signupOrg(log, body);
+  const result = await Signup.services.create(log, body);
 
   if (result.isErr()) {
     throw result.error;
@@ -23,3 +22,5 @@ export const signupRouteHandler: RouteHandler<typeof signupRoute, MeshEnv> = asy
 
   return c.json(okEnvelope({ user, tenant, membership }), 201);
 };
+
+export const signupHandlers = { create } as const;

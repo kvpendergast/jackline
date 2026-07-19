@@ -30,7 +30,7 @@ export const MeResponseSchema = successEnvelopeSchema(
   "MeResponse",
 );
 
-export const meRoute = createRoute({
+const get = createRoute({
   method: "get",
   path: "/me",
   tags: ["Auth"],
@@ -54,3 +54,5 @@ export const meRoute = createRoute({
     },
   },
 });
+
+export const meRoutes = { get } as const;
