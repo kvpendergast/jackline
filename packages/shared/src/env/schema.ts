@@ -1,6 +1,9 @@
 import { z } from "zod";
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+    .default("info"),
   MESH_TENANCY: z.enum(["single", "multi"]).default("single"),
   MESH_MASTER_KEY: z.string().min(1),
   MESH_SECRET_STORAGE_LOCATION: z.enum(["local", "aws_kms", "gcp_kms"]).default("local"),

@@ -150,6 +150,32 @@ Without cookies, `/me` returns `401` `UNAUTHORIZED`.
 - Error: `{ "success": false, "error": { "code", "message", "details?" } }`
 - `/me` returns **all** memberships for the session user (client chooses active tenant later)
 - Signup creates Better Auth user + Mesh tenant + `full_admin` membership
+- Tenant-scoped routes (coming next) require `X-Mesh-Tenant-Id` plus a session membership for that tenant
+
+## Observability
+
+The API logs structured JSON to stdout (pretty-printed in development). Set `LOG_LEVEL` (`info` default).
+
+**Correlation**
+
+| Header / field | Role |
+| --- | --- |
+| `X-Request-Id` | Honored if sent; otherwise generated. Echoed on every response. |
+| `traceparent` | Optional W3C header; `traceId` is extracted into logs for later gateway joining. |
+
+Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
+
+Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
+
+**Alerting (self-hosted)**
+
+No built-in pager. Typical setup:
+
+1. Alert on `level=error` or `errorCode` + 5xx rate from log shipper
+2. Probe `GET /health` for liveness
+3. Example Loki/LogQL-style filter: `{app="mesh-api"} \| json \| status >= 500`
+
+Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendly so export is additive.
 
 ## Repo layout
 

@@ -19,11 +19,11 @@ export const auth = betterAuth({
     user: {
         additionalFields: {
             kind: {
-                type: 'string'
+                type: "string",
                 required: true,
                 defaultValue: "human",
-                input: false
-            }
+                input: false,
+            },
         }
     },
     secret: config.BETTER_AUTH_SECRET,

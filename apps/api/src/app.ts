@@ -2,6 +2,7 @@ import { cors } from "hono/cors";
 import { auth } from "@mesh/auth";
 import { getConfig } from "@mesh/shared";
 import { createMeshApp } from "./lib/http/createApp.js";
+import { requestMiddleware } from "./lib/request/index.js";
 import { rootFeatures, v1Features } from "./registry.js";
 
 const configResult = getConfig();
@@ -17,6 +18,8 @@ app.use(
     credentials: true,
   }),
 );
+
+app.use("*", requestMiddleware);
 
 for (const feature of rootFeatures) {
   for (const { route, handler } of feature.routes) {

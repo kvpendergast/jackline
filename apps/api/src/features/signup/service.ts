@@ -12,6 +12,7 @@ import {
   type PublicTenant,
   type PublicUser,
 } from "@mesh/shared";
+import type { Logger } from "pino";
 import { slugify } from "../../lib/slug.js";
 
 export type SignupInput = {
@@ -29,6 +30,7 @@ export type SignupSuccess = {
 };
 
 export async function signupOrg(
+  log: Logger,
   input: SignupInput,
 ): Promise<Result<SignupSuccess, MeshError>> {
   const configResult = getConfig();
@@ -99,6 +101,11 @@ export async function signupOrg(
     if (!membership) {
       throw new SetupError("Failed to create membership");
     }
+
+    log.info(
+      { userId, tenantId: tenant.id, membershipId: membership.id },
+      "organization created",
+    );
 
     return ok({
       user: {

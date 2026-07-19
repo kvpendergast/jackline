@@ -1,47 +1,40 @@
-import { auth } from "@mesh/auth";
 import { db, memberships, tenants } from "@mesh/db";
-import { MeshError, UnauthorizedError, type PublicTenant, type PublicUser } from "@mesh/shared";
+import { MeshError, type PublicTenant, type PublicUser } from "@mesh/shared";
 import { eq } from "drizzle-orm";
-import { err, ok, Result } from "neverthrow";
+import { ok, type Result } from "neverthrow";
+import type { Logger } from "pino";
 
 type MeSuccess = {
-    user: PublicUser,
-    memberships: {
-        id: string,
-        role: string,
-        tenant: PublicTenant
-    }[]
-}
+  user: PublicUser;
+  memberships: {
+    id: string;
+    role: string;
+    tenant: PublicTenant;
+  }[];
+};
 
-export async function getMe(headers: Headers): Promise<Result<MeSuccess, MeshError>> {
-    const session = await auth.api.getSession({
-        headers
-    })
+export async function getMe(
+  log: Logger,
+  user: PublicUser,
+): Promise<Result<MeSuccess, MeshError>> {
+  const rows = await db
+    .select()
+    .from(memberships)
+    .innerJoin(tenants, eq(memberships.tenantId, tenants.id))
+    .where(eq(memberships.userId, user.id));
 
-    if (!session) {
-        return err(new UnauthorizedError('No session'))
-    }
+  log.debug({ userId: user.id, membershipCount: rows.length }, "getMe");
 
-    const { user } = session;
-
-    const result = await db.select().from(memberships).innerJoin(tenants, eq(memberships.tenantId, tenants.id)).where(eq(memberships.userId, user.id))
-
-    const data = {
-        user: {
-            id: user.id,
-            email: user.email,
-            name: user.name
-        },
-        memberships: result.map(({ memberships: membership, tenants: tenant }) => ({
-            id: membership.id,
-            role: membership.role,
-            tenant: {
-                id: tenant.id,
-                name: tenant.name,
-                slug: tenant.slug
-            }
-        }))
-    }
-
-    return ok(data)
+  return ok({
+    user,
+    memberships: rows.map(({ memberships: membership, tenants: tenant }) => ({
+      id: membership.id,
+      role: membership.role,
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+      },
+    })),
+  });
 }

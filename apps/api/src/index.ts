@@ -12,7 +12,11 @@ const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
 const { app } = await import("./app.js");
+const { logger } = await import("./lib/logger.js");
 
 serve({ fetch: app.fetch, hostname: config.API_HOST, port: config.API_PORT }, () => {
-  console.log(`api listening on http://${config.API_HOST}:${config.API_PORT}`);
+  logger.info(
+    { host: config.API_HOST, port: config.API_PORT },
+    "api listening",
+  );
 });

@@ -3,6 +3,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ErrorCode, MeshError } from "@mesh/shared";
 import { ZodError } from "zod";
 import { errEnvelope, formatZodIssues } from "./envelope.js";
+import type { MeshEnv } from "./env.js";
+import { logger } from "../logger.js";
 
 export function toHttpStatus(error: MeshError): ContentfulStatusCode {
   switch (error.code) {
@@ -24,16 +26,46 @@ export function toHttpStatus(error: MeshError): ContentfulStatusCode {
   }
 }
 
-export function meshOnError(err: Error, c: Context) {
+export function meshOnError(err: Error, c: Context<MeshEnv>) {
+  const ctx = c.get("requestContext");
+  const log = ctx?.log ?? logger;
+  const requestId = ctx?.requestId ?? c.res.headers.get("X-Request-Id");
+
   if (err instanceof MeshError) {
-    return c.json(errEnvelope(err.code, err.message), toHttpStatus(err));
+    const status = toHttpStatus(err);
+    const level = status >= 500 ? "error" : "warn";
+    log[level](
+      {
+        requestId,
+        errorCode: err.code,
+        status,
+      },
+      err.message,
+    );
+    return c.json(errEnvelope(err.code, err.message), status);
   }
 
   if (err instanceof ZodError) {
     const { message, details } = formatZodIssues(err);
+    log.warn(
+      {
+        requestId,
+        errorCode: ErrorCode.BAD_REQUEST,
+        status: 400,
+      },
+      message,
+    );
     return c.json(errEnvelope(ErrorCode.BAD_REQUEST, message, details), 400);
   }
 
-  console.error(err);
+  log.error(
+    {
+      requestId,
+      errorCode: ErrorCode.INTERNAL,
+      status: 500,
+      err,
+    },
+    "unhandled error",
+  );
   return c.json(errEnvelope(ErrorCode.INTERNAL, "Internal error"), 500);
 }

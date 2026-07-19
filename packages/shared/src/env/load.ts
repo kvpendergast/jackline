@@ -5,6 +5,7 @@ import { EnvSchema, type Env } from "./schema.js";
 
 const ENV_KEYS = [
   "NODE_ENV",
+  "LOG_LEVEL",
   "MESH_TENANCY",
   "MESH_MASTER_KEY",
   "DATABASE_URL",
