@@ -42,3 +42,15 @@ export {
   type ClientKind,
   ClientKindSchema,
 } from './client.js';
+export {
+  type PublicConnection,
+  PublicConnectionSchema,
+  type PublicConnectionDetail,
+  PublicConnectionDetailSchema,
+  type PublicConnectionToolOverride,
+  PublicConnectionToolOverrideSchema,
+  type ConnectionStatus,
+  ConnectionStatusSchema,
+  type ConnectionToolOverrideType,
+  ConnectionToolOverrideTypeSchema,
+} from './connection.js';

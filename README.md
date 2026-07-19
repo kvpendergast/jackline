@@ -14,13 +14,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
 | Envelope crypto (`@mesh/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers/tools/roles/clients CRUD, OpenAPI | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through connections, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
 | Admin UI (`@mesh/web`) | Stub |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: connections / secrets APIs, then gateway + UI.
+Next: secrets API, then gateway + UI.
 
 ## Stack
 
@@ -238,6 +238,22 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
 
 # GET /api/v1/clients?kind=interactive
 # GET|PATCH|DELETE /api/v1/clients/:id
+```
+
+### Connections (tenant-scoped)
+
+Policy target `(client, user)`. User must be a tenant member. Detail includes `roleIds` and `toolOverrides`.
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connections \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{"clientId":"'"$CLIENT_ID"'","userId":"'"$USER_ID"'"}' | jq .
+
+# Roles: POST|PUT /connections/:id/roles  DELETE /connections/:id/roles/:roleId
+# Overrides: POST|PUT /connections/:id/tool-overrides
+#            DELETE /connections/:id/tool-overrides/:toolId
+# GET /connections  |  GET|PATCH|DELETE /connections/:id
 ```
 
 ## API notes
