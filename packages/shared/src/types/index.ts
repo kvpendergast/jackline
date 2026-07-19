@@ -7,3 +7,18 @@ export {
   type MeData,
   MeDataSchema,
 } from './me.js';
+export {
+  type PublicServer,
+  PublicServerSchema,
+  type ServerAuthMethod,
+  ServerAuthMethodSchema,
+  type ServerSource,
+  ServerSourceSchema,
+  type ServerKind,
+  ServerKindSchema,
+  type ServerStatus,
+  ServerStatusSchema,
+  type ServerHealth,
+  ServerHealthSchema,
+} from './server.js';
+export { cursorPageSchema, type CursorPage } from './pagination.js';

@@ -9,3 +9,4 @@ export {
   requireTenantContext,
   type RequireTenantOptions,
 } from "./requireTenantContext.js";
+export { TenantIdHeaderSchema } from "./tenantHeader.js";

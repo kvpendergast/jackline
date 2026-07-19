@@ -14,12 +14,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
 | Envelope crypto (`@mesh/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, OpenAPI | Done |
+| Control-plane API (`@mesh/api`) — health, signup, `/me`, servers CRUD, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
+| Request context + structured logging | Done |
 | Admin UI (`@mesh/web`) | Stub |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: domain tables (connections, roles, credentials, audit), then gateway + UI.
+Next: tools / roles / clients / connections / secrets APIs, then gateway + UI.
 
 ## Stack
 
@@ -144,13 +145,52 @@ Expect `200` with:
 
 Without cookies, `/me` returns `401` `UNAUTHORIZED`.
 
+### Servers (tenant-scoped)
+
+Use a membership `tenant.id` from `/me` as `X-Mesh-Tenant-Id`. Mutations require `full_admin`.
+
+```bash
+TENANT_ID='…' # from /me → data.memberships[0].tenant.id
+
+# Create
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/servers \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{
+    "name": "Example MCP",
+    "baseUrl": "https://mcp.example.com",
+    "authMethod": "api_key",
+    "kind": "mcp"
+  }' | jq .
+
+# List (cursor page; default limit 50, max 100)
+curl -sS -b /tmp/mesh-cookies.txt 'http://127.0.0.1:8080/api/v1/servers?limit=50' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+
+# Next page (when data.nextCursor is non-null)
+curl -sS -b /tmp/mesh-cookies.txt \
+  "http://127.0.0.1:8080/api/v1/servers?limit=50&cursor=$NEXT_CURSOR" \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+
+# Get / patch / delete
+# GET    /api/v1/servers/:id
+# PATCH  /api/v1/servers/:id   (e.g. {"status":"active"})
+# DELETE /api/v1/servers/:id
+```
+
+List response shape: `{ "success": true, "data": { "items": [...], "nextCursor": "…" | null } }`.
+
+New servers start as `status: pending`, `health: unknown`. `health` is gateway-owned (not patchable here).
+
 ## API notes
 
 - Success: `{ "success": true, "data": ... }`
 - Error: `{ "success": false, "error": { "code", "message", "details?" } }`
+- List endpoints return cursor pages: `{ items, nextCursor }` (`limit` + optional `cursor` query)
 - `/me` returns **all** memberships for the session user (client chooses active tenant later)
 - Signup creates Better Auth user + Mesh tenant + `full_admin` membership
-- Tenant-scoped routes (coming next) require `X-Mesh-Tenant-Id` plus a session membership for that tenant
+- Tenant-scoped routes require `X-Mesh-Tenant-Id` plus a session membership for that tenant
+- Server mutations require `full_admin`; list/get allow any member
 
 ## Observability
 
