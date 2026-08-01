@@ -17,12 +17,18 @@ export async function requireSession(c: Context<MeshEnv>): Promise<
     return err(new UnauthorizedError("No session"));
   }
 
+  const kind =
+    "kind" in session.user && session.user.kind === "service"
+      ? "service"
+      : "human";
+
   return ok({
     ctx,
     user: {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
+      kind,
     },
   });
 }

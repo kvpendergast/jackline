@@ -1,4 +1,4 @@
-export { type PublicUser, PublicUserSchema } from './user.js';
+export { type PublicUser, PublicUserSchema, type UserKind, UserKindSchema } from './user.js';
 export { type PublicTenant, PublicTenantSchema } from './tenant.js';
 export { type PublicMembership, PublicMembershipSchema } from './membership.js';
 export {
@@ -60,3 +60,20 @@ export {
   type SecretValue,
   SecretValueSchema,
 } from './secret.js';
+export {
+  GATEWAY_TOKEN_KIND,
+  GATEWAY_TOKEN_PREFIX,
+  formatGatewayToken,
+  parseGatewayToken,
+  type ParsedGatewayToken,
+  type PublicGatewayCredential,
+  PublicGatewayCredentialSchema,
+  type MintedGatewayCredential,
+  MintedGatewayCredentialSchema,
+} from './gatewayCredential.js';
+export {
+  type AuditOutcome,
+  AuditOutcomeSchema,
+  type PublicAuditEvent,
+  PublicAuditEventSchema,
+} from './auditEvent.js';

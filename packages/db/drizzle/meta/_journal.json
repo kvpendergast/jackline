@@ -43,6 +43,13 @@
       "when": 1784401591375,
       "tag": "0005_minor_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785595468693,
+      "tag": "0006_amused_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }

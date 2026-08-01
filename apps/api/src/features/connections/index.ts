@@ -20,6 +20,9 @@ const routeOrder = [
   "attachToolOverride",
   "setToolOverrides",
   "detachToolOverride",
+  "mintCredential",
+  "listCredentials",
+  "revokeCredential",
 ] as const;
 
 export const connectionsFeature: AppSlice = {

@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import {
@@ -9,21 +10,28 @@ import {
   db,
   memberships,
   roles,
+  secrets,
   tools,
   user,
   type Connection as ConnectionRow,
+  type Secret as SecretRow,
 } from "@mesh/db";
 import {
   BadRequestError,
+  formatGatewayToken,
+  GATEWAY_TOKEN_KIND,
+  getConfig,
   MeshError,
   NotFoundError,
   SetupError,
   type ConnectionStatus,
   type ConnectionToolOverrideType,
   type CursorPage,
+  type MintedGatewayCredential,
   type PublicConnection,
   type PublicConnectionDetail,
   type PublicConnectionToolOverride,
+  type PublicGatewayCredential,
 } from "@mesh/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
@@ -32,6 +40,7 @@ import {
   toCursorPage,
   type PaginationQuery,
 } from "../../lib/http/pagination.js";
+import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 
 export type CreateConnectionInput = {
   clientId: string;
@@ -606,6 +615,164 @@ async function setToolOverrides(
   return ok(await toDetail(tenantId, rowResult.value));
 }
 
+function toPublicGatewayCredential(row: SecretRow): PublicGatewayCredential {
+  return {
+    id: row.id,
+    kind: GATEWAY_TOKEN_KIND,
+    name: row.name,
+    connectionId: row.connectionId!,
+    tenantId: row.tenantId,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function gatewayMcpConfig(token: string): MintedGatewayCredential["mcp"] {
+  const configResult = getConfig();
+  const port = configResult.isOk() ? configResult.value.GATEWAY_PORT : 8081;
+  return {
+    url: `http://127.0.0.1:${port}/mcp`,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+}
+
+async function mintCredential(
+  log: Logger,
+  tenantId: string,
+  connectionId: string,
+  input: { name?: string | undefined } = {},
+): Promise<Result<MintedGatewayCredential, MeshError>> {
+  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  if (connectionResult.isErr()) return err(connectionResult.error);
+
+  const boxResult = getSecretBox();
+  if (boxResult.isErr()) return err(boxResult.error);
+
+  const secret = randomBytes(32).toString("base64url");
+  const kind = GATEWAY_TOKEN_KIND;
+  const name = input.name?.trim() || "Gateway token";
+  const binding = {
+    serverId: null,
+    userId: null,
+    connectionId,
+  };
+  const aad = secretAad({ tenantId, kind, ...binding });
+  const encrypted = boxResult.value.encrypt(
+    new TextEncoder().encode(secret),
+    aad,
+  );
+  if (encrypted.isErr()) return err(encrypted.error);
+
+  try {
+    const [row] = await db
+      .insert(secrets)
+      .values({
+        kind,
+        name,
+        ciphertext: encrypted.value.ciphertext,
+        nonce: encrypted.value.nonce,
+        keyVersion: encrypted.value.keyVersion,
+        meta: {},
+        serverId: null,
+        userId: null,
+        connectionId,
+        tenantId,
+      })
+      .returning();
+
+    if (!row) {
+      return err(new SetupError("Failed to mint gateway credential"));
+    }
+
+    const token = formatGatewayToken(row.id, secret);
+    const credential = toPublicGatewayCredential(row);
+
+    log.info(
+      { connectionId, tenantId, secretId: row.id },
+      "Connection.services.mintCredential",
+    );
+
+    return ok({
+      ...credential,
+      token,
+      mcp: gatewayMcpConfig(token),
+    });
+  } catch (cause) {
+    return err(
+      fromDbWriteError(
+        cause,
+        "A gateway credential already exists for this connection; revoke it first to rotate",
+      ),
+    );
+  }
+}
+
+async function listCredentials(
+  log: Logger,
+  tenantId: string,
+  connectionId: string,
+): Promise<Result<PublicGatewayCredential[], MeshError>> {
+  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  if (connectionResult.isErr()) return err(connectionResult.error);
+
+  const rows = await db
+    .select()
+    .from(secrets)
+    .where(
+      and(
+        eq(secrets.tenantId, tenantId),
+        eq(secrets.connectionId, connectionId),
+        eq(secrets.kind, GATEWAY_TOKEN_KIND),
+        isNull(secrets.serverId),
+        isNull(secrets.userId),
+      ),
+    )
+    .orderBy(desc(secrets.createdAt), desc(secrets.id));
+
+  log.debug(
+    { connectionId, tenantId, count: rows.length },
+    "Connection.services.listCredentials",
+  );
+
+  return ok(rows.map(toPublicGatewayCredential));
+}
+
+async function revokeCredential(
+  log: Logger,
+  tenantId: string,
+  connectionId: string,
+  secretId: string,
+): Promise<Result<PublicGatewayCredential, MeshError>> {
+  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  if (connectionResult.isErr()) return err(connectionResult.error);
+
+  const [row] = await db
+    .delete(secrets)
+    .where(
+      and(
+        eq(secrets.id, secretId),
+        eq(secrets.tenantId, tenantId),
+        eq(secrets.connectionId, connectionId),
+        eq(secrets.kind, GATEWAY_TOKEN_KIND),
+        isNull(secrets.serverId),
+        isNull(secrets.userId),
+      ),
+    )
+    .returning();
+
+  if (!row) {
+    return err(new NotFoundError("Gateway credential not found"));
+  }
+
+  log.info(
+    { connectionId, tenantId, secretId },
+    "Connection.services.revokeCredential",
+  );
+  return ok(toPublicGatewayCredential(row));
+}
+
 export const connectionServices = {
   list,
   create,
@@ -618,4 +785,7 @@ export const connectionServices = {
   attachToolOverride,
   detachToolOverride,
   setToolOverrides,
+  mintCredential,
+  listCredentials,
+  revokeCredential,
 } as const;

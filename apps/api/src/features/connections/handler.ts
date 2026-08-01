@@ -150,6 +150,54 @@ const detachToolOverride: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
+const mintCredential: RouteHandler<
+  typeof Connection.routes.mintCredential,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const result = await Connection.services.mintCredential(
+    log,
+    auth.tenantId,
+    id,
+    body,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 201);
+};
+
+const listCredentials: RouteHandler<
+  typeof Connection.routes.listCredentials,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const result = await Connection.services.listCredentials(
+    log,
+    auth.tenantId,
+    id,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const revokeCredential: RouteHandler<
+  typeof Connection.routes.revokeCredential,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id, secretId } = c.req.valid("param");
+  const result = await Connection.services.revokeCredential(
+    log,
+    auth.tenantId,
+    id,
+    secretId,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const connectionHandlers = {
   list,
   create,
@@ -162,4 +210,7 @@ export const connectionHandlers = {
   attachToolOverride,
   setToolOverrides,
   detachToolOverride,
+  mintCredential,
+  listCredentials,
+  revokeCredential,
 } as const;

@@ -112,6 +112,7 @@ async function create(
         id: signUpJson.user.id,
         email: signUpJson.user.email,
         name: signUpJson.user.name,
+        kind: "human",
       },
       tenant: {
         id: tenant.id,

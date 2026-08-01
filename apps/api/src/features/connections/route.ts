@@ -3,8 +3,10 @@ import {
   ConnectionStatusSchema,
   ConnectionToolOverrideTypeSchema,
   cursorPageSchema,
+  MintedGatewayCredentialSchema,
   PublicConnectionDetailSchema,
   PublicConnectionSchema,
+  PublicGatewayCredentialSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
@@ -36,6 +38,19 @@ const ConnectionToolOverrideParamsSchema = z
     toolId: z.uuid().openapi({ param: { name: "toolId", in: "path" } }),
   })
   .openapi("ConnectionToolOverrideParams");
+
+const ConnectionCredentialParamsSchema = z
+  .object({
+    id: z.uuid().openapi({ param: { name: "id", in: "path" } }),
+    secretId: z.uuid().openapi({ param: { name: "secretId", in: "path" } }),
+  })
+  .openapi("ConnectionCredentialParams");
+
+const MintCredentialBodySchema = z
+  .strictObject({
+    name: z.string().min(1).optional(),
+  })
+  .openapi("MintCredentialBody");
 
 const ListConnectionsQuerySchema = PaginationQuerySchema.extend({
   clientId: z.uuid().optional().openapi({
@@ -372,6 +387,90 @@ const detachToolOverride = createRoute({
   },
 });
 
+const MintedCredentialResponseSchema = successEnvelopeSchema(
+  MintedGatewayCredentialSchema,
+  "MintedGatewayCredentialResponse",
+);
+
+const GatewayCredentialListResponseSchema = successEnvelopeSchema(
+  z.array(PublicGatewayCredentialSchema),
+  "GatewayCredentialListResponse",
+);
+
+const GatewayCredentialResponseSchema = successEnvelopeSchema(
+  PublicGatewayCredentialSchema,
+  "GatewayCredentialResponse",
+);
+
+const mintCredential = createRoute({
+  method: "post",
+  path: "/connections/{id}/credentials",
+  tags: ["Connections"],
+  summary: "Mint a gateway bearer token for a connection (plaintext returned once)",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionIdParamSchema,
+    body: {
+      content: { "application/json": { schema: MintCredentialBodySchema } },
+      required: true,
+    },
+  },
+  responses: {
+    201: {
+      description: "Credential minted; store token now — it is not shown again",
+      content: {
+        "application/json": { schema: MintedCredentialResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...connectionNotFound,
+  },
+});
+
+const listCredentials = createRoute({
+  method: "get",
+  path: "/connections/{id}/credentials",
+  tags: ["Connections"],
+  summary: "List gateway credentials for a connection (metadata only)",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Gateway credentials (no plaintext)",
+      content: {
+        "application/json": { schema: GatewayCredentialListResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...connectionNotFound,
+  },
+});
+
+const revokeCredential = createRoute({
+  method: "delete",
+  path: "/connections/{id}/credentials/{secretId}",
+  tags: ["Connections"],
+  summary: "Revoke a gateway credential",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionCredentialParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Credential revoked",
+      content: {
+        "application/json": { schema: GatewayCredentialResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...notFoundError("Gateway credential not found"),
+  },
+});
+
 export const connectionRoutes = {
   list,
   create,
@@ -384,4 +483,7 @@ export const connectionRoutes = {
   attachToolOverride,
   setToolOverrides,
   detachToolOverride,
+  mintCredential,
+  listCredentials,
+  revokeCredential,
 } as const;

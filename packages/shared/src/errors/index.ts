@@ -6,6 +6,7 @@ export const ErrorCode = {
   TENANT_LIMIT_REACHED: "TENANT_LIMIT_REACHED",
   NOT_IMPLEMENTED: "NOT_IMPLEMENTED",
   INTERNAL: "INTERNAL",
+  TOOL_NOT_FOUND: "TOOL_NOT_FOUND"
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -7,3 +7,4 @@ export * from "./roles.js";
 export * from "./clients.js";
 export * from "./connections.js";
 export * from "./secrets.js";
+export * from "./auditEvents.js";

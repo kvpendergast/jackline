@@ -17,10 +17,10 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@mesh/web`) | Stub |
+| Admin UI (`@mesh/web`) | Steel Lattice + auth; Connections/Audit wired |
 | MCP gateway (`@mesh/gateway`) | Stub |
 
-Next: MCP gateway + admin UI.
+Next: finish remaining admin screens; harden MCP gateway.
 
 ## Stack
 
@@ -226,6 +226,20 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/roles \
 
 `GET /roles/:id` returns `toolIds`.
 
+### Users (tenant-scoped)
+
+List members of the active tenant. Create **service** users (non-interactive subjects for Connections) as `full_admin`. Humans still come from `/signup`. Service users get a `member` membership; optional email, otherwise a synthetic unique address is assigned.
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/users \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{"kind":"service","name":"ci-bot"}' | jq .
+
+# GET /api/v1/users?kind=service
+# GET /api/v1/users/:id
+```
+
 ### Clients (tenant-scoped)
 
 Mesh front-door registrations: `interactive` (human harnesses) or `service` (machine clients). Names unique per tenant.
@@ -253,7 +267,42 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connectio
 # Roles: POST|PUT /connections/:id/roles  DELETE /connections/:id/roles/:roleId
 # Overrides: POST|PUT /connections/:id/tool-overrides
 #            DELETE /connections/:id/tool-overrides/:toolId
+# Credentials (gateway bearer): POST /connections/:id/credentials  (plaintext once)
+#   GET /connections/:id/credentials  |  DELETE /connections/:id/credentials/:secretId
 # GET /connections  |  GET|PATCH|DELETE /connections/:id
+```
+
+Mint returns `token` (`msh_<secretId>.<secret>`) and an `mcp` snippet for Cursor/Claude:
+
+```json
+{
+  "mcpServers": {
+    "mesh": {
+      "url": "http://127.0.0.1:8081/mcp",
+      "headers": { "Authorization": "Bearer msh_….…" }
+    }
+  }
+}
+```
+
+One `gateway_token` per connection (schema unique). Rotate = revoke, then mint again.
+
+Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth via minted connection credential. `tools/list` is policy-filtered; `tools/call` proxies to upstream MCP (`api_key` auth) using server/user secrets.
+
+```bash
+# Initialize (example JSON-RPC)
+curl -sS http://127.0.0.1:8081/mcp \
+  -H "Authorization: Bearer $MESH_GATEWAY_TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' | jq .
+
+# tools/list
+curl -sS http://127.0.0.1:8081/mcp \
+  -H "Authorization: Bearer $MESH_GATEWAY_TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq .
 ```
 
 ### Secrets (tenant-scoped)
@@ -278,6 +327,18 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/secrets \
 
 # GET  /api/v1/secrets/:id/value   (decrypt; full_admin)
 # GET|PATCH|DELETE /api/v1/secrets/:id
+```
+
+### Audit events (tenant-scoped)
+
+Gateway writes one row per `tools/call` (`allow` | `deny` | `allow_upstream_error`). No args/response payloads. Membership can list/get; no mutations.
+
+```bash
+curl -sS -b /tmp/mesh-cookies.txt "http://127.0.0.1:8080/api/v1/audit-events?limit=20" \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+
+# Filters: connectionId, clientId, userId, toolId, serverId, outcome
+# GET /api/v1/audit-events/:id
 ```
 
 ## API notes
@@ -320,7 +381,7 @@ Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendl
 ```
 apps/
   api/       # control-plane (Hono)
-  web/       # Vite/React admin UI (stub)
+  web/       # Vite/React admin UI (Steel Lattice + shadcn)
   gateway/   # MCP gateway (stub)
 packages/
   shared/    # env, errors, tenancy, public DTOs

@@ -1,9 +1,13 @@
 import z from "zod";
 
-export const PublicUserSchema = z.strictObject({
-    id: z.string(),
-    email: z.email(),
-    name: z.string(),
-})
+export const UserKindSchema = z.enum(["human", "service"]);
 
+export const PublicUserSchema = z.strictObject({
+  id: z.string(),
+  email: z.email(),
+  name: z.string(),
+  kind: UserKindSchema,
+});
+
+export type UserKind = z.infer<typeof UserKindSchema>;
 export type PublicUser = z.infer<typeof PublicUserSchema>;
