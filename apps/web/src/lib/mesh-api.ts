@@ -66,6 +66,18 @@ export const meshApi = {
       body,
     }),
 
+  syncServerTools: (tenantId: string, id: string) =>
+    api<{
+      discovered: number;
+      created: number;
+      updated: number;
+      tools: PublicTool[];
+    }>(`/api/v1/servers/${id}/sync-tools`, {
+      tenantId,
+      method: "POST",
+      body: {},
+    }),
+
   listTools: (tenantId: string, serverId?: string) =>
     apiPage<PublicTool>("/api/v1/tools", {
       tenantId,
@@ -184,6 +196,23 @@ export const meshApi = {
       method: "POST",
       body: { roleId },
     }),
+
+  attachToolOverride: (
+    tenantId: string,
+    id: string,
+    body: { toolId: string; type: "allow" | "deny" },
+  ) =>
+    api<PublicConnectionDetail>(`/api/v1/connections/${id}/tool-overrides`, {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  removeToolOverride: (tenantId: string, id: string, toolId: string) =>
+    api<PublicConnectionDetail>(
+      `/api/v1/connections/${id}/tool-overrides/${toolId}`,
+      { tenantId, method: "DELETE" },
+    ),
 
   listCredentials: (tenantId: string, connectionId: string) =>
     apiPage<PublicGatewayCredential>(

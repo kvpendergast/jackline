@@ -8,7 +8,14 @@ export const Server = {
   handlers: serverHandlers,
 } as const;
 
-const routeOrder = ["list", "create", "get", "update", "delete"] as const;
+const routeOrder = [
+  "list",
+  "create",
+  "get",
+  "update",
+  "syncTools",
+  "delete",
+] as const;
 
 export const serversFeature: AppSlice = {
   name: "servers",

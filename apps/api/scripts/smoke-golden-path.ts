@@ -1,5 +1,6 @@
 /**
- * Golden-path smoke: signup/sign-in → catalog → policy → connection credential → gateway tools/list.
+ * Golden-path smoke: signup/sign-in → catalog → policy → connection credential →
+ * gateway tools/list → quarantine kill-switch.
  *
  * Requires API + gateway already running:
  *   pnpm --filter @mesh/api smoke
@@ -314,6 +315,33 @@ async function main() {
     );
   }
   console.log("✓ gateway tools/list includes smoke tool");
+
+  await api(`/api/v1/connections/${connection.data.id}`, {
+    method: "PATCH",
+    tenantId,
+    body: JSON.stringify({ status: "quarantined" }),
+  });
+  console.log("✓ connection quarantined");
+
+  const denied = await fetch(`${GATEWAY}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${minted.data.token}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/list",
+    }),
+  });
+  if (denied.status !== 403) {
+    throw new Error(
+      `expected gateway 403 after quarantine, got ${denied.status}: ${await denied.text()}`,
+    );
+  }
+  console.log("✓ gateway rejects quarantined connection");
 
   console.log("\nGolden path OK");
 }

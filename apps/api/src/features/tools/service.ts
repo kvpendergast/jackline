@@ -38,6 +38,8 @@ function toPublicTool(row: Tool): PublicTool {
   return {
     id: row.id,
     name: row.name,
+    description: row.description,
+    inputSchema: row.inputSchema,
     status: row.status,
     serverId: row.serverId,
     tenantId: row.tenantId,

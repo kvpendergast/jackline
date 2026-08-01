@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/mesh/FormBits";
@@ -33,6 +33,7 @@ import type {
 
 export function ConnectionsPage() {
   const { tenantId } = useAuth();
+  const navigate = useNavigate();
   const [connections, setConnections] = useState<PublicConnection[]>([]);
   const [clients, setClients] = useState<PublicClient[]>([]);
   const [users, setUsers] = useState<PublicUser[]>([]);
@@ -123,9 +124,9 @@ export function ConnectionsPage() {
               <CreateConnectionForm
                 clients={clients}
                 users={users}
-                onCreated={async () => {
+                onCreated={async (connectionId) => {
                   setOpen(false);
-                  await load();
+                  navigate(`/connections/${connectionId}`);
                 }}
                 onError={setError}
               />
@@ -262,7 +263,7 @@ function CreateConnectionForm({
 }: {
   clients: PublicClient[];
   users: PublicUser[];
-  onCreated: () => Promise<void>;
+  onCreated: (connectionId: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
   const { tenantId } = useAuth();
@@ -275,8 +276,11 @@ function CreateConnectionForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.createConnection(tenantId, { clientId, userId });
-      await onCreated();
+      const created = await meshApi.createConnection(tenantId, {
+        clientId,
+        userId,
+      });
+      await onCreated(created.id);
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Create failed");
     } finally {

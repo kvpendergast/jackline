@@ -22,6 +22,7 @@ export async function createMeshMcpServer(
     ctx.log,
     ctx.tenantId,
     ctx.connection.id,
+    ctx.connection.userId,
   );
   if (result.isErr()) {
     return err(result.error);

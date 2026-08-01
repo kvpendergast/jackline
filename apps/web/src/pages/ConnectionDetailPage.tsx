@@ -42,6 +42,8 @@ export function ConnectionDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [attachRoleId, setAttachRoleId] = useState("");
+  const [overrideToolId, setOverrideToolId] = useState("");
+  const [overrideType, setOverrideType] = useState<"allow" | "deny">("deny");
 
   async function load() {
     if (!tenantId || !id) return;
@@ -70,6 +72,9 @@ export function ConnectionDetailPage() {
     setDenies(denyPage.items);
     const available = rolePage.items.find((r) => !conn.roleIds.includes(r.id));
     setAttachRoleId(available?.id ?? "");
+    const overridden = new Set(conn.toolOverrides.map((o) => o.toolId));
+    const availableTool = toolPage.items.find((t) => !overridden.has(t.id));
+    setOverrideToolId(availableTool?.id ?? "");
   }
 
   useEffect(() => {
@@ -124,12 +129,11 @@ export function ConnectionDetailPage() {
     }
   }
 
-  async function onToggleStatus() {
+  async function onSetStatus(next: PublicConnectionDetail["status"]) {
     if (!tenantId || !detail) return;
     setBusy(true);
     setError(null);
     try {
-      const next = detail.status === "active" ? "disabled" : "active";
       await meshApi.updateConnection(tenantId, detail.id, { status: next });
       await load();
     } catch (err) {
@@ -148,6 +152,37 @@ export function ConnectionDetailPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Attach failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAddOverride() {
+    if (!tenantId || !detail || !overrideToolId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await meshApi.attachToolOverride(tenantId, detail.id, {
+        toolId: overrideToolId,
+        type: overrideType,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Override failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRemoveOverride(toolId: string) {
+    if (!tenantId || !detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await meshApi.removeToolOverride(tenantId, detail.id, toolId);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Remove failed");
     } finally {
       setBusy(false);
     }
@@ -179,13 +214,33 @@ export function ConnectionDetailPage() {
           description={`${client?.name ?? detail.clientId} × ${subject?.email ?? detail.userId} — gateway auth and effective policy for this pair.`}
           actions={
             <>
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => void onToggleStatus()}
-              >
-                {detail.status === "active" ? "Disable" : "Enable"}
-              </Button>
+              {detail.status !== "active" ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void onSetStatus("active")}
+                >
+                  Enable
+                </Button>
+              ) : null}
+              {detail.status !== "quarantined" ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void onSetStatus("quarantined")}
+                >
+                  Quarantine
+                </Button>
+              ) : null}
+              {detail.status !== "disabled" ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void onSetStatus("disabled")}
+                >
+                  Disable
+                </Button>
+              ) : null}
               <Button disabled={busy || !!credential} onClick={() => void onMint()}>
                 <KeyRound className="size-4" />
                 Mint credential
@@ -199,7 +254,18 @@ export function ConnectionDetailPage() {
 
       {minted ? (
         <section className="border border-deny/40 bg-deny/5 p-4">
-          <p className="section-label mb-2">Token shown once — copy now</p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="section-label">Token shown once — copy now</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={() => void navigator.clipboard.writeText(minted.token)}
+            >
+              Copy token
+            </Button>
+          </div>
           <pre className="overflow-x-auto font-mono text-[12px] break-all whitespace-pre-wrap">
             {minted.token}
           </pre>
@@ -287,7 +353,8 @@ export function ConnectionDetailPage() {
           </div>
           {roles.length === 0 ? (
             <p className="px-4 py-6 text-sm text-muted-foreground">
-              No roles attached. Attach roles via the API to grant or deny tools.
+              No roles attached. Attach a grant/deny role below — without one,
+              this connection allows nothing unless you add tool overrides.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -344,7 +411,8 @@ export function ConnectionDetailPage() {
           </div>
           {detail.toolOverrides.length === 0 ? (
             <p className="px-4 py-6 text-sm text-muted-foreground">
-              No per-connection overrides.
+              No per-connection overrides. Use these to allow/deny a single tool
+              on top of attached roles (deny wins).
             </p>
           ) : (
             <Table>
@@ -356,6 +424,7 @@ export function ConnectionDetailPage() {
                   <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                     Permission
                   </TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -369,11 +438,65 @@ export function ConnectionDetailPage() {
                         outcome={row.type === "allow" ? "allow" : "deny"}
                       />
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={busy}
+                        onClick={() => void onRemoveOverride(row.toolId)}
+                      >
+                        Remove
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
+          {tools.some(
+            (t) => !detail.toolOverrides.some((o) => o.toolId === t.id),
+          ) ? (
+            <div className="flex flex-col gap-2 border-t border-border p-3 sm:flex-row">
+              <select
+                className="h-8 flex-1 border border-input bg-transparent px-2 font-mono text-[13px]"
+                value={overrideToolId}
+                onChange={(e) => setOverrideToolId(e.target.value)}
+              >
+                {tools
+                  .filter(
+                    (t) =>
+                      !detail.toolOverrides.some((o) => o.toolId === t.id),
+                  )
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+              </select>
+              <select
+                className="h-8 border border-input bg-transparent px-2 text-sm sm:w-28"
+                value={overrideType}
+                onChange={(e) =>
+                  setOverrideType(e.target.value as "allow" | "deny")
+                }
+              >
+                <option value="deny">deny</option>
+                <option value="allow">allow</option>
+              </select>
+              <Button
+                size="sm"
+                disabled={busy || !overrideToolId}
+                onClick={() => void onAddOverride()}
+              >
+                Add
+              </Button>
+            </div>
+          ) : tools.length === 0 ? (
+            <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+              Create tools first to add overrides.
+            </p>
+          ) : null}
         </section>
       </div>
 

@@ -1,12 +1,21 @@
+import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { db } from "@mesh/db";
 import { requireConnection } from "./lib/auth/requireConnection.js";
 import type { GatewayEnv } from "./lib/auth/types.js";
 import { createMeshMcpServer } from "./lib/mcp/createMeshMcpServer.js";
 
 export const app = new Hono<GatewayEnv>();
 
-app.get("/health", (c) => c.json({ ok: true }));
+app.get("/health", async (c) => {
+  try {
+    await db.execute(sql`select 1`);
+    return c.json({ ok: true, db: true });
+  } catch {
+    return c.json({ ok: false, db: false }, 503);
+  }
+});
 
 app.all("/mcp", requireConnection, async (c) => {
   const gatewayContext = c.get("gatewayContext");
@@ -16,7 +25,7 @@ app.all("/mcp", requireConnection, async (c) => {
   });
 
   if (serverResult.isErr()) {
-    throw serverResult.error
+    throw serverResult.error;
   }
 
   const server = serverResult.value;

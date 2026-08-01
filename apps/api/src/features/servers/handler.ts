@@ -59,10 +59,24 @@ const remove: RouteHandler<typeof Server.routes.delete, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 200);
 };
 
+const syncTools: RouteHandler<typeof Server.routes.syncTools, MeshEnv> = async (
+  c,
+) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const result = await Server.services.syncTools(log, auth.tenantId, id);
+  if (result.isErr()) {
+    throw result.error;
+  }
+
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const serverHandlers = {
   list,
   create,
   get,
   update,
+  syncTools,
   delete: remove,
 } as const;

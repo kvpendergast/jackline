@@ -6,6 +6,7 @@ import {
   ServerKindSchema,
   ServerSourceSchema,
   ServerStatusSchema,
+  SyncToolsResultSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
@@ -178,10 +179,38 @@ const remove = createRoute({
   },
 });
 
+const SyncToolsResponseSchema = successEnvelopeSchema(
+  SyncToolsResultSchema,
+  "SyncToolsResponse",
+);
+
+const syncTools = createRoute({
+  method: "post",
+  path: "/servers/{id}/sync-tools",
+  tags: ["Servers"],
+  summary: "Discover tools from an upstream MCP server and upsert into the catalog",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ServerIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Sync result",
+      content: {
+        "application/json": { schema: SyncToolsResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...serverNotFound,
+  },
+});
+
 export const serverRoutes = {
   list,
   create,
   get,
   update,
+  syncTools,
   delete: remove,
 } as const;

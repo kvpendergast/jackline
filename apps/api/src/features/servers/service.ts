@@ -20,6 +20,8 @@ import {
   type PaginationQuery,
 } from "../../lib/http/pagination.js";
 
+import { syncToolsFromUpstream } from "./syncTools.js";
+
 export type CreateServerInput = {
   name: string;
   baseUrl: string;
@@ -214,4 +216,5 @@ export const serverServices = {
   get,
   update,
   delete: remove,
+  syncTools: syncToolsFromUpstream,
 } as const;

@@ -25,6 +25,8 @@ export { cursorPageSchema, type CursorPage } from './pagination.js';
 export {
   type PublicTool,
   PublicToolSchema,
+  SyncToolsResultSchema,
+  type SyncToolsResult,
   type ToolStatus,
   ToolStatusSchema,
 } from './tool.js';

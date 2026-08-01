@@ -14,3 +14,12 @@ export {
 } from "./errors/index.js";
 export { isSingleTenancy, isMultiTenancy, assertCanCreateTenant } from "./tenancy/index.js";
 export * from "./types/index.js";
+export {
+  UpstreamOAuthSecretSchema,
+  type UpstreamOAuthSecret,
+  type ResolvedUpstreamBearer,
+  parseUpstreamOAuthSecret,
+  resolveOAuthAccessToken,
+  encodeOAuthSecretValue,
+  upstreamSecretKind,
+} from "./upstream/oauth.js";

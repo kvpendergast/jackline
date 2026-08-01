@@ -1,0 +1,100 @@
+# Production-like single-host stand-up for Mesh.
+# Usage (from repo root):
+#   cp .env.example .env   # fill MESH_MASTER_KEY, BETTER_AUTH_SECRET
+#   docker compose -f deploy/docker-compose.yml up --build
+#
+# UI:      http://127.0.0.1:5173
+# API:     http://127.0.0.1:8080
+# Gateway: http://127.0.0.1:8081
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mesh
+      POSTGRES_PASSWORD: mesh
+      POSTGRES_DB: mesh
+    ports:
+      - "5433:5432"
+    volumes:
+      - mesh_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mesh -d mesh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["pnpm", "db:migrate"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["pnpm", "--filter", "@mesh/api", "dev"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      API_HOST: 0.0.0.0
+      API_PORT: 8080
+      BETTER_AUTH_URL: http://127.0.0.1:8080
+      WEB_ORIGIN: http://127.0.0.1:5173
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["pnpm", "--filter", "@mesh/gateway", "dev"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      GATEWAY_PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@mesh/web",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5173",
+      ]
+    environment:
+      VITE_DEV_HOST: "0.0.0.0"
+      VITE_API_PROXY: http://api:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  mesh_pg:

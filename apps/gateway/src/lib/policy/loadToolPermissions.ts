@@ -15,6 +15,8 @@ import type { ToolPermission } from "@mesh/policy";
 
 export type ConnectionToolRecord = ToolPermission & {
   name: string;
+  description: string | null;
+  inputSchema: Record<string, unknown> | null;
   serverId: string;
   serverName: string;
 };
@@ -32,6 +34,8 @@ export async function loadConnectionToolPermissions(
     .select({
       id: tools.id,
       name: tools.name,
+      description: tools.description,
+      inputSchema: tools.inputSchema,
       status: tools.status,
       serverId: servers.id,
       serverName: servers.name,
@@ -72,6 +76,8 @@ export async function loadConnectionToolPermissions(
     .select({
       id: tools.id,
       name: tools.name,
+      description: tools.description,
+      inputSchema: tools.inputSchema,
       status: tools.status,
       serverId: servers.id,
       serverName: servers.name,
@@ -101,6 +107,8 @@ export async function loadConnectionToolPermissions(
     ...roleRows.map((row) => ({
       id: row.id,
       name: row.name,
+      description: row.description,
+      inputSchema: row.inputSchema,
       status: row.status,
       serverId: row.serverId,
       serverName: row.serverName,
@@ -112,6 +120,8 @@ export async function loadConnectionToolPermissions(
     ...overrideRows.map((row) => ({
       id: row.id,
       name: row.name,
+      description: row.description,
+      inputSchema: row.inputSchema,
       status: row.status,
       serverId: row.serverId,
       serverName: row.serverName,

@@ -17,10 +17,14 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@mesh/web`) | Steel Lattice + auth; Connections/Audit wired |
-| MCP gateway (`@mesh/gateway`) | Stub |
+| Admin UI (`@mesh/web`) | Steel Lattice; catalog + connections (roles, overrides, credentials, quarantine) + audit |
+| MCP gateway (`@mesh/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
+| Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
+| Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |
+| Golden-path smoke (`pnpm smoke`) | Includes quarantine kill-switch |
+| Compose stand-up | `deploy/docker-compose.yml` |
 
-Next: finish remaining admin screens; harden MCP gateway.
+Next functional leftovers are thin (mTLS). Later: My Access, SSO/SCIM, OTEL, custom API proxy.
 
 ## Stack
 
@@ -72,6 +76,13 @@ Also set:
 BETTER_AUTH_URL=http://127.0.0.1:8080
 WEB_ORIGIN=http://127.0.0.1:5173
 MESH_TENANCY=single   # or multi
+```
+
+Also: `deploy/docker-compose.yml` for a single-host stand-up (Postgres + migrate + api + gateway + web).
+
+```bash
+cp .env.example .env   # set MESH_MASTER_KEY, BETTER_AUTH_SECRET
+docker compose -f deploy/docker-compose.yml up --build
 ```
 
 Migrate and start:
@@ -287,7 +298,7 @@ Mint returns `token` (`msh_<secretId>.<secret>`) and an `mcp` snippet for Cursor
 
 One `gateway_token` per connection (schema unique). Rotate = revoke, then mint again.
 
-Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth via minted connection credential. `tools/list` is policy-filtered; `tools/call` proxies to upstream MCP (`api_key` auth) using server/user secrets.
+Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth via minted connection credential. `tools/list` is policy-filtered; `tools/call` proxies to upstream MCP using server/user secrets (`api_key` or `oauth`: access token, client credentials, or refresh token).
 
 ```bash
 # Initialize (example JSON-RPC)

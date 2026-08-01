@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/mesh/FormBits";
 import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
@@ -72,6 +72,20 @@ export function ServersPage() {
     }
   }
 
+  async function onSync(id: string) {
+    if (!tenantId) return;
+    setError(null);
+    try {
+      const result = await meshApi.syncServerTools(tenantId, id);
+      await load();
+      setError(
+        `Synced ${result.discovered} tool(s): ${result.created} created, ${result.updated} updated (new tools need review)`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Sync failed");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -102,7 +116,17 @@ export function ServersPage() {
         }
       />
 
-      {error ? <p className="text-sm text-deny">{error}</p> : null}
+      {error ? (
+        <p
+          className={
+            error.startsWith("Synced ")
+              ? "text-sm text-allow"
+              : "text-sm text-deny"
+          }
+        >
+          {error}
+        </p>
+      ) : null}
 
       <section className="border border-border bg-card">
         <Table>
@@ -156,13 +180,24 @@ export function ServersPage() {
                   <KindBadge kind={row.health} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void onActivate(row.id, row.status)}
-                  >
-                    {row.status === "active" ? "Disable" : "Activate"}
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={row.kind !== "mcp"}
+                      onClick={() => void onSync(row.id)}
+                    >
+                      <RefreshCw className="size-3.5" />
+                      Sync tools
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void onActivate(row.id, row.status)}
+                    >
+                      {row.status === "active" ? "Disable" : "Activate"}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
