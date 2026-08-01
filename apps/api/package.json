@@ -11,7 +11,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "test": "echo \"no tests yet\"",
-    "lint": "echo \"lint later\""
+    "lint": "echo \"lint later\"",
+    "smoke": "tsx scripts/smoke-golden-path.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
@@ -22,6 +23,7 @@
     "@mesh/auth": "workspace:*",
     "@mesh/crypto": "workspace:*",
     "@mesh/db": "workspace:*",
+    "@mesh/policy": "workspace:*",
     "@mesh/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.30",

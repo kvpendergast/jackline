@@ -10,7 +10,8 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "db:generate": "pnpm --filter @mesh/db generate",
-    "db:migrate": "pnpm --filter @mesh/db migrate"
+    "db:migrate": "pnpm --filter @mesh/db migrate",
+    "smoke": "pnpm --filter @mesh/api smoke"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

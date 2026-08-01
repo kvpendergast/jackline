@@ -231,6 +231,9 @@ importers:
       '@mesh/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@mesh/policy':
+        specifier: workspace:*
+        version: link:../../packages/policy
       '@mesh/shared':
         specifier: workspace:*
         version: link:../../packages/shared
