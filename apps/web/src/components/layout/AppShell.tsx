@@ -12,19 +12,20 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth-provider";
 import { useTheme } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/audit", label: "Audit", icon: FileSearch },
-  { to: "/servers", label: "Servers", icon: Server, disabled: true },
-  { to: "/tools", label: "Tools", icon: Wrench, disabled: true },
-  { to: "/roles", label: "Roles", icon: Shield, disabled: true },
-  { to: "/clients", label: "Clients", icon: LayoutGrid, disabled: true },
-  { to: "/users", label: "Users", icon: Users, disabled: true },
-  { to: "/secrets", label: "Secrets", icon: KeyRound, disabled: true },
+  { to: "/servers", label: "Servers", icon: Server },
+  { to: "/tools", label: "Tools", icon: Wrench },
+  { to: "/roles", label: "Roles", icon: Shield },
+  { to: "/clients", label: "Clients", icon: LayoutGrid },
+  { to: "/users", label: "Users", icon: Users },
+  { to: "/secrets", label: "Secrets", icon: KeyRound },
 ] as const;
 
 function LatticeMark({ className }: { className?: string }) {
@@ -40,13 +41,19 @@ function LatticeMark({ className }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="1.5"
       />
-      <path d="M10 7h4M7 10v4M17 10v4M10 17h4" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M10 7h4M7 10v4M17 10v4M10 17h4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
+  const { user, tenant, memberships, tenantId, setTenantId, signOut } =
+    useAuth();
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
@@ -62,18 +69,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-1 flex-col gap-0.5 p-2">
           {nav.map((item) => {
             const Icon = item.icon;
-            if ("disabled" in item && item.disabled) {
-              return (
-                <div
-                  key={item.to}
-                  className="flex cursor-not-allowed items-center gap-2.5 px-2.5 py-2 text-sm text-muted-foreground/50"
-                  title="Preview stub"
-                >
-                  <Icon className="size-4" />
-                  {item.label}
-                </div>
-              );
-            }
 
             return (
               <NavLink
@@ -97,8 +92,26 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-sidebar-border p-3">
           <div className="section-label mb-1">Tenant</div>
-          <div className="text-sm font-medium">acme-prod</div>
-          <MonoHint>ten_0f8c…29</MonoHint>
+          {memberships.length > 1 ? (
+            <select
+              className="w-full border border-border bg-background px-2 py-1.5 text-sm"
+              value={tenantId ?? ""}
+              onChange={(e) => setTenantId(e.target.value)}
+            >
+              {memberships.map((m) => (
+                <option key={m.tenant.id} value={m.tenant.id}>
+                  {m.tenant.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="text-sm font-medium">{tenant?.name ?? "—"}</div>
+          )}
+          {tenant ? (
+            <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+              {tenant.id.slice(0, 8)}…
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -110,21 +123,31 @@ export function AppShell({ children }: { children: ReactNode }) {
               type="button"
               variant="outline"
               size="icon-sm"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={
+                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
               onClick={toggleTheme}
             >
-              {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              {theme === "dark" ? (
+                <Sun className="size-3.5" />
+              ) : (
+                <Moon className="size-3.5" />
+              )}
             </Button>
-            <span className="text-muted-foreground">alex@acme.io</span>
-            <span className="font-mono text-[11px] text-primary">full_admin</span>
+            <span className="text-muted-foreground">{user?.email}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </Button>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
   );
-}
-
-function MonoHint({ children }: { children: ReactNode }) {
-  return <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{children}</div>;
 }

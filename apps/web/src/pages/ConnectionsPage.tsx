@@ -1,9 +1,18 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
-import { PageHeader } from "@/components/mesh/PageHeader";
+import { useAuth } from "@/components/auth-provider";
+import { Field, FieldSelect } from "@/components/mesh/FormBits";
+import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
 import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/mesh/StatusBadge";
-import { MonoId } from "@/components/mesh/PageHeader";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -13,9 +22,86 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { connections, recentDenies } from "@/data/mock";
+import { ApiError } from "@/lib/api";
+import { meshApi } from "@/lib/mesh-api";
+import type {
+  PublicAuditEvent,
+  PublicClient,
+  PublicConnection,
+  PublicUser,
+} from "@mesh/shared";
 
 export function ConnectionsPage() {
+  const { tenantId } = useAuth();
+  const [connections, setConnections] = useState<PublicConnection[]>([]);
+  const [clients, setClients] = useState<PublicClient[]>([]);
+  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [denies, setDenies] = useState<PublicAuditEvent[]>([]);
+  const [filter, setFilter] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  async function load() {
+    if (!tenantId) return;
+    const [connPage, clientPage, userPage, denyPage] = await Promise.all([
+      meshApi.listConnections(tenantId),
+      meshApi.listClients(tenantId),
+      meshApi.listUsers(tenantId),
+      meshApi.listAuditEvents(tenantId, { outcome: "deny", limit: "3" }),
+    ]);
+    setConnections(connPage.items);
+    setClients(clientPage.items);
+    setUsers(userPage.items);
+    setDenies(denyPage.items);
+  }
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        await load();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : "Failed to load");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
+  const clientById = useMemo(
+    () => new Map(clients.map((c) => [c.id, c])),
+    [clients],
+  );
+  const userById = useMemo(
+    () => new Map(users.map((u) => [u.id, u])),
+    [users],
+  );
+
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return connections;
+    return connections.filter((row) => {
+      const client = clientById.get(row.clientId);
+      const subject = userById.get(row.userId);
+      return (
+        row.id.toLowerCase().includes(q) ||
+        client?.name.toLowerCase().includes(q) ||
+        subject?.email.toLowerCase().includes(q) ||
+        subject?.name.toLowerCase().includes(q)
+      );
+    });
+  }, [connections, filter, clientById, userById]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -23,17 +109,32 @@ export function ConnectionsPage() {
         title="Connections"
         description="Each connection binds a client to a subject. Gateway credentials and effective tool policy live here."
         actions={
-          <>
-            <Button variant="outline">
-              Export
-            </Button>
-            <Button>
-              <Plus className="size-4" />
-              New connection
-            </Button>
-          </>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={clients.length === 0 || users.length === 0}>
+                <Plus className="size-4" />
+                New connection
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-none sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create connection</DialogTitle>
+              </DialogHeader>
+              <CreateConnectionForm
+                clients={clients}
+                users={users}
+                onCreated={async () => {
+                  setOpen(false);
+                  await load();
+                }}
+                onError={setError}
+              />
+            </DialogContent>
+          </Dialog>
         }
       />
+
+      {error ? <p className="text-sm text-deny">{error}</p> : null}
 
       <section className="border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -42,20 +143,28 @@ export function ConnectionsPage() {
             Open audit →
           </Link>
         </div>
-        <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
-          {recentDenies.map((event) => (
-            <div key={event.id} className="flex flex-col gap-2 px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <OutcomeBadge outcome={event.outcome} />
-                <MonoId>{event.at.split(" ").at(-1)}</MonoId>
+        {denies.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No denies yet. Allowed and denied tool calls appear here after gateway traffic.
+          </p>
+        ) : (
+          <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+            {denies.map((event) => (
+              <div key={event.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <OutcomeBadge outcome={event.outcome} />
+                  <MonoId>{new Date(event.createdAt).toLocaleTimeString()}</MonoId>
+                </div>
+                <div className="font-mono text-[13px] tracking-tight">
+                  {event.toolName}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <MonoId className="text-primary">{event.connectionId?.slice(0, 12) ?? "—"}</MonoId>
+                </div>
               </div>
-              <div className="font-mono text-[13px] tracking-tight">{event.tool}</div>
-              <div className="text-xs text-muted-foreground">
-                {event.client} · {event.subject}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="border border-border bg-card">
@@ -65,9 +174,13 @@ export function ConnectionsPage() {
             <Input
               placeholder="Filter by client, subject, or id"
               className="pl-8"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
             />
           </div>
-          <div className="section-label">{connections.length} connections</div>
+          <div className="section-label">
+            {loading ? "Loading…" : `${filtered.length} connections`}
+          </div>
         </div>
 
         <Table>
@@ -83,49 +196,129 @@ export function ConnectionsPage() {
                 Subject
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Roles
-              </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 Status
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Last seen
+                Updated
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {connections.map((row) => (
-              <TableRow key={row.id} className="group">
-                <TableCell>
-                  <Link
-                    to={`/connections/${row.id}`}
-                    className="font-mono text-[13px] text-primary group-hover:underline"
-                  >
-                    {row.id}
-                  </Link>
+            {!loading && filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-muted-foreground">
+                  No connections yet. Create a client, ensure the subject is a tenant member, then POST /connections.
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{row.client}</span>
-                    <KindBadge kind={row.clientKind} />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[13px]">{row.subject}</span>
-                    <KindBadge kind={row.subjectKind} />
-                  </div>
-                </TableCell>
-                <TableCell className="font-mono text-[13px]">{row.roles}</TableCell>
-                <TableCell>
-                  <StatusBadge status={row.status} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{row.lastSeen}</TableCell>
               </TableRow>
-            ))}
+            ) : null}
+            {filtered.map((row) => {
+              const client = clientById.get(row.clientId);
+              const subject = userById.get(row.userId);
+              return (
+                <TableRow key={row.id} className="group">
+                  <TableCell>
+                    <Link
+                      to={`/connections/${row.id}`}
+                      className="font-mono text-[13px] text-primary group-hover:underline"
+                    >
+                      {row.id.slice(0, 8)}…
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{client?.name ?? row.clientId.slice(0, 8)}</span>
+                      {client ? <KindBadge kind={client.kind} /> : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[13px]">
+                        {subject?.email ?? row.userId.slice(0, 8)}
+                      </span>
+                      {subject ? <KindBadge kind={subject.kind} /> : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={row.status} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(row.updatedAt).toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </section>
     </div>
+  );
+}
+
+function CreateConnectionForm({
+  clients,
+  users,
+  onCreated,
+  onError,
+}: {
+  clients: PublicClient[];
+  users: PublicUser[];
+  onCreated: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const { tenantId } = useAuth();
+  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  const [userId, setUserId] = useState(users[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setBusy(true);
+    try {
+      await meshApi.createConnection(tenantId, { clientId, userId });
+      await onCreated();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Create failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
+      <Field label="Client">
+        <FieldSelect
+          required
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+        >
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} ({c.kind})
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      <Field label="Subject">
+        <FieldSelect
+          required
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+        >
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.email} ({u.kind})
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={busy || !clientId || !userId}
+      >
+        {busy ? "Creating…" : "Create"}
+      </Button>
+    </form>
   );
 }

@@ -11,6 +11,14 @@ export default defineConfig({
     },
   },
   server: {
+    // Match default WEB_ORIGIN / cookie CORS (see .env.example).
+    host: "127.0.0.1",
     port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8080",
+        changeOrigin: true,
+      },
+    },
   },
 });
