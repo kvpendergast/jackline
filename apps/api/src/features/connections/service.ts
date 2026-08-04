@@ -18,6 +18,7 @@ import {
 } from "@mesh/db";
 import {
   BadRequestError,
+  ForbiddenError,
   formatGatewayToken,
   GATEWAY_TOKEN_KIND,
   getConfig,
@@ -33,6 +34,10 @@ import {
   type PublicConnectionToolOverride,
   type PublicGatewayCredential,
 } from "@mesh/shared";
+import {
+  resolveTeamFilter,
+  type ActorAuthz,
+} from "../../lib/authz/teamScope.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -162,6 +167,7 @@ async function assertClientInTenant(
 async function assertUserInTenant(
   tenantId: string,
   userId: string,
+  teamFilter: string | null = null,
 ): Promise<Result<void, MeshError>> {
   const [existingUser] = await db
     .select({ id: user.id })
@@ -173,19 +179,46 @@ async function assertUserInTenant(
     return err(new BadRequestError("userId does not reference a user"));
   }
 
+  const conditions = [
+    eq(memberships.userId, userId),
+    eq(memberships.tenantId, tenantId),
+  ];
+  if (teamFilter) {
+    conditions.push(eq(memberships.team, teamFilter));
+  }
+
   const [membership] = await db
     .select({ id: memberships.id })
     .from(memberships)
-    .where(
-      and(eq(memberships.userId, userId), eq(memberships.tenantId, tenantId)),
-    )
+    .where(and(...conditions))
     .limit(1);
 
   if (!membership) {
+    if (teamFilter) {
+      return err(new ForbiddenError("user is outside your team scope"));
+    }
     return err(new BadRequestError("userId is not a member of this tenant"));
   }
 
   return ok(undefined);
+}
+
+async function assertConnectionInTeamScope(
+  tenantId: string,
+  connectionId: string,
+  teamFilter: string | null,
+): Promise<Result<ConnectionRow, MeshError>> {
+  const rowResult = await getConnectionRow(tenantId, connectionId);
+  if (rowResult.isErr()) return err(rowResult.error);
+  if (!teamFilter) return ok(rowResult.value);
+
+  const userCheck = await assertUserInTenant(
+    tenantId,
+    rowResult.value.userId,
+    teamFilter,
+  );
+  if (userCheck.isErr()) return err(userCheck.error);
+  return ok(rowResult.value);
 }
 
 async function assertRolesInTenant(
@@ -235,12 +268,21 @@ async function assertToolsInTenant(
 async function create(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   input: CreateConnectionInput,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+  const teamFilter = teamResult.value;
+
   const clientCheck = await assertClientInTenant(tenantId, input.clientId);
   if (clientCheck.isErr()) return err(clientCheck.error);
 
-  const userCheck = await assertUserInTenant(tenantId, input.userId);
+  const userCheck = await assertUserInTenant(
+    tenantId,
+    input.userId,
+    teamFilter,
+  );
   if (userCheck.isErr()) return err(userCheck.error);
 
   try {
@@ -268,13 +310,19 @@ async function create(
 async function list(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   query: ListConnectionsQuery,
 ): Promise<Result<CursorPage<PublicConnection>, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+  const teamFilter = teamResult.value;
+
   const conditions = [eq(connections.tenantId, tenantId)];
 
   if (query.clientId) conditions.push(eq(connections.clientId, query.clientId));
   if (query.userId) conditions.push(eq(connections.userId, query.userId));
   if (query.status) conditions.push(eq(connections.status, query.status));
+  if (teamFilter) conditions.push(eq(memberships.team, teamFilter));
 
   if (query.cursor) {
     const decoded = decodeCreatedAtIdCursor(query.cursor);
@@ -290,18 +338,35 @@ async function list(
     );
   }
 
-  const rows = await db
-    .select()
-    .from(connections)
-    .where(and(...conditions))
-    .orderBy(desc(connections.createdAt), desc(connections.id))
-    .limit(query.limit + 1);
+  const baseQuery = db
+    .select({ connection: connections })
+    .from(connections);
 
-  const page = toCursorPage(rows, query.limit, (row) =>
-    encodeCreatedAtIdCursor({
-      createdAt: row.createdAt.toISOString(),
-      id: row.id,
-    }),
+  const rows = teamFilter
+    ? await baseQuery
+        .innerJoin(
+          memberships,
+          and(
+            eq(memberships.userId, connections.userId),
+            eq(memberships.tenantId, connections.tenantId),
+          ),
+        )
+        .where(and(...conditions))
+        .orderBy(desc(connections.createdAt), desc(connections.id))
+        .limit(query.limit + 1)
+    : await baseQuery
+        .where(and(...conditions))
+        .orderBy(desc(connections.createdAt), desc(connections.id))
+        .limit(query.limit + 1);
+
+  const page = toCursorPage(
+    rows.map((r) => r.connection),
+    query.limit,
+    (row) =>
+      encodeCreatedAtIdCursor({
+        createdAt: row.createdAt.toISOString(),
+        id: row.id,
+      }),
   );
 
   log.debug(
@@ -309,6 +374,7 @@ async function list(
       tenantId,
       count: page.items.length,
       hasMore: page.nextCursor !== null,
+      teamFilter,
     },
     "Connection.services.list",
   );
@@ -322,9 +388,17 @@ async function list(
 async function get(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+
+  const rowResult = await assertConnectionInTeamScope(
+    tenantId,
+    connectionId,
+    teamResult.value,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   log.debug({ connectionId, tenantId }, "Connection.services.get");
@@ -334,9 +408,20 @@ async function get(
 async function update(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   input: UpdateConnectionInput,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+
+  const scoped = await assertConnectionInTeamScope(
+    tenantId,
+    connectionId,
+    teamResult.value,
+  );
+  if (scoped.isErr()) return err(scoped.error);
+
   const patch: Partial<typeof connections.$inferInsert> & { updatedAt: Date } =
     {
       updatedAt: new Date(),
@@ -363,8 +448,19 @@ async function update(
 async function remove(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
 ): Promise<Result<PublicConnection, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+
+  const scoped = await assertConnectionInTeamScope(
+    tenantId,
+    connectionId,
+    teamResult.value,
+  );
+  if (scoped.isErr()) return err(scoped.error);
+
   const [row] = await db
     .delete(connections)
     .where(
@@ -380,13 +476,28 @@ async function remove(
   return ok(toPublicConnection(row));
 }
 
+async function requireScopedConnection(
+  tenantId: string,
+  actor: ActorAuthz,
+  connectionId: string,
+): Promise<Result<ConnectionRow, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+  return assertConnectionInTeamScope(tenantId, connectionId, teamResult.value);
+}
+
 async function attachRole(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   roleId: string,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const rolesCheck = await assertRolesInTenant(tenantId, [roleId]);
@@ -412,10 +523,15 @@ async function attachRole(
 async function detachRole(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   roleId: string,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const [removed] = await db
@@ -443,10 +559,15 @@ async function detachRole(
 async function setRoles(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   roleIds: string[],
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const uniqueRoleIds = [...new Set(roleIds)];
@@ -494,10 +615,15 @@ async function setRoles(
 async function attachToolOverride(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   input: SetToolOverrideInput,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const toolsCheck = await assertToolsInTenant(tenantId, [input.toolId]);
@@ -524,10 +650,15 @@ async function attachToolOverride(
 async function detachToolOverride(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   toolId: string,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const [removed] = await db
@@ -555,10 +686,15 @@ async function detachToolOverride(
 async function setToolOverrides(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   overrides: SetToolOverrideInput[],
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
-  const rowResult = await getConnectionRow(tenantId, connectionId);
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (rowResult.isErr()) return err(rowResult.error);
 
   const byTool = new Map<string, ConnectionToolOverrideType>();
@@ -641,10 +777,15 @@ function gatewayMcpConfig(token: string): MintedGatewayCredential["mcp"] {
 async function mintCredential(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   input: { name?: string | undefined } = {},
 ): Promise<Result<MintedGatewayCredential, MeshError>> {
-  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  const connectionResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (connectionResult.isErr()) return err(connectionResult.error);
 
   const boxResult = getSecretBox();
@@ -712,9 +853,14 @@ async function mintCredential(
 async function listCredentials(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
 ): Promise<Result<PublicGatewayCredential[], MeshError>> {
-  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  const connectionResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (connectionResult.isErr()) return err(connectionResult.error);
 
   const rows = await db
@@ -742,10 +888,15 @@ async function listCredentials(
 async function revokeCredential(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   connectionId: string,
   secretId: string,
 ): Promise<Result<PublicGatewayCredential, MeshError>> {
-  const connectionResult = await getConnectionRow(tenantId, connectionId);
+  const connectionResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
   if (connectionResult.isErr()) return err(connectionResult.error);
 
   const [row] = await db

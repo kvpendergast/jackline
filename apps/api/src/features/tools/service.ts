@@ -9,6 +9,7 @@ import {
   SetupError,
   type CursorPage,
   type PublicTool,
+  type ToolHttpMethod,
   type ToolStatus,
 } from "@mesh/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
@@ -23,11 +24,19 @@ export type CreateToolInput = {
   name: string;
   serverId: string;
   status?: ToolStatus | undefined;
+  description?: string | null | undefined;
+  inputSchema?: Record<string, unknown> | null | undefined;
+  httpMethod?: ToolHttpMethod | null | undefined;
+  pathTemplate?: string | null | undefined;
 };
 
 export type UpdateToolInput = {
   name?: string | undefined;
   status?: ToolStatus | undefined;
+  description?: string | null | undefined;
+  inputSchema?: Record<string, unknown> | null | undefined;
+  httpMethod?: ToolHttpMethod | null | undefined;
+  pathTemplate?: string | null | undefined;
 };
 
 export type ListToolsQuery = PaginationQuery & {
@@ -40,6 +49,8 @@ function toPublicTool(row: Tool): PublicTool {
     name: row.name,
     description: row.description,
     inputSchema: row.inputSchema,
+    httpMethod: row.httpMethod,
+    pathTemplate: row.pathTemplate,
     status: row.status,
     serverId: row.serverId,
     tenantId: row.tenantId,
@@ -51,9 +62,9 @@ function toPublicTool(row: Tool): PublicTool {
 async function assertServerInTenant(
   tenantId: string,
   serverId: string,
-): Promise<Result<void, MeshError>> {
+): Promise<Result<{ kind: string }, MeshError>> {
   const [server] = await db
-    .select({ id: servers.id })
+    .select({ id: servers.id, kind: servers.kind })
     .from(servers)
     .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))
     .limit(1);
@@ -62,6 +73,31 @@ async function assertServerInTenant(
     return err(new BadRequestError("serverId does not reference a server in this tenant"));
   }
 
+  return ok(server);
+}
+
+function validateHttpBinding(
+  serverKind: string,
+  httpMethod: ToolHttpMethod | null | undefined,
+  pathTemplate: string | null | undefined,
+): Result<void, MeshError> {
+  const hasMethod = httpMethod != null;
+  const hasPath = pathTemplate != null && pathTemplate !== "";
+  if (hasMethod !== hasPath) {
+    return err(
+      new BadRequestError("httpMethod and pathTemplate must be set together"),
+    );
+  }
+  if (serverKind === "api" && !hasMethod) {
+    return err(
+      new BadRequestError("API tools require httpMethod and pathTemplate"),
+    );
+  }
+  if (serverKind === "mcp" && hasMethod) {
+    return err(
+      new BadRequestError("MCP tools cannot have httpMethod/pathTemplate"),
+    );
+  }
   return ok(undefined);
 }
 
@@ -75,11 +111,22 @@ async function create(
     return err(serverCheck.error);
   }
 
+  const binding = validateHttpBinding(
+    serverCheck.value.kind,
+    input.httpMethod,
+    input.pathTemplate,
+  );
+  if (binding.isErr()) return err(binding.error);
+
   try {
     const [row] = await db
       .insert(tools)
       .values({
         name: input.name,
+        description: input.description ?? null,
+        inputSchema: input.inputSchema ?? null,
+        httpMethod: input.httpMethod ?? null,
+        pathTemplate: input.pathTemplate ?? null,
         serverId: input.serverId,
         status: input.status ?? "needs_review",
         tenantId,
@@ -182,12 +229,41 @@ async function update(
   toolId: string,
   input: UpdateToolInput,
 ): Promise<Result<PublicTool, MeshError>> {
+  const [existing] = await db
+    .select({
+      id: tools.id,
+      serverId: tools.serverId,
+      httpMethod: tools.httpMethod,
+      pathTemplate: tools.pathTemplate,
+      kind: servers.kind,
+    })
+    .from(tools)
+    .innerJoin(servers, eq(servers.id, tools.serverId))
+    .where(and(eq(tools.id, toolId), eq(tools.tenantId, tenantId)))
+    .limit(1);
+
+  if (!existing) {
+    return err(new NotFoundError("Tool not found"));
+  }
+
+  const nextMethod =
+    input.httpMethod !== undefined ? input.httpMethod : existing.httpMethod;
+  const nextPath =
+    input.pathTemplate !== undefined ? input.pathTemplate : existing.pathTemplate;
+
+  const binding = validateHttpBinding(existing.kind, nextMethod, nextPath);
+  if (binding.isErr()) return err(binding.error);
+
   const patch: Partial<typeof tools.$inferInsert> & { updatedAt: Date } = {
     updatedAt: new Date(),
   };
 
   if (input.name !== undefined) patch.name = input.name;
   if (input.status !== undefined) patch.status = input.status;
+  if (input.description !== undefined) patch.description = input.description;
+  if (input.inputSchema !== undefined) patch.inputSchema = input.inputSchema;
+  if (input.httpMethod !== undefined) patch.httpMethod = input.httpMethod;
+  if (input.pathTemplate !== undefined) patch.pathTemplate = input.pathTemplate;
 
   try {
     const [row] = await db

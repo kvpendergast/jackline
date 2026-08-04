@@ -17,14 +17,17 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@mesh/web`) | Steel Lattice; catalog + connections (roles, overrides, credentials, quarantine) + audit |
+| Admin UI (`@mesh/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, audit |
+| Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry |
 | MCP gateway (`@mesh/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
 | Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |
-| Golden-path smoke (`pnpm smoke`) | Includes quarantine kill-switch |
+| Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
+| Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
+| Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
 | Compose stand-up | `deploy/docker-compose.yml` |
 
-Next functional leftovers are thin (mTLS). Later: My Access, SSO/SCIM, OTEL, custom API proxy.
+Next: My Access / access requests, OTEL, rate limits, mTLS.
 
 ## Stack
 
@@ -298,7 +301,7 @@ Mint returns `token` (`msh_<secretId>.<secret>`) and an `mcp` snippet for Cursor
 
 One `gateway_token` per connection (schema unique). Rotate = revoke, then mint again.
 
-Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth via minted connection credential. `tools/list` is policy-filtered; `tools/call` proxies to upstream MCP using server/user secrets (`api_key` or `oauth`: access token, client credentials, or refresh token).
+Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth via minted connection credential. `tools/list` is policy-filtered; `tools/call` proxies to upstream MCP or custom HTTP APIs (`kind: api` tools with method/path bindings). Upstream secrets: `api_key` or `oauth`.
 
 ```bash
 # Initialize (example JSON-RPC)

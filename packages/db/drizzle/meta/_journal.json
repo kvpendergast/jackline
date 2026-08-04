@@ -57,6 +57,34 @@
       "when": 1785602378868,
       "tag": "0007_modern_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785603816070,
+      "tag": "0008_certain_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785605821071,
+      "tag": "0009_useful_kid_colt",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785614532757,
+      "tag": "0010_slimy_thena",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785844603883,
+      "tag": "0011_green_miek",
+      "breakpoints": true
     }
   ]
 }

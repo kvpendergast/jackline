@@ -18,6 +18,7 @@ import type {
   ServerAuthMethod,
   ServerKind,
   ToolStatus,
+  ToolHttpMethod,
 } from "@mesh/shared";
 
 export type SignupInput = {
@@ -52,13 +53,23 @@ export const meshApi = {
       baseUrl: string;
       authMethod: ServerAuthMethod;
       kind: ServerKind;
+      source?: "custom" | "catalog";
+      connectorKey?: string | null;
+      docsUrl?: string | null;
     },
   ) => api<PublicServer>("/api/v1/servers", { tenantId, method: "POST", body }),
 
   updateServer: (
     tenantId: string,
     id: string,
-    body: { status?: PublicServer["status"]; name?: string },
+    body: {
+      name?: string;
+      baseUrl?: string;
+      authMethod?: ServerAuthMethod;
+      kind?: ServerKind;
+      status?: PublicServer["status"];
+      docsUrl?: string | null;
+    },
   ) =>
     api<PublicServer>(`/api/v1/servers/${id}`, {
       tenantId,
@@ -81,12 +92,19 @@ export const meshApi = {
   listTools: (tenantId: string, serverId?: string) =>
     apiPage<PublicTool>("/api/v1/tools", {
       tenantId,
-      searchParams: { limit: "200", serverId },
+      searchParams: { limit: "100", serverId },
     }),
 
   createTool: (
     tenantId: string,
-    body: { name: string; serverId: string; status?: ToolStatus },
+    body: {
+      name: string;
+      serverId: string;
+      status?: ToolStatus;
+      description?: string | null;
+      httpMethod?: ToolHttpMethod | null;
+      pathTemplate?: string | null;
+    },
   ) => api<PublicTool>("/api/v1/tools", { tenantId, method: "POST", body }),
 
   updateTool: (
@@ -114,6 +132,21 @@ export const meshApi = {
     body: { name: string; type: RoleType; description?: string | null },
   ) =>
     api<PublicRoleDetail>("/api/v1/roles", { tenantId, method: "POST", body }),
+
+  updateRole: (
+    tenantId: string,
+    id: string,
+    body: {
+      name?: string;
+      type?: RoleType;
+      description?: string | null;
+    },
+  ) =>
+    api<PublicRoleDetail>(`/api/v1/roles/${id}`, {
+      tenantId,
+      method: "PATCH",
+      body,
+    }),
 
   setRoleTools: (tenantId: string, id: string, toolIds: string[]) =>
     api<PublicRoleDetail>(`/api/v1/roles/${id}/tools`, {
@@ -160,6 +193,23 @@ export const meshApi = {
     },
   ) => api<PublicSecret>("/api/v1/secrets", { tenantId, method: "POST", body }),
 
+  updateSecret: (
+    tenantId: string,
+    id: string,
+    body: { name?: string; value?: string },
+  ) =>
+    api<PublicSecret>(`/api/v1/secrets/${id}`, {
+      tenantId,
+      method: "PATCH",
+      body,
+    }),
+
+  deleteSecret: (tenantId: string, id: string) =>
+    api<PublicSecret>(`/api/v1/secrets/${id}`, {
+      tenantId,
+      method: "DELETE",
+    }),
+
   listConnections: (tenantId: string) =>
     apiPage<PublicConnection>("/api/v1/connections", {
       tenantId,
@@ -178,6 +228,12 @@ export const meshApi = {
 
   getConnection: (tenantId: string, id: string) =>
     api<PublicConnectionDetail>(`/api/v1/connections/${id}`, { tenantId }),
+
+  listEffectiveTools: (tenantId: string, connectionId: string) =>
+    api<{ items: import("@mesh/shared").PublicEffectiveTool[] }>(
+      `/api/v1/connections/${connectionId}/effective-tools`,
+      { tenantId },
+    ),
 
   updateConnection: (
     tenantId: string,
@@ -215,9 +271,9 @@ export const meshApi = {
     ),
 
   listCredentials: (tenantId: string, connectionId: string) =>
-    apiPage<PublicGatewayCredential>(
+    api<PublicGatewayCredential[]>(
       `/api/v1/connections/${connectionId}/credentials`,
-      { tenantId, searchParams: { limit: "10" } },
+      { tenantId },
     ),
 
   mintCredential: (tenantId: string, connectionId: string) =>
@@ -244,4 +300,63 @@ export const meshApi = {
       tenantId,
       searchParams: { limit: "50", ...searchParams },
     }),
+
+  getSsoConfig: (tenantId: string) =>
+    api<import("@mesh/shared").PublicSsoConfig>("/api/v1/settings/sso", {
+      tenantId,
+    }),
+
+  updateSsoConfig: (
+    tenantId: string,
+    body: import("@mesh/shared").UpdateSsoConfigBody,
+  ) =>
+    api<import("@mesh/shared").PublicSsoConfig>("/api/v1/settings/sso", {
+      tenantId,
+      method: "PATCH",
+      body,
+    }),
+
+  rotateScimToken: (tenantId: string) =>
+    api<import("@mesh/shared").RotateScimTokenResult>(
+      "/api/v1/settings/scim/token",
+      { tenantId, method: "POST", body: {} },
+    ),
+
+  listInvites: (tenantId: string) =>
+    api<{ items: import("@mesh/shared").PublicInvite[] }>(
+      "/api/v1/settings/invites",
+      { tenantId },
+    ),
+
+  createInvite: (
+    tenantId: string,
+    body: import("@mesh/shared").CreateInviteBody,
+  ) =>
+    api<{ invite: import("@mesh/shared").PublicInvite; token: string }>(
+      "/api/v1/settings/invites",
+      { tenantId, method: "POST", body },
+    ),
+
+  listAdmins: (tenantId: string) =>
+    api<{
+      items: Array<{
+        membershipId: string;
+        userId: string;
+        email: string;
+        name: string;
+        role: string;
+        team: string | null;
+      }>;
+    }>("/api/v1/settings/admins", { tenantId }),
+
+  acceptInvite: (token: string) =>
+    api<import("@mesh/shared").PublicInvite>("/api/v1/invites/accept", {
+      method: "POST",
+      body: { token },
+    }),
+
+  listSsoProviders: () =>
+    api<{ items: Array<{ providerId: string; label: string }> }>(
+      "/api/v1/sso/providers",
+    ),
 };

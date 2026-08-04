@@ -3,10 +3,19 @@ import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { User } from "./resource.js";
 
+function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
+  return { role: auth.membership.role, team: auth.membership.team };
+}
+
 const list: RouteHandler<typeof User.routes.list, MeshEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
-  const result = await User.services.list(log, auth.tenantId, query);
+  const result = await User.services.list(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    query,
+  );
   if (result.isErr()) {
     throw result.error;
   }
@@ -31,7 +40,12 @@ const create: RouteHandler<typeof User.routes.create, MeshEnv> = async (c) => {
 const get: RouteHandler<typeof User.routes.get, MeshEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
-  const result = await User.services.get(log, auth.tenantId, id);
+  const result = await User.services.get(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+  );
   if (result.isErr()) {
     throw result.error;
   }

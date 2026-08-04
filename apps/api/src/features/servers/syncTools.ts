@@ -14,8 +14,10 @@ import {
   upstreamSecretKind,
   type PublicTool,
   type SyncToolsResult,
+  type ToolHttpMethod,
 } from "@mesh/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import { importToolsFromOpenApi } from "./importOpenApi.js";
 
 function toPublicTool(row: Tool): PublicTool {
   return {
@@ -23,6 +25,8 @@ function toPublicTool(row: Tool): PublicTool {
     name: row.name,
     description: row.description,
     inputSchema: row.inputSchema,
+    httpMethod: row.httpMethod,
+    pathTemplate: row.pathTemplate,
     status: row.status,
     serverId: row.serverId,
     tenantId: row.tenantId,
@@ -55,43 +59,16 @@ async function resolveUpstreamBearer(
   return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
 }
 
-/**
- * Discover tools from an upstream MCP server and upsert into the Mesh catalog.
- * New tools land as `needs_review`. Existing rows keep status; schema/description refresh.
- */
-export async function syncToolsFromUpstream(
-  log: Logger,
+async function loadServerLevelSecret(
   tenantId: string,
   serverId: string,
-): Promise<Result<SyncToolsResult, MeshError>> {
-  const [server] = await db
-    .select()
-    .from(servers)
-    .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))
-    .limit(1);
-
-  if (!server) {
-    return err(new NotFoundError("Server not found"));
+  authMethod: "api_key" | "oauth" | "mtls",
+): Promise<Result<{ plaintext: string }, MeshError>> {
+  if (authMethod === "mtls") {
+    return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
   }
 
-  if (server.kind !== "mcp") {
-    return err(
-      new NotImplementedError(
-        `Tool sync is only supported for MCP servers (got "${server.kind}")`,
-      ),
-    );
-  }
-
-  if (server.authMethod === "mtls") {
-    return err(
-      new NotImplementedError(
-        "Tool sync does not support mTLS upstream auth yet",
-      ),
-    );
-  }
-
-  const kind = upstreamSecretKind(server.authMethod);
-
+  const kind = upstreamSecretKind(authMethod);
   const [secretRow] = await db
     .select()
     .from(secrets)
@@ -135,8 +112,111 @@ export async function syncToolsFromUpstream(
   );
   if (decrypted.isErr()) return err(decrypted.error);
 
-  const plaintext = new TextDecoder().decode(decrypted.value);
-  const bearer = await resolveUpstreamBearer(server.authMethod, plaintext);
+  return ok({ plaintext: new TextDecoder().decode(decrypted.value) });
+}
+
+async function upsertImportedTools(
+  log: Logger,
+  tenantId: string,
+  serverId: string,
+  imported: Array<{
+    name: string;
+    description: string | null;
+    inputSchema: Record<string, unknown> | null;
+    httpMethod?: ToolHttpMethod | null;
+    pathTemplate?: string | null;
+  }>,
+): Promise<Result<SyncToolsResult, MeshError>> {
+  const existing = await db
+    .select()
+    .from(tools)
+    .where(and(eq(tools.tenantId, tenantId), eq(tools.serverId, serverId)));
+
+  const byName = new Map(existing.map((row) => [row.name, row]));
+  let created = 0;
+  let updated = 0;
+  const resultRows: Tool[] = [];
+
+  for (const item of imported) {
+    const found = byName.get(item.name);
+    if (!found) {
+      const [row] = await db
+        .insert(tools)
+        .values({
+          name: item.name,
+          description: item.description,
+          inputSchema: item.inputSchema,
+          httpMethod: item.httpMethod ?? null,
+          pathTemplate: item.pathTemplate ?? null,
+          status: "needs_review",
+          serverId,
+          tenantId,
+        })
+        .returning();
+      if (row) {
+        created += 1;
+        resultRows.push(row);
+      }
+      continue;
+    }
+
+    const [row] = await db
+      .update(tools)
+      .set({
+        description: item.description,
+        inputSchema: item.inputSchema,
+        httpMethod: item.httpMethod ?? found.httpMethod,
+        pathTemplate: item.pathTemplate ?? found.pathTemplate,
+        updatedAt: new Date(),
+      })
+      .where(eq(tools.id, found.id))
+      .returning();
+    if (row) {
+      updated += 1;
+      resultRows.push(row);
+    }
+  }
+
+  await db
+    .update(servers)
+    .set({ health: "healthy", updatedAt: new Date() })
+    .where(eq(servers.id, serverId));
+
+  log.info(
+    {
+      serverId,
+      tenantId,
+      discovered: imported.length,
+      created,
+      updated,
+    },
+    "syncToolsFromUpstream ok",
+  );
+
+  return ok({
+    discovered: imported.length,
+    created,
+    updated,
+    tools: resultRows.map(toPublicTool),
+  });
+}
+
+async function syncMcpTools(
+  log: Logger,
+  tenantId: string,
+  server: typeof servers.$inferSelect,
+): Promise<Result<SyncToolsResult, MeshError>> {
+  const secret = await loadServerLevelSecret(
+    tenantId,
+    server.id,
+    server.authMethod,
+  );
+  if (secret.isErr()) return err(secret.error);
+
+  const bearer = await resolveUpstreamBearer(
+    server.authMethod,
+    secret.value.plaintext,
+  );
   if (bearer.isErr()) return err(bearer.error);
 
   let baseUrl: URL;
@@ -160,86 +240,124 @@ export async function syncToolsFromUpstream(
   } catch (cause) {
     const detail =
       cause instanceof Error ? cause.message : "upstream tools/list failed";
-    log.warn({ err: cause, serverId, tenantId }, "syncToolsFromUpstream failed");
+    log.warn({ err: cause, serverId: server.id, tenantId }, "syncMcpTools failed");
     await db
       .update(servers)
       .set({ health: "unhealthy", updatedAt: new Date() })
-      .where(eq(servers.id, serverId));
+      .where(eq(servers.id, server.id));
     return err(new MeshError("INTERNAL", `Upstream tools/list failed: ${detail}`));
   } finally {
     await client.close().catch(() => undefined);
     await transport.close().catch(() => undefined);
   }
 
-  const existing = await db
-    .select()
-    .from(tools)
-    .where(and(eq(tools.tenantId, tenantId), eq(tools.serverId, serverId)));
+  return upsertImportedTools(
+    log,
+    tenantId,
+    server.id,
+    listed.tools.map((upstream) => ({
+      name: upstream.name,
+      description: upstream.description?.trim() || null,
+      inputSchema: asObjectSchema(upstream.inputSchema),
+      httpMethod: null,
+      pathTemplate: null,
+    })),
+  );
+}
 
-  const byName = new Map(existing.map((row) => [row.name, row]));
-  let created = 0;
-  let updated = 0;
-  const resultRows: Tool[] = [];
-
-  for (const upstream of listed.tools) {
-    const description = upstream.description?.trim() || null;
-    const inputSchema = asObjectSchema(upstream.inputSchema);
-    const found = byName.get(upstream.name);
-
-    if (!found) {
-      const [row] = await db
-        .insert(tools)
-        .values({
-          name: upstream.name,
-          description,
-          inputSchema,
-          status: "needs_review",
-          serverId,
-          tenantId,
-        })
-        .returning();
-      if (row) {
-        created += 1;
-        resultRows.push(row);
-      }
-      continue;
-    }
-
-    const [row] = await db
-      .update(tools)
-      .set({
-        description,
-        inputSchema,
-        updatedAt: new Date(),
-      })
-      .where(eq(tools.id, found.id))
-      .returning();
-    if (row) {
-      updated += 1;
-      resultRows.push(row);
-    }
+async function syncOpenApiTools(
+  log: Logger,
+  tenantId: string,
+  server: typeof servers.$inferSelect,
+): Promise<Result<SyncToolsResult, MeshError>> {
+  if (!server.docsUrl) {
+    return err(
+      new BadRequestError(
+        "Set docsUrl to an OpenAPI JSON URL before syncing an API server",
+      ),
+    );
   }
 
-  await db
-    .update(servers)
-    .set({ health: "healthy", updatedAt: new Date() })
-    .where(eq(servers.id, serverId));
+  let res: Response;
+  try {
+    res = await fetch(server.docsUrl, {
+      headers: { Accept: "application/json" },
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "network error";
+    await db
+      .update(servers)
+      .set({ health: "unhealthy", updatedAt: new Date() })
+      .where(eq(servers.id, server.id));
+    return err(
+      new MeshError("INTERNAL", `Failed to fetch OpenAPI docs: ${detail}`),
+    );
+  }
+
+  const text = await res.text();
+  if (!res.ok) {
+    await db
+      .update(servers)
+      .set({ health: "unhealthy", updatedAt: new Date() })
+      .where(eq(servers.id, server.id));
+    return err(
+      new MeshError(
+        "INTERNAL",
+        `OpenAPI docs fetch → ${res.status}: ${text.slice(0, 200)}`,
+      ),
+    );
+  }
+
+  let document: unknown;
+  try {
+    document = JSON.parse(text);
+  } catch {
+    return err(
+      new BadRequestError("OpenAPI docsUrl must return JSON (YAML not supported yet)"),
+    );
+  }
+
+  const imported = importToolsFromOpenApi(document);
+  if (imported.isErr()) return err(imported.error);
 
   log.info(
-    {
-      serverId,
-      tenantId,
-      discovered: listed.tools.length,
-      created,
-      updated,
-    },
-    "syncToolsFromUpstream ok",
+    { serverId: server.id, count: imported.value.length },
+    "imported OpenAPI operations",
   );
 
-  return ok({
-    discovered: listed.tools.length,
-    created,
-    updated,
-    tools: resultRows.map(toPublicTool),
-  });
+  return upsertImportedTools(log, tenantId, server.id, imported.value);
+}
+
+/**
+ * Discover tools from an upstream MCP server or OpenAPI document and upsert
+ * into the Mesh catalog. New tools land as `needs_review`.
+ */
+export async function syncToolsFromUpstream(
+  log: Logger,
+  tenantId: string,
+  serverId: string,
+): Promise<Result<SyncToolsResult, MeshError>> {
+  const [server] = await db
+    .select()
+    .from(servers)
+    .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))
+    .limit(1);
+
+  if (!server) {
+    return err(new NotFoundError("Server not found"));
+  }
+
+  if (server.kind === "mcp") {
+    return syncMcpTools(log, tenantId, server);
+  }
+
+  if (server.kind === "api") {
+    return syncOpenApiTools(log, tenantId, server);
+  }
+
+  return err(
+    new NotImplementedError(
+      `Tool sync is not supported for server kind "${server.kind}"`,
+    ),
+  );
 }

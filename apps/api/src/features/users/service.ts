@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import { db, memberships, user } from "@mesh/db";
 import {
   BadRequestError,
+  ForbiddenError,
   MeshError,
   NotFoundError,
   SetupError,
@@ -11,6 +12,10 @@ import {
   type PublicUser,
   type UserKind,
 } from "@mesh/shared";
+import {
+  resolveTeamFilter,
+  type ActorAuthz,
+} from "../../lib/authz/teamScope.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -101,9 +106,15 @@ async function createService(
 async function list(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   query: ListUsersQuery,
 ): Promise<Result<CursorPage<PublicUser>, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+  const teamFilter = teamResult.value;
+
   const conditions = [eq(memberships.tenantId, tenantId)];
+  if (teamFilter) conditions.push(eq(memberships.team, teamFilter));
 
   if (query.kind) {
     conditions.push(eq(user.kind, query.kind));
@@ -146,6 +157,7 @@ async function list(
       tenantId,
       count: page.items.length,
       hasMore: page.nextCursor !== null,
+      teamFilter,
     },
     "User.services.list",
   );
@@ -159,18 +171,30 @@ async function list(
 async function get(
   log: Logger,
   tenantId: string,
+  actor: ActorAuthz,
   userId: string,
 ): Promise<Result<PublicUser, MeshError>> {
+  const teamResult = resolveTeamFilter(actor);
+  if (teamResult.isErr()) return err(teamResult.error);
+  const teamFilter = teamResult.value;
+
+  const conditions = [
+    eq(memberships.tenantId, tenantId),
+    eq(memberships.userId, userId),
+  ];
+  if (teamFilter) conditions.push(eq(memberships.team, teamFilter));
+
   const [row] = await db
     .select({ user })
     .from(memberships)
     .innerJoin(user, eq(user.id, memberships.userId))
-    .where(
-      and(eq(memberships.tenantId, tenantId), eq(memberships.userId, userId)),
-    )
+    .where(and(...conditions))
     .limit(1);
 
   if (!row) {
+    if (teamFilter) {
+      return err(new ForbiddenError("user is outside your team scope"));
+    }
     return err(new NotFoundError("User not found in this tenant"));
   }
 

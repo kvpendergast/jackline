@@ -48,7 +48,11 @@ export async function requireTenantContext(
   const authContext: AuthContext = {
     userId: session.user.id,
     tenantId,
-    membership: { id: membership.id, role: membership.role },
+    membership: {
+      id: membership.id,
+      role: membership.role,
+      team: membership.team,
+    },
     method: "session",
   };
 

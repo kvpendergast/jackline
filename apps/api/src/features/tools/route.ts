@@ -2,6 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
   cursorPageSchema,
   PublicToolSchema,
+  ToolHttpMethodSchema,
   ToolStatusSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
@@ -37,6 +38,10 @@ const CreateToolBodySchema = z
     name: z.string().min(1),
     serverId: z.uuid(),
     status: ToolStatusSchema.optional(),
+    description: z.string().min(1).nullable().optional(),
+    inputSchema: z.record(z.string(), z.unknown()).nullable().optional(),
+    httpMethod: ToolHttpMethodSchema.nullable().optional(),
+    pathTemplate: z.string().min(1).nullable().optional(),
   })
   .openapi("CreateToolBody");
 
@@ -44,6 +49,10 @@ const UpdateToolBodySchema = z
   .strictObject({
     name: z.string().min(1).optional(),
     status: ToolStatusSchema.optional(),
+    description: z.string().min(1).nullable().optional(),
+    inputSchema: z.record(z.string(), z.unknown()).nullable().optional(),
+    httpMethod: ToolHttpMethodSchema.nullable().optional(),
+    pathTemplate: z.string().min(1).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",

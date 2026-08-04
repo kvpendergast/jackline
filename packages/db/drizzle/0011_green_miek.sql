@@ -1,0 +1,2 @@
+CREATE TYPE "public"."server_credential_mode" AS ENUM('shared', 'subject_required', 'either');--> statement-breakpoint
+ALTER TABLE "servers" ADD COLUMN "credential_mode" "server_credential_mode" DEFAULT 'either' NOT NULL;

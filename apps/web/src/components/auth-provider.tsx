@@ -18,6 +18,7 @@ type AuthContextValue = {
   loading: boolean;
   user: PublicUser | null;
   memberships: PublicMembershipContext[];
+  membership: PublicMembershipContext | null;
   tenantId: string | null;
   tenant: PublicMembershipContext["tenant"] | null;
   setTenantId: (id: string) => void;
@@ -107,18 +108,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me.memberships.find((m) => m.tenant.id === tenantId)?.tenant ?? null;
   }, [me, tenantId]);
 
+  const membership = useMemo(() => {
+    if (!me || !tenantId) return null;
+    return me.memberships.find((m) => m.tenant.id === tenantId) ?? null;
+  }, [me, tenantId]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       loading,
       user: me?.user ?? null,
       memberships: me?.memberships ?? [],
+      membership,
       tenantId,
       tenant,
       setTenantId,
       refresh,
       signOut,
     }),
-    [loading, me, tenantId, tenant, setTenantId, refresh, signOut],
+    [loading, me, membership, tenantId, tenant, setTenantId, refresh, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/mesh/FormBits";
 import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
@@ -23,25 +23,35 @@ import {
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import { meshApi } from "@/lib/mesh-api";
-import type { PublicRole, PublicRoleDetail, PublicTool, RoleType } from "@mesh/shared";
+import type {
+  PublicRole,
+  PublicRoleDetail,
+  PublicServer,
+  PublicTool,
+  RoleType,
+} from "@mesh/shared";
 
 export function RolesPage() {
   const { tenantId } = useAuth();
   const [items, setItems] = useState<PublicRole[]>([]);
   const [tools, setTools] = useState<PublicTool[]>([]);
+  const [servers, setServers] = useState<PublicServer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PublicRoleDetail | null>(null);
 
   async function load() {
     if (!tenantId) return;
-    const [rolePage, toolPage] = await Promise.all([
+    const [rolePage, toolPage, serverPage] = await Promise.all([
       meshApi.listRoles(tenantId),
       meshApi.listTools(tenantId),
+      meshApi.listServers(tenantId),
     ]);
     setItems(rolePage.items);
     setTools(toolPage.items);
+    setServers(serverPage.items);
   }
 
   useEffect(() => {
@@ -68,6 +78,7 @@ export function RolesPage() {
   async function openEdit(id: string) {
     if (!tenantId) return;
     setError(null);
+    setInfo(null);
     try {
       const detail = await meshApi.getRole(tenantId, id);
       setEditing(detail);
@@ -97,6 +108,7 @@ export function RolesPage() {
               <CreateRoleForm
                 onCreated={async () => {
                   setOpen(false);
+                  setInfo("Role created");
                   await load();
                 }}
                 onError={setError}
@@ -107,6 +119,7 @@ export function RolesPage() {
       />
 
       {error ? <p className="text-sm text-deny">{error}</p> : null}
+      {info ? <p className="text-sm text-allow">{info}</p> : null}
 
       <section className="border border-border bg-card">
         <Table>
@@ -150,7 +163,8 @@ export function RolesPage() {
                     size="sm"
                     onClick={() => void openEdit(row.id)}
                   >
-                    Tools
+                    <Pencil className="size-3.5" />
+                    Edit
                   </Button>
                 </TableCell>
               </TableRow>
@@ -165,19 +179,25 @@ export function RolesPage() {
           if (!next) setEditing(null);
         }}
       >
-        <DialogContent className="rounded-none sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-none sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Role tools — {editing?.name}</DialogTitle>
+            <DialogTitle>Edit role</DialogTitle>
           </DialogHeader>
           {editing ? (
-            <RoleToolsEditor
+            <EditRoleForm
+              key={editing.id}
               role={editing}
               tools={tools}
+              servers={servers}
               onSaved={async (detail) => {
-                setEditing(detail);
+                setEditing(null);
+                setError(null);
+                setInfo(`Updated “${detail.name}”`);
                 await load();
               }}
-              onError={setError}
+              onError={(message) => {
+                setError(message);
+              }}
             />
           ) : null}
         </DialogContent>
@@ -250,82 +270,272 @@ function CreateRoleForm({
   );
 }
 
-function RoleToolsEditor({
+function EditRoleForm({
   role,
   tools,
+  servers,
   onSaved,
   onError,
 }: {
   role: PublicRoleDetail;
   tools: PublicTool[];
+  servers: PublicServer[];
   onSaved: (detail: PublicRoleDetail) => Promise<void>;
   onError: (message: string) => void;
 }) {
   const { tenantId } = useAuth();
+  const [name, setName] = useState(role.name);
+  const [type, setType] = useState<RoleType>(role.type);
+  const [description, setDescription] = useState(role.description ?? "");
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(role.toolIds),
   );
+  const [serverFilter, setServerFilter] = useState<string>("all");
   const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const serverNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const server of servers) map.set(server.id, server.name);
+    return map;
+  }, [servers]);
+
+  const serversWithTools = useMemo(() => {
+    const ids = new Set(tools.map((t) => t.serverId));
+    return servers
+      .filter((s) => ids.has(s.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [servers, tools]);
 
   const activeTools = useMemo(
     () => tools.filter((t) => t.status === "active" || selected.has(t.id)),
     [tools, selected],
   );
 
-  async function save() {
+  const visibleTools = useMemo(() => {
+    const filtered =
+      serverFilter === "all"
+        ? activeTools
+        : activeTools.filter((t) => t.serverId === serverFilter);
+    return [...filtered].sort((a, b) => {
+      const serverCmp = (serverNameById.get(a.serverId) ?? a.serverId).localeCompare(
+        serverNameById.get(b.serverId) ?? b.serverId,
+      );
+      if (serverCmp !== 0) return serverCmp;
+      return a.name.localeCompare(b.name);
+    });
+  }, [activeTools, serverFilter, serverNameById]);
+
+  const visibleIds = useMemo(
+    () => visibleTools.map((t) => t.id),
+    [visibleTools],
+  );
+
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  const metaChanged =
+    name !== role.name ||
+    type !== role.type ||
+    (description.trim() || null) !== (role.description ?? null);
+
+  const toolsChanged =
+    selected.size !== role.toolIds.length ||
+    role.toolIds.some((id) => !selected.has(id));
+
+  function selectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.add(id);
+      return next;
+    });
+  }
+
+  function clearVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) next.delete(id);
+      return next;
+    });
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
     if (!tenantId) return;
     setBusy(true);
+    setLocalError(null);
     try {
-      const detail = await meshApi.setRoleTools(
-        tenantId,
-        role.id,
-        [...selected],
-      );
+      let detail = role;
+
+      if (metaChanged) {
+        const patch: {
+          name?: string;
+          type?: RoleType;
+          description?: string | null;
+        } = {};
+        if (!role.system) {
+          if (name !== role.name) patch.name = name;
+          if (type !== role.type) patch.type = type;
+        }
+        const nextDescription = description.trim() || null;
+        if (nextDescription !== (role.description ?? null)) {
+          patch.description = nextDescription;
+        }
+        if (Object.keys(patch).length > 0) {
+          detail = await meshApi.updateRole(tenantId, role.id, patch);
+        }
+      }
+
+      if (toolsChanged) {
+        detail = await meshApi.setRoleTools(tenantId, role.id, [...selected]);
+      }
+
       await onSaved(detail);
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Save failed");
+      const message = err instanceof ApiError ? err.message : "Save failed";
+      setLocalError(message);
+      onError(message);
     } finally {
       setBusy(false);
     }
   }
 
+  const filteredServerName =
+    serverFilter === "all"
+      ? null
+      : (serverNameById.get(serverFilter) ?? "server");
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Select tools included in this {role.type} role.
-      </p>
-      <div className="max-h-64 space-y-1 overflow-auto border border-border p-2">
-        {activeTools.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tools available.</p>
-        ) : null}
-        {activeTools.map((tool) => {
-          const checked = selected.has(tool.id);
-          return (
-            <label
-              key={tool.id}
-              className="flex cursor-pointer items-center gap-2 px-1 py-1 text-sm hover:bg-muted/60"
+    <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
+      {role.system ? (
+        <p className="text-sm text-muted-foreground">
+          System role — name and type can’t be changed.
+        </p>
+      ) : null}
+      <Field label="Name" htmlFor="edit-role-name">
+        <Input
+          id="edit-role-name"
+          required
+          disabled={role.system}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </Field>
+      <Field label="Type">
+        <FieldSelect
+          value={type}
+          disabled={role.system}
+          onChange={(e) => setType(e.target.value as RoleType)}
+        >
+          <option value="grant">grant</option>
+          <option value="deny">deny</option>
+        </FieldSelect>
+      </Field>
+      <Field label="Description" htmlFor="edit-role-desc">
+        <Input
+          id="edit-role-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </Field>
+
+      <div className="space-y-2">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Tools
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Select tools included in this {type} role.
+        </p>
+        <Field label="Server">
+          <FieldSelect
+            value={serverFilter}
+            onChange={(e) => setServerFilter(e.target.value)}
+          >
+            <option value="all">All servers</option>
+            {serversWithTools.map((server) => (
+              <option key={server.id} value={server.id}>
+                {server.name}
+              </option>
+            ))}
+          </FieldSelect>
+        </Field>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {visibleTools.length} tool{visibleTools.length === 1 ? "" : "s"}
+            {filteredServerName ? ` on ${filteredServerName}` : ""}
+            {" · "}
+            {selected.size} selected total
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={visibleIds.length === 0 || allVisibleSelected}
+              onClick={selectAllVisible}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => {
-                  setSelected((prev) => {
-                    const next = new Set(prev);
-                    if (e.target.checked) next.add(tool.id);
-                    else next.delete(tool.id);
-                    return next;
-                  });
-                }}
-              />
-              <span className="font-mono text-[13px]">{tool.name}</span>
-              <KindBadge kind={tool.status} />
-            </label>
-          );
-        })}
+              Select all
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={
+                visibleIds.length === 0 ||
+                !visibleIds.some((id) => selected.has(id))
+              }
+              onClick={clearVisible}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+        <div className="max-h-64 space-y-1 overflow-auto border border-border p-2">
+          {visibleTools.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tools available.</p>
+          ) : null}
+          {visibleTools.map((tool) => {
+            const checked = selected.has(tool.id);
+            return (
+              <label
+                key={tool.id}
+                className="flex cursor-pointer items-center gap-2 px-1 py-1 text-sm hover:bg-muted/60"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    setSelected((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(tool.id);
+                      else next.delete(tool.id);
+                      return next;
+                    });
+                  }}
+                />
+                <span className="min-w-0 flex-1 truncate font-mono text-[13px]">
+                  {tool.name}
+                </span>
+                {serverFilter === "all" ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {serverNameById.get(tool.serverId) ?? "Unknown"}
+                  </span>
+                ) : null}
+                <KindBadge kind={tool.status} />
+              </label>
+            );
+          })}
+        </div>
       </div>
-      <Button className="w-full" disabled={busy} onClick={() => void save()}>
-        {busy ? "Saving…" : `Save ${selected.size} tools`}
+
+      {localError ? <p className="text-sm text-deny">{localError}</p> : null}
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={busy || (!metaChanged && !toolsChanged)}
+      >
+        {busy ? "Saving…" : "Save changes"}
       </Button>
-    </div>
+    </form>
   );
 }

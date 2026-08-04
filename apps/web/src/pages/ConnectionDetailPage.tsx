@@ -21,6 +21,7 @@ import type {
   PublicAuditEvent,
   PublicClient,
   PublicConnectionDetail,
+  PublicEffectiveTool,
   PublicGatewayCredential,
   PublicRole,
   PublicTool,
@@ -37,6 +38,9 @@ export function ConnectionDetailPage() {
   const [allRoles, setAllRoles] = useState<PublicRole[]>([]);
   const [tools, setTools] = useState<PublicTool[]>([]);
   const [credentials, setCredentials] = useState<PublicGatewayCredential[]>([]);
+  const [effectiveTools, setEffectiveTools] = useState<PublicEffectiveTool[]>(
+    [],
+  );
   const [denies, setDenies] = useState<PublicAuditEvent[]>([]);
   const [minted, setMinted] = useState<MintedGatewayCredential | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,27 +52,37 @@ export function ConnectionDetailPage() {
   async function load() {
     if (!tenantId || !id) return;
     setError(null);
-    const [conn, clientPage, userPage, rolePage, toolPage, credPage, denyPage] =
-      await Promise.all([
-        meshApi.getConnection(tenantId, id),
-        meshApi.listClients(tenantId),
-        meshApi.listUsers(tenantId),
-        meshApi.listRoles(tenantId),
-        meshApi.listTools(tenantId),
-        meshApi.listCredentials(tenantId, id),
-        meshApi.listAuditEvents(tenantId, {
-          connectionId: id,
-          outcome: "deny",
-          limit: "10",
-        }),
-      ]);
+    const [
+      conn,
+      clientPage,
+      userPage,
+      rolePage,
+      toolPage,
+      creds,
+      effective,
+      denyPage,
+    ] = await Promise.all([
+      meshApi.getConnection(tenantId, id),
+      meshApi.listClients(tenantId),
+      meshApi.listUsers(tenantId),
+      meshApi.listRoles(tenantId),
+      meshApi.listTools(tenantId),
+      meshApi.listCredentials(tenantId, id),
+      meshApi.listEffectiveTools(tenantId, id),
+      meshApi.listAuditEvents(tenantId, {
+        connectionId: id,
+        outcome: "deny",
+        limit: "10",
+      }),
+    ]);
     setDetail(conn);
     setClient(clientPage.items.find((c) => c.id === conn.clientId) ?? null);
     setSubject(userPage.items.find((u) => u.id === conn.userId) ?? null);
     setAllRoles(rolePage.items);
     setRoles(rolePage.items.filter((r) => conn.roleIds.includes(r.id)));
     setTools(toolPage.items);
-    setCredentials(credPage.items);
+    setCredentials(creds);
+    setEffectiveTools(effective.items);
     setDenies(denyPage.items);
     const available = rolePage.items.find((r) => !conn.roleIds.includes(r.id));
     setAttachRoleId(available?.id ?? "");
@@ -210,7 +224,11 @@ export function ConnectionDetailPage() {
         </Link>
         <PageHeader
           eyebrow="Connection"
-          title={detail.id}
+          title={
+            client && subject
+              ? `${client.name} × ${subject.name}`
+              : detail.id.slice(0, 8) + "…"
+          }
           description={`${client?.name ?? detail.clientId} × ${subject?.email ?? detail.userId} — gateway auth and effective policy for this pair.`}
           actions={
             <>
@@ -499,6 +517,88 @@ export function ConnectionDetailPage() {
           ) : null}
         </section>
       </div>
+
+      <section className="border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <p className="section-label">Effective tools</p>
+          <span className="text-xs text-muted-foreground">
+            {effectiveTools.filter((t) => t.allowed).length} allowed ·{" "}
+            {effectiveTools.length} total
+          </span>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                MCP name
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Server
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Effective
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Sources
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {effectiveTools.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  No tools from roles or overrides yet. Attach a grant role or
+                  add an allow override.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {effectiveTools.map((row) => (
+              <TableRow key={row.toolId}>
+                <TableCell>
+                  <div className="font-mono text-[13px]">{row.mcpName}</div>
+                  <div className="text-xs text-muted-foreground">{row.name}</div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">{row.serverName}</div>
+                  <KindBadge kind={row.serverStatus} />
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    <OutcomeBadge
+                      outcome={row.permission === "allow" ? "allow" : "deny"}
+                    />
+                    {row.allowed ? (
+                      <KindBadge kind="callable" />
+                    ) : (
+                      <KindBadge kind="blocked" />
+                    )}
+                    {row.toolStatus !== "active" ? (
+                      <KindBadge kind={row.toolStatus} />
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {row.sources.map((source, i) => (
+                    <div key={`${row.toolId}-${i}`}>
+                      {source.kind === "role" ? (
+                        <>
+                          Role{" "}
+                          <span className="font-medium text-foreground">
+                            {source.roleName}
+                          </span>{" "}
+                          ({source.roleType} → {source.permission})
+                        </>
+                      ) : (
+                        <>Manual override ({source.permission})</>
+                      )}
+                    </div>
+                  ))}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </section>
 
       <section className="border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">

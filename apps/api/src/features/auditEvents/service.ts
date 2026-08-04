@@ -43,6 +43,8 @@ function toPublicAuditEvent(row: AuditEventRow): PublicAuditEvent {
     reason: row.reason,
     requestId: row.requestId,
     latencyMs: row.latencyMs,
+    requestArgs: row.requestArgs ?? null,
+    responseBody: row.responseBody ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

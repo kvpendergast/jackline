@@ -1,3 +1,4 @@
+import { formatMcpToolName } from "@mesh/shared";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { getAllowedTools } from "@mesh/policy";
@@ -26,18 +27,11 @@ export type AllowedMcpTool = {
   serverId: string;
 };
 
-function sanitizeSegment(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
-/** Prefer bare tool name when unique; otherwise `serverName__toolName`. */
+/** Always `serverName__toolName` so clients can distinguish shared upstream names. */
 export function mcpToolName(
   tool: Pick<ConnectionToolRecord, "name" | "serverName">,
-  allowed: Pick<ConnectionToolRecord, "name">[],
 ): string {
-  const collisions = allowed.filter((t) => t.name === tool.name).length;
-  if (collisions <= 1) return tool.name;
-  return `${sanitizeSegment(tool.serverName)}__${sanitizeSegment(tool.name)}`;
+  return formatMcpToolName(tool.serverName, tool.name);
 }
 
 function descriptionFor(
@@ -103,7 +97,7 @@ export async function listAllowedMcpTools(
   const mcpTools = allowedRecords.map((tool) => {
     const meta = metaByServer.get(tool.serverId)?.get(tool.name);
     return {
-      name: mcpToolName(tool, allowedRecords),
+      name: mcpToolName(tool),
       description: descriptionFor(tool, meta),
       inputSchema: schemaFor(tool, meta),
       toolId: tool.id,

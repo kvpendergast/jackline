@@ -6,6 +6,7 @@ import {
   requestMiddleware,
   tenantContextMiddleware,
 } from "./lib/request/index.js";
+import { scimApp } from "./features/identity/scim.js";
 import {
   publicV1Features,
   rootFeatures,
@@ -37,6 +38,8 @@ for (const feature of rootFeatures) {
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
+
+app.route("/scim/v2", scimApp);
 
 const v1 = createMeshApp();
 

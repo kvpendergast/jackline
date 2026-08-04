@@ -1,5 +1,6 @@
 import {
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -39,6 +40,10 @@ export const auditEvents = pgTable(
     reason: text("reason"),
     requestId: text("request_id").notNull(),
     latencyMs: integer("latency_ms").notNull(),
+    /** Tool call arguments (JSON-safe, may be truncated). */
+    requestArgs: jsonb("request_args").$type<unknown>(),
+    /** Tool call result or error payload (JSON-safe, may be truncated). */
+    responseBody: jsonb("response_body").$type<unknown>(),
   },
   (t) => [
     index("audit_events_tenant_created_idx").on(t.tenantId, t.createdAt),

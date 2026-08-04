@@ -38,11 +38,8 @@ export async function createMeshMcpServer(
       },
       async (args) => {
         const started = Date.now();
-        const proxied = await proxyToolCall(
-          ctx,
-          tool,
-          args as Record<string, unknown>,
-        );
+        const requestArgs = args as Record<string, unknown>;
+        const proxied = await proxyToolCall(ctx, tool, requestArgs);
         const latencyMs = Date.now() - started;
 
         if (proxied.isErr()) {
@@ -58,6 +55,12 @@ export async function createMeshMcpServer(
             reason: proxied.error.message,
             requestId: ctx.requestId,
             latencyMs,
+            requestArgs,
+            responseBody: {
+              isError: true,
+              message: proxied.error.message,
+              code: proxied.error.code,
+            },
           });
           return {
             content: [{ type: "text", text: proxied.error.message }],
@@ -77,6 +80,8 @@ export async function createMeshMcpServer(
           reason: null,
           requestId: ctx.requestId,
           latencyMs,
+          requestArgs,
+          responseBody: proxied.value,
         });
 
         return proxied.value;

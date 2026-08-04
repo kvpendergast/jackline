@@ -11,6 +11,7 @@ export const Connection = {
 const routeOrder = [
   "list",
   "create",
+  "listEffectiveTools",
   "get",
   "update",
   "delete",

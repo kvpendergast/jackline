@@ -11,6 +11,8 @@ if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
+const { initAuth } = await import("@mesh/auth");
+await initAuth();
 const { app } = await import("./app.js");
 const { logger } = await import("./lib/logger.js");
 

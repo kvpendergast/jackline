@@ -3,7 +3,7 @@ import type { Logger } from "pino";
 export type AuthContext = {
   userId: string;
   tenantId: string;
-  membership: { id: string; role: string };
+  membership: { id: string; role: string; team: string | null };
   method: "session";
 };
 

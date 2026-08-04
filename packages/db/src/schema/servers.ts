@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
 
@@ -19,22 +19,34 @@ export const serverHealthEnum = pgEnum("server_health", [
   "healthy",
   "unhealthy",
 ]);
+export const serverCredentialModeEnum = pgEnum("server_credential_mode", [
+  "shared",
+  "subject_required",
+  "either",
+]);
 
-export const servers = pgTable("servers", {
-  ...baseColumns,
-  name: text("name").notNull(),
-  baseUrl: text("base_url").notNull(),
-  authMethod: serverAuthMethodEnum("auth_method").notNull(),
-  source: serverSourceEnum("source").notNull().default("custom"),
-  kind: serverKindEnum("kind").notNull(),
-  status: serverStatusEnum("status").notNull().default("pending"),
-  health: serverHealthEnum("health").notNull().default("unknown"),
-  connectorKey: text("connector_key"),
-  docsUrl: text("docs_url"),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-});
+export const servers = pgTable(
+  "servers",
+  {
+    ...baseColumns,
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    authMethod: serverAuthMethodEnum("auth_method").notNull(),
+    credentialMode: serverCredentialModeEnum("credential_mode")
+      .notNull()
+      .default("either"),
+    source: serverSourceEnum("source").notNull().default("custom"),
+    kind: serverKindEnum("kind").notNull(),
+    status: serverStatusEnum("status").notNull().default("pending"),
+    health: serverHealthEnum("health").notNull().default("unknown"),
+    connectorKey: text("connector_key"),
+    docsUrl: text("docs_url"),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("servers_tenant_name_unique").on(t.tenantId, t.name)],
+);
 
 export type Server = typeof servers.$inferSelect;
 export type NewServer = typeof servers.$inferInsert;

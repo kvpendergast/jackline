@@ -1,6 +1,11 @@
 export { type PublicUser, PublicUserSchema, type UserKind, UserKindSchema } from './user.js';
 export { type PublicTenant, PublicTenantSchema } from './tenant.js';
-export { type PublicMembership, PublicMembershipSchema } from './membership.js';
+export {
+  type PublicMembership,
+  PublicMembershipSchema,
+  type MembershipRole,
+  MembershipRoleSchema,
+} from './membership.js';
 export {
   type PublicMembershipContext,
   PublicMembershipContextSchema,
@@ -20,15 +25,31 @@ export {
   ServerStatusSchema,
   type ServerHealth,
   ServerHealthSchema,
+  type ServerCredentialMode,
+  ServerCredentialModeSchema,
 } from './server.js';
+export {
+  type MyAccessServer,
+  MyAccessServerSchema,
+  type MyAccessCredentialStatus,
+  MyAccessCredentialStatusSchema,
+  type UpsertMyAccessCredentialBody,
+  UpsertMyAccessCredentialBodySchema,
+  type UpstreamCredentialStatus,
+  UpstreamCredentialStatusSchema,
+  type UpstreamCredentialReadiness,
+  UpstreamCredentialReadinessSchema,
+} from './myAccess.js';
 export { cursorPageSchema, type CursorPage } from './pagination.js';
 export {
   type PublicTool,
   PublicToolSchema,
-  SyncToolsResultSchema,
   type SyncToolsResult,
+  SyncToolsResultSchema,
   type ToolStatus,
   ToolStatusSchema,
+  type ToolHttpMethod,
+  ToolHttpMethodSchema,
 } from './tool.js';
 export {
   type PublicRole,
@@ -51,6 +72,10 @@ export {
   PublicConnectionDetailSchema,
   type PublicConnectionToolOverride,
   PublicConnectionToolOverrideSchema,
+  type PublicEffectiveTool,
+  PublicEffectiveToolSchema,
+  type EffectiveToolSource,
+  EffectiveToolSourceSchema,
   type ConnectionStatus,
   ConnectionStatusSchema,
   type ConnectionToolOverrideType,
@@ -79,3 +104,17 @@ export {
   type PublicAuditEvent,
   PublicAuditEventSchema,
 } from './auditEvent.js';
+export {
+  type PublicSsoConfig,
+  PublicSsoConfigSchema,
+  type UpdateSsoConfigBody,
+  UpdateSsoConfigBodySchema,
+  type PublicInvite,
+  PublicInviteSchema,
+  type CreateInviteBody,
+  CreateInviteBodySchema,
+  type AcceptInviteBody,
+  AcceptInviteBodySchema,
+  type RotateScimTokenResult,
+  RotateScimTokenResultSchema,
+} from './identity.js';

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
 import { OutcomeBadge } from "@/components/mesh/StatusBadge";
@@ -21,6 +21,7 @@ export function AuditPage() {
   const [clients, setClients] = useState<PublicClient[]>([]);
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [filter, setFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -168,37 +169,76 @@ export function AuditPage() {
                 ? clientById.get(row.clientId)
                 : undefined;
               const subject = row.userId ? userById.get(row.userId) : undefined;
+              const expanded = expandedId === row.id;
               return (
-                <TableRow key={row.id}>
-                  <TableCell className="whitespace-nowrap font-mono text-[12px]">
-                    {new Date(row.createdAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <OutcomeBadge outcome={row.outcome} />
-                  </TableCell>
-                  <TableCell className="font-mono text-[13px]">
-                    {row.toolName}
-                  </TableCell>
-                  <TableCell>
-                    {row.connectionId ? (
-                      <MonoId className="text-primary">
-                        {row.connectionId.slice(0, 8)}…
-                      </MonoId>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {client?.name ?? "—"}
-                    <span className="mx-1 text-border">·</span>
-                    <span className="font-mono text-[12px]">
-                      {subject?.email ?? row.userId?.slice(0, 8) ?? "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <MonoId>{row.id.slice(0, 8)}…</MonoId>
-                  </TableCell>
-                </TableRow>
+                <Fragment key={row.id}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() =>
+                      setExpandedId((current) =>
+                        current === row.id ? null : row.id,
+                      )
+                    }
+                  >
+                    <TableCell className="whitespace-nowrap font-mono text-[12px]">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <OutcomeBadge outcome={row.outcome} />
+                    </TableCell>
+                    <TableCell className="font-mono text-[13px]">
+                      {row.toolName}
+                    </TableCell>
+                    <TableCell>
+                      {row.connectionId ? (
+                        <MonoId className="text-primary">
+                          {row.connectionId.slice(0, 8)}…
+                        </MonoId>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {client?.name ?? "—"}
+                      <span className="mx-1 text-border">·</span>
+                      <span className="font-mono text-[12px]">
+                        {subject?.email ?? row.userId?.slice(0, 8) ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                    </TableCell>
+                  </TableRow>
+                  {expanded ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="bg-muted/30">
+                        <div className="grid gap-3 p-1 md:grid-cols-2">
+                          <div>
+                            <p className="section-label mb-1">Input</p>
+                            <pre className="max-h-64 overflow-auto border border-border bg-card p-2 font-mono text-[11px]">
+                              {row.requestArgs == null
+                                ? "—"
+                                : JSON.stringify(row.requestArgs, null, 2)}
+                            </pre>
+                          </div>
+                          <div>
+                            <p className="section-label mb-1">Output</p>
+                            <pre className="max-h-64 overflow-auto border border-border bg-card p-2 font-mono text-[11px]">
+                              {row.responseBody == null
+                                ? "—"
+                                : JSON.stringify(row.responseBody, null, 2)}
+                            </pre>
+                          </div>
+                          {row.reason ? (
+                            <p className="text-xs text-deny md:col-span-2">
+                              Reason: {row.reason}
+                            </p>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
               );
             })}
           </TableBody>

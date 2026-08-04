@@ -6,6 +6,7 @@ import {
   MintedGatewayCredentialSchema,
   PublicConnectionDetailSchema,
   PublicConnectionSchema,
+  PublicEffectiveToolSchema,
   PublicGatewayCredentialSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
@@ -14,7 +15,7 @@ import {
   tenantScopedErrors,
 } from "../../lib/http/errorResponses.js";
 import { PaginationQuerySchema } from "../../lib/http/pagination.js";
-import { requireFullAdmin } from "../../lib/request/requireFullAdmin.js";
+import { requireAdmin } from "../../lib/request/requireAdmin.js";
 import { TenantIdHeaderSchema } from "../../lib/request/tenantHeader.js";
 
 const ConnectionIdParamSchema = z
@@ -124,6 +125,32 @@ const ConnectionListResponseSchema = successEnvelopeSchema(
 
 const connectionNotFound = notFoundError("Connection not found");
 
+const EffectiveToolsResponseSchema = successEnvelopeSchema(
+  z.object({ items: z.array(PublicEffectiveToolSchema) }),
+  "EffectiveToolsResponse",
+);
+
+const listEffectiveTools = createRoute({
+  method: "get",
+  path: "/connections/{id}/effective-tools",
+  tags: ["Connections"],
+  summary: "List effective tools for a connection (roles + overrides, deny wins)",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Resolved tools with source attribution",
+      content: {
+        "application/json": { schema: EffectiveToolsResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...connectionNotFound,
+  },
+});
+
 const list = createRoute({
   method: "get",
   path: "/connections",
@@ -149,7 +176,7 @@ const create = createRoute({
   path: "/connections",
   tags: ["Connections"],
   summary: "Create a connection (client + user)",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     body: {
@@ -194,7 +221,7 @@ const update = createRoute({
   path: "/connections/{id}",
   tags: ["Connections"],
   summary: "Update connection status",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -220,7 +247,7 @@ const remove = createRoute({
   path: "/connections/{id}",
   tags: ["Connections"],
   summary: "Delete a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -242,7 +269,7 @@ const attachRole = createRoute({
   path: "/connections/{id}/roles",
   tags: ["Connections"],
   summary: "Attach a role to a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -270,7 +297,7 @@ const setRoles = createRoute({
   path: "/connections/{id}/roles",
   tags: ["Connections"],
   summary: "Replace roles on a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -296,7 +323,7 @@ const detachRole = createRoute({
   path: "/connections/{id}/roles/{roleId}",
   tags: ["Connections"],
   summary: "Detach a role from a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionRoleParamsSchema,
@@ -318,7 +345,7 @@ const attachToolOverride = createRoute({
   path: "/connections/{id}/tool-overrides",
   tags: ["Connections"],
   summary: "Attach a tool override to a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -344,7 +371,7 @@ const setToolOverrides = createRoute({
   path: "/connections/{id}/tool-overrides",
   tags: ["Connections"],
   summary: "Replace tool overrides on a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -370,7 +397,7 @@ const detachToolOverride = createRoute({
   path: "/connections/{id}/tool-overrides/{toolId}",
   tags: ["Connections"],
   summary: "Detach a tool override from a connection",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionToolOverrideParamsSchema,
@@ -407,7 +434,7 @@ const mintCredential = createRoute({
   path: "/connections/{id}/credentials",
   tags: ["Connections"],
   summary: "Mint a gateway bearer token for a connection (plaintext returned once)",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -454,7 +481,7 @@ const revokeCredential = createRoute({
   path: "/connections/{id}/credentials/{secretId}",
   tags: ["Connections"],
   summary: "Revoke a gateway credential",
-  middleware: [requireFullAdmin] as const,
+  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionCredentialParamsSchema,
@@ -475,6 +502,7 @@ export const connectionRoutes = {
   list,
   create,
   get,
+  listEffectiveTools,
   update,
   delete: remove,
   attachRole,

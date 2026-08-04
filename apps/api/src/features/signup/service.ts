@@ -123,7 +123,8 @@ async function create(
         id: membership.id,
         userId: membership.userId,
         tenantId: membership.tenantId,
-        role: membership.role,
+        role: membership.role as "full_admin",
+        team: membership.team,
       },
       authResponse,
     });

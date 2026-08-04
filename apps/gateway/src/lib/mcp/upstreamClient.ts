@@ -19,7 +19,7 @@ export type UpstreamServerRow = {
   id: string;
   baseUrl: string;
   authMethod: "api_key" | "oauth" | "mtls";
-  kind: string;
+  kind: "mcp" | "api";
   status: string;
 };
 
@@ -106,18 +106,18 @@ function decryptSecret(row: SecretRow): Result<string, MeshError> {
   return ok(new TextDecoder().decode(decrypted.value));
 }
 
-async function authHeaders(
+async function bearerFromPlaintext(
   authMethod: UpstreamServerRow["authMethod"],
   plaintext: string,
-): Promise<Result<Record<string, string>, MeshError>> {
+): Promise<Result<string, MeshError>> {
   if (authMethod === "api_key") {
-    return ok({ Authorization: `Bearer ${plaintext}` });
+    return ok(plaintext);
   }
 
   if (authMethod === "oauth") {
     const token = await resolveOAuthAccessToken(plaintext);
     if (token.isErr()) return err(token.error);
-    return ok({ Authorization: `Bearer ${token.value.accessToken}` });
+    return ok(token.value.accessToken);
   }
 
   return err(
@@ -125,6 +125,37 @@ async function authHeaders(
       `Upstream auth method "${authMethod}" is not supported yet`,
     ),
   );
+}
+
+/**
+ * Resolve Authorization headers for an upstream server (MCP or HTTP API).
+ */
+export async function resolveUpstreamAuthHeaders(
+  log: Logger,
+  tenantId: string,
+  userId: string,
+  server: UpstreamServerRow,
+): Promise<Result<Record<string, string>, MeshError>> {
+  if (server.status !== "active") {
+    return err(new BadRequestError(`Server is ${server.status}`));
+  }
+
+  const secretRow = await loadUpstreamSecret(
+    log,
+    tenantId,
+    server.id,
+    userId,
+    server.authMethod,
+  );
+  if (secretRow.isErr()) return err(secretRow.error);
+
+  const plaintext = decryptSecret(secretRow.value);
+  if (plaintext.isErr()) return err(plaintext.error);
+
+  const bearer = await bearerFromPlaintext(server.authMethod, plaintext.value);
+  if (bearer.isErr()) return err(bearer.error);
+
+  return ok({ Authorization: `Bearer ${bearer.value}` });
 }
 
 export function formatUpstreamError(
@@ -155,7 +186,7 @@ export type ConnectedUpstream = {
 };
 
 /**
- * Open a short-lived MCP client to an upstream server using Mesh secrets.
+ * Open a short-lived MCP client to an upstream MCP server.
  */
 export async function connectUpstream(
   log: Logger,
@@ -163,31 +194,15 @@ export async function connectUpstream(
   userId: string,
   server: UpstreamServerRow,
 ): Promise<Result<ConnectedUpstream, MeshError>> {
-  if (server.status !== "active") {
-    return err(new BadRequestError(`Server is ${server.status}`));
-  }
-
   if (server.kind !== "mcp") {
     return err(
       new NotImplementedError(
-        `Server kind "${server.kind}" is not supported for tool proxy yet`,
+        `Server kind "${server.kind}" is not an MCP upstream`,
       ),
     );
   }
 
-  const secretRow = await loadUpstreamSecret(
-    log,
-    tenantId,
-    server.id,
-    userId,
-    server.authMethod,
-  );
-  if (secretRow.isErr()) return err(secretRow.error);
-
-  const plaintext = decryptSecret(secretRow.value);
-  if (plaintext.isErr()) return err(plaintext.error);
-
-  const headers = await authHeaders(server.authMethod, plaintext.value);
+  const headers = await resolveUpstreamAuthHeaders(log, tenantId, userId, server);
   if (headers.isErr()) return err(headers.error);
 
   let baseUrl: URL;

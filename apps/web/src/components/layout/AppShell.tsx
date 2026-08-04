@@ -4,9 +4,11 @@ import {
   Cable,
   FileSearch,
   KeyRound,
+  LayoutDashboard,
   LayoutGrid,
   Moon,
   Server,
+  Settings,
   Shield,
   Sun,
   Users,
@@ -18,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const nav = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/audit", label: "Audit", icon: FileSearch },
   { to: "/servers", label: "Servers", icon: Server },
@@ -26,6 +29,7 @@ const nav = [
   { to: "/clients", label: "Clients", icon: LayoutGrid },
   { to: "/users", label: "Users", icon: Users },
   { to: "/secrets", label: "Secrets", icon: KeyRound },
+  { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function LatticeMark({ className }: { className?: string }) {
@@ -52,8 +56,18 @@ function LatticeMark({ className }: { className?: string }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
-  const { user, tenant, memberships, tenantId, setTenantId, signOut } =
+  const { user, tenant, membership, memberships, tenantId, setTenantId, signOut } =
     useAuth();
+
+  const isAdmin =
+    membership?.role === "full_admin" ||
+    membership?.role === "delegated_admin";
+
+  const visibleNav = nav.filter((item) => {
+    if (item.to === "/settings") return isAdmin;
+    if (item.to === "/secrets") return membership?.role === "full_admin";
+    return true;
+  });
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
@@ -67,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 p-2">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
 
             return (
@@ -110,6 +124,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           {tenant ? (
             <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
               {tenant.id.slice(0, 8)}…
+              {membership?.role ? ` · ${membership.role}` : ""}
+              {membership?.team ? ` · ${membership.team}` : ""}
             </div>
           ) : null}
         </div>

@@ -19,6 +19,8 @@ export const PublicAuditEventSchema = z.strictObject({
   reason: z.string().nullable(),
   requestId: z.string(),
   latencyMs: z.number().int(),
+  requestArgs: z.unknown().nullable(),
+  responseBody: z.unknown().nullable(),
   createdAt: z.iso.datetime(),
 });
 

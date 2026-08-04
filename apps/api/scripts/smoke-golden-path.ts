@@ -65,7 +65,8 @@ async function api<T>(
 }
 
 async function ensureSession(): Promise<string> {
-  const { auth } = await import("@mesh/auth");
+  const { auth, initAuth } = await import("@mesh/auth");
+  await initAuth();
   const { db, memberships, tenants } = await import("@mesh/db");
 
   const signup = await fetch(`${API}/api/v1/signup`, {

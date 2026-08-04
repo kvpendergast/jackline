@@ -3,6 +3,7 @@ import {
   cursorPageSchema,
   PublicServerSchema,
   ServerAuthMethodSchema,
+  ServerCredentialModeSchema,
   ServerKindSchema,
   ServerSourceSchema,
   ServerStatusSchema,
@@ -33,6 +34,7 @@ const CreateServerBodySchema = z
     authMethod: ServerAuthMethodSchema,
     kind: ServerKindSchema,
     source: ServerSourceSchema.optional(),
+    credentialMode: ServerCredentialModeSchema.optional(),
     connectorKey: z.string().min(1).nullable().optional(),
     docsUrl: z.url().nullable().optional(),
   })
@@ -46,6 +48,7 @@ const UpdateServerBodySchema = z
     kind: ServerKindSchema.optional(),
     source: ServerSourceSchema.optional(),
     status: ServerStatusSchema.optional(),
+    credentialMode: ServerCredentialModeSchema.optional(),
     connectorKey: z.string().min(1).nullable().optional(),
     docsUrl: z.url().nullable().optional(),
   })
@@ -188,7 +191,7 @@ const syncTools = createRoute({
   method: "post",
   path: "/servers/{id}/sync-tools",
   tags: ["Servers"],
-  summary: "Discover tools from an upstream MCP server and upsert into the catalog",
+  summary: "Discover tools from upstream MCP tools/list or OpenAPI docsUrl",
   middleware: [requireFullAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,

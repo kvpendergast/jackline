@@ -1,12 +1,22 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
+import { listEffectiveTools as listEffectiveToolsService } from "./effectiveTools.js";
 import { Connection } from "./resource.js";
+
+function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
+  return { role: auth.membership.role, team: auth.membership.team };
+}
 
 const list: RouteHandler<typeof Connection.routes.list, MeshEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
-  const result = await Connection.services.list(log, auth.tenantId, query);
+  const result = await Connection.services.list(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    query,
+  );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
 };
@@ -16,7 +26,12 @@ const create: RouteHandler<typeof Connection.routes.create, MeshEnv> = async (
 ) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
-  const result = await Connection.services.create(log, auth.tenantId, body);
+  const result = await Connection.services.create(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    body,
+  );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 201);
 };
@@ -24,9 +39,25 @@ const create: RouteHandler<typeof Connection.routes.create, MeshEnv> = async (
 const get: RouteHandler<typeof Connection.routes.get, MeshEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
-  const result = await Connection.services.get(log, auth.tenantId, id);
+  const result = await Connection.services.get(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+  );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
+};
+
+const listEffectiveTools: RouteHandler<
+  typeof Connection.routes.listEffectiveTools,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const result = await listEffectiveToolsService(log, auth.tenantId, id);
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope({ items: result.value }), 200);
 };
 
 const update: RouteHandler<typeof Connection.routes.update, MeshEnv> = async (
@@ -35,7 +66,13 @@ const update: RouteHandler<typeof Connection.routes.update, MeshEnv> = async (
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
-  const result = await Connection.services.update(log, auth.tenantId, id, body);
+  const result = await Connection.services.update(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+    body,
+  );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
 };
@@ -45,7 +82,12 @@ const remove: RouteHandler<typeof Connection.routes.delete, MeshEnv> = async (
 ) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
-  const result = await Connection.services.delete(log, auth.tenantId, id);
+  const result = await Connection.services.delete(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+  );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
 };
@@ -60,6 +102,7 @@ const attachRole: RouteHandler<
   const result = await Connection.services.attachRole(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     roleId,
   );
@@ -77,6 +120,7 @@ const setRoles: RouteHandler<
   const result = await Connection.services.setRoles(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     roleIds,
   );
@@ -93,6 +137,7 @@ const detachRole: RouteHandler<
   const result = await Connection.services.detachRole(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     roleId,
   );
@@ -110,6 +155,7 @@ const attachToolOverride: RouteHandler<
   const result = await Connection.services.attachToolOverride(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     body,
   );
@@ -127,6 +173,7 @@ const setToolOverrides: RouteHandler<
   const result = await Connection.services.setToolOverrides(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     overrides,
   );
@@ -143,6 +190,7 @@ const detachToolOverride: RouteHandler<
   const result = await Connection.services.detachToolOverride(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     toolId,
   );
@@ -160,6 +208,7 @@ const mintCredential: RouteHandler<
   const result = await Connection.services.mintCredential(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     body,
   );
@@ -176,6 +225,7 @@ const listCredentials: RouteHandler<
   const result = await Connection.services.listCredentials(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
   );
   if (result.isErr()) throw result.error;
@@ -191,6 +241,7 @@ const revokeCredential: RouteHandler<
   const result = await Connection.services.revokeCredential(
     log,
     auth.tenantId,
+    actorFrom(auth),
     id,
     secretId,
   );
@@ -202,6 +253,7 @@ export const connectionHandlers = {
   list,
   create,
   get,
+  listEffectiveTools,
   update,
   delete: remove,
   attachRole,

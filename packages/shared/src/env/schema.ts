@@ -14,6 +14,27 @@ export const EnvSchema = z.object({
   WEB_ORIGIN: z.string().default("http://127.0.0.1:5173"),
   BETTER_AUTH_SECRET: z.string().min(1),
   BETTER_AUTH_URL: z.string().min(1),
-}).strict();
+  /** Optional global OIDC (discovery via issuer/.well-known/openid-configuration). */
+  MESH_OIDC_ISSUER: z.string().url().optional(),
+  MESH_OIDC_CLIENT_ID: z.string().min(1).optional(),
+  MESH_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
+}).strict()
+  .superRefine((env, ctx) => {
+    const any =
+      env.MESH_OIDC_ISSUER != null ||
+      env.MESH_OIDC_CLIENT_ID != null ||
+      env.MESH_OIDC_CLIENT_SECRET != null;
+    const all =
+      env.MESH_OIDC_ISSUER != null &&
+      env.MESH_OIDC_CLIENT_ID != null &&
+      env.MESH_OIDC_CLIENT_SECRET != null;
+    if (any && !all) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "MESH_OIDC_ISSUER, MESH_OIDC_CLIENT_ID, and MESH_OIDC_CLIENT_SECRET must be set together",
+      });
+    }
+  });
 
 export type Env = z.infer<typeof EnvSchema>;

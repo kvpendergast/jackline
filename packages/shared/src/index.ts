@@ -23,3 +23,14 @@ export {
   encodeOAuthSecretValue,
   upstreamSecretKind,
 } from "./upstream/oauth.js";
+export {
+  formatMcpToolName,
+  sanitizeMcpNameSegment,
+} from "./mcp/toolName.js";
+export {
+  CONNECTOR_PRESETS,
+  CONNECTOR_CATEGORIES,
+  getConnectorPreset,
+  ConnectorPresetSchema,
+  type ConnectorPreset,
+} from "./connectors/catalog.js";

@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,22 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
+  const [providers, setProviders] = useState<
+    Array<{ providerId: string; label: string }>
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    void meshApi
+      .listSsoProviders()
+      .then((page) => setProviders(page.items))
+      .catch(() => setProviders([]));
+  }, []);
+
   if (!loading && user) {
-    return <Navigate to="/connections" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -29,11 +40,28 @@ export function LoginPage() {
         setError(result.error.message ?? "Sign in failed");
         return;
       }
+      if (inviteToken.trim()) {
+        await meshApi.acceptInvite(inviteToken.trim());
+      }
       await refresh();
-      navigate("/connections", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onSso(providerId: string) {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await authClient.signIn.oauth2({
+        providerId,
+        callbackURL: `${window.location.origin}/dashboard`,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "SSO failed");
       setSubmitting(false);
     }
   }
@@ -51,7 +79,7 @@ export function LoginPage() {
         </>
       }
     >
-      <form className="space-y-4" onSubmit={onSubmit}>
+      <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
         <Field label="Email" htmlFor="email">
           <Input
             id="email"
@@ -72,11 +100,36 @@ export function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
+        <Field label="Invite token (optional)" htmlFor="invite">
+          <Input
+            id="invite"
+            value={inviteToken}
+            onChange={(e) => setInviteToken(e.target.value)}
+            placeholder="inv_…"
+          />
+        </Field>
         {error ? <p className="text-sm text-deny">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+      {providers.length > 0 ? (
+        <div className="mt-4 space-y-2 border-t border-border pt-4">
+          <p className="section-label">SSO</p>
+          {providers.map((p) => (
+            <Button
+              key={p.providerId}
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={submitting}
+              onClick={() => void onSso(p.providerId)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
     </AuthScreen>
   );
 }
@@ -92,7 +145,7 @@ export function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && user) {
-    return <Navigate to="/connections" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -102,7 +155,7 @@ export function SignupPage() {
     try {
       await meshApi.signup({ name, email, password, organizationName });
       await refresh();
-      navigate("/connections", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {

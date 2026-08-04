@@ -7,7 +7,9 @@ import { ConnectionDetailPage } from "@/pages/ConnectionDetailPage";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
 import { LoginPage, SignupPage } from "@/pages/LoginPage";
 import { RolesPage } from "@/pages/RolesPage";
+import { DashboardPage } from "@/pages/DashboardPage";
 import { SecretsPage } from "@/pages/SecretsPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import { ServersPage } from "@/pages/ServersPage";
 import { ToolsPage } from "@/pages/ToolsPage";
 import { UsersPage } from "@/pages/UsersPage";
@@ -49,7 +51,8 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route element={<ProtectedLayout />}>
-          <Route path="/" element={<Navigate to="/connections" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/connections/:id" element={<ConnectionDetailPage />} />
           <Route path="/audit" element={<AuditPage />} />
@@ -59,6 +62,7 @@ export function App() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/secrets" element={<SecretsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

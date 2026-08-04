@@ -1,6 +1,8 @@
 import type { Logger } from "pino";
 import { db, auditEvents, type AuditOutcome } from "@mesh/db";
 
+const MAX_JSON_CHARS = 32_000;
+
 export type WriteAuditEventInput = {
   tenantId: string;
   connectionId: string;
@@ -13,7 +15,25 @@ export type WriteAuditEventInput = {
   reason: string | null;
   requestId: string;
   latencyMs: number;
+  requestArgs?: unknown;
+  responseBody?: unknown;
 };
+
+function truncateJson(value: unknown): unknown {
+  if (value === undefined) return null;
+  try {
+    const raw = JSON.stringify(value);
+    if (raw === undefined) return null;
+    if (raw.length <= MAX_JSON_CHARS) return JSON.parse(raw) as unknown;
+    return {
+      truncated: true,
+      preview: raw.slice(0, MAX_JSON_CHARS),
+      originalBytes: raw.length,
+    };
+  } catch {
+    return { unserializable: true, preview: String(value).slice(0, 500) };
+  }
+}
 
 /** Best-effort insert — never throws to the tool-call path. */
 export async function writeAuditEvent(
@@ -33,6 +53,8 @@ export async function writeAuditEvent(
       reason: input.reason,
       requestId: input.requestId,
       latencyMs: input.latencyMs,
+      requestArgs: truncateJson(input.requestArgs ?? null),
+      responseBody: truncateJson(input.responseBody ?? null),
     });
   } catch (cause) {
     log.error({ err: cause, ...input }, "writeAuditEvent failed");

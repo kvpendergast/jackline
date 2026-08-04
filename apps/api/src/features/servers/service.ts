@@ -9,10 +9,12 @@ import {
   type CursorPage,
   type PublicServer,
   type ServerAuthMethod,
+  type ServerCredentialMode,
   type ServerKind,
   type ServerSource,
   type ServerStatus,
 } from "@mesh/shared";
+import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -28,6 +30,7 @@ export type CreateServerInput = {
   authMethod: ServerAuthMethod;
   kind: ServerKind;
   source?: ServerSource | undefined;
+  credentialMode?: ServerCredentialMode | undefined;
   connectorKey?: string | null | undefined;
   docsUrl?: string | null | undefined;
 };
@@ -39,6 +42,7 @@ export type UpdateServerInput = {
   kind?: ServerKind | undefined;
   source?: ServerSource | undefined;
   status?: ServerStatus | undefined;
+  credentialMode?: ServerCredentialMode | undefined;
   connectorKey?: string | null | undefined;
   docsUrl?: string | null | undefined;
 };
@@ -49,6 +53,7 @@ function toPublicServer(row: Server): PublicServer {
     name: row.name,
     baseUrl: row.baseUrl,
     authMethod: row.authMethod,
+    credentialMode: row.credentialMode,
     source: row.source,
     kind: row.kind,
     status: row.status,
@@ -66,26 +71,33 @@ async function create(
   tenantId: string,
   input: CreateServerInput,
 ): Promise<Result<PublicServer, MeshError>> {
-  const [row] = await db
-    .insert(servers)
-    .values({
-      name: input.name,
-      baseUrl: input.baseUrl,
-      authMethod: input.authMethod,
-      kind: input.kind,
-      source: input.source ?? "custom",
-      connectorKey: input.connectorKey ?? null,
-      docsUrl: input.docsUrl ?? null,
-      tenantId,
-    })
-    .returning();
+  try {
+    const [row] = await db
+      .insert(servers)
+      .values({
+        name: input.name,
+        baseUrl: input.baseUrl,
+        authMethod: input.authMethod,
+        kind: input.kind,
+        source: input.source ?? "custom",
+        credentialMode: input.credentialMode ?? "either",
+        connectorKey: input.connectorKey ?? null,
+        docsUrl: input.docsUrl ?? null,
+        tenantId,
+      })
+      .returning();
 
-  if (!row) {
-    return err(new SetupError("Failed to create server"));
+    if (!row) {
+      return err(new SetupError("Failed to create server"));
+    }
+
+    log.info({ serverId: row.id, tenantId }, "server created");
+    return ok(toPublicServer(row));
+  } catch (cause) {
+    return err(
+      fromDbWriteError(cause, "A server with this name already exists"),
+    );
   }
-
-  log.info({ serverId: row.id, tenantId }, "server created");
-  return ok(toPublicServer(row));
 }
 
 async function list(
@@ -175,21 +187,30 @@ async function update(
   if (input.kind !== undefined) patch.kind = input.kind;
   if (input.source !== undefined) patch.source = input.source;
   if (input.status !== undefined) patch.status = input.status;
+  if (input.credentialMode !== undefined) {
+    patch.credentialMode = input.credentialMode;
+  }
   if (input.connectorKey !== undefined) patch.connectorKey = input.connectorKey;
   if (input.docsUrl !== undefined) patch.docsUrl = input.docsUrl;
 
-  const [row] = await db
-    .update(servers)
-    .set(patch)
-    .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))
-    .returning();
+  try {
+    const [row] = await db
+      .update(servers)
+      .set(patch)
+      .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))
+      .returning();
 
-  if (!row) {
-    return err(new NotFoundError("Server not found"));
+    if (!row) {
+      return err(new NotFoundError("Server not found"));
+    }
+
+    log.info({ serverId, tenantId }, "server updated");
+    return ok(toPublicServer(row));
+  } catch (cause) {
+    return err(
+      fromDbWriteError(cause, "A server with this name already exists"),
+    );
   }
-
-  log.info({ serverId, tenantId }, "server updated");
-  return ok(toPublicServer(row));
 }
 
 async function remove(

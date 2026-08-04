@@ -6,11 +6,22 @@ export const ToolStatusSchema = z.enum([
   "disabled",
 ]);
 
+export const ToolHttpMethodSchema = z.enum([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+]);
+
 export const PublicToolSchema = z.strictObject({
   id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
   inputSchema: z.record(z.string(), z.unknown()).nullable(),
+  httpMethod: ToolHttpMethodSchema.nullable(),
+  pathTemplate: z.string().nullable(),
   status: ToolStatusSchema,
   serverId: z.uuid(),
   tenantId: z.uuid(),
@@ -29,3 +40,4 @@ export type SyncToolsResult = z.infer<typeof SyncToolsResultSchema>;
 
 export type PublicTool = z.infer<typeof PublicToolSchema>;
 export type ToolStatus = z.infer<typeof ToolStatusSchema>;
+export type ToolHttpMethod = z.infer<typeof ToolHttpMethodSchema>;

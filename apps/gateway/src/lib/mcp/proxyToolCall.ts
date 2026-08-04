@@ -10,6 +10,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import type { AllowedMcpTool } from "../policy/listAllowedTools.js";
 import {
+  assertHttpBinding,
+  proxyHttpToolCall,
+} from "./proxyHttpToolCall.js";
+import {
   connectUpstream,
   formatUpstreamError,
   type UpstreamServerRow,
@@ -38,22 +42,83 @@ function toolResultErrorText(result: CallToolResult): string {
   return "upstream tool returned isError without text content";
 }
 
+async function proxyMcpToolCall(
+  ctx: GatewayConnectionContext,
+  tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
+  server: UpstreamServerRow,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<Result<CallToolResult, MeshError>> {
+  const connected = await connectUpstream(
+    ctx.log,
+    ctx.tenantId,
+    ctx.connection.userId,
+    server,
+  );
+  if (connected.isErr()) {
+    await touchServerHealth(server.id, "unhealthy");
+    return err(connected.error);
+  }
+
+  try {
+    const result = (await connected.value.client.callTool({
+      name: toolName,
+      arguments: args,
+    })) as CallToolResult;
+
+    if (result.isError) {
+      await touchServerHealth(server.id, "unhealthy");
+      const detail = toolResultErrorText(result);
+      ctx.log.warn(
+        { toolId: tool.toolId, serverId: server.id, detail },
+        "proxyToolCall upstream isError",
+      );
+      return err(
+        new MeshError("INTERNAL", `Upstream tool returned error: ${detail}`),
+      );
+    }
+
+    await touchServerHealth(server.id, "healthy");
+    ctx.log.info(
+      {
+        toolId: tool.toolId,
+        serverId: server.id,
+        upstreamName: toolName,
+        meshName: tool.name,
+      },
+      "proxyToolCall ok",
+    );
+    return ok(result);
+  } catch (cause) {
+    await touchServerHealth(server.id, "unhealthy");
+    const meshErr = formatUpstreamError(cause, "call");
+    ctx.log.warn(
+      { err: cause, toolId: tool.toolId, serverId: server.id },
+      "proxyToolCall failed",
+    );
+    return err(meshErr);
+  } finally {
+    await connected.value.close();
+  }
+}
+
 /**
- * Proxy a Mesh tool invocation to the upstream MCP server.
+ * Proxy a Mesh tool invocation to the upstream MCP server or HTTP API.
  */
 export async function proxyToolCall(
   ctx: GatewayConnectionContext,
   tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
   args: Record<string, unknown>,
 ): Promise<Result<CallToolResult, MeshError>> {
-  const { tenantId, connection, log } = ctx;
-  const userId = connection.userId;
+  const { tenantId } = ctx;
 
   const [row] = await db
     .select({
       toolId: tools.id,
       toolName: tools.name,
       toolStatus: tools.status,
+      httpMethod: tools.httpMethod,
+      pathTemplate: tools.pathTemplate,
       serverId: servers.id,
       baseUrl: servers.baseUrl,
       authMethod: servers.authMethod,
@@ -81,52 +146,36 @@ export async function proxyToolCall(
     status: row.serverStatus,
   };
 
-  const connected = await connectUpstream(log, tenantId, userId, upstreamServer);
-  if (connected.isErr()) {
-    await touchServerHealth(row.serverId, "unhealthy");
-    return err(connected.error);
-  }
+  if (row.kind === "api") {
+    const binding = assertHttpBinding(ctx.log, row);
+    if (binding.isErr()) return err(binding.error);
 
-  try {
-    const result = (await connected.value.client.callTool({
-      name: row.toolName,
-      arguments: args,
-    })) as CallToolResult;
+    const result = await proxyHttpToolCall(
+      ctx,
+      upstreamServer,
+      {
+        toolId: row.toolId,
+        toolName: row.toolName,
+        httpMethod: binding.value.httpMethod,
+        pathTemplate: binding.value.pathTemplate,
+      },
+      args,
+    );
 
-    if (result.isError) {
+    if (result.isErr()) {
       await touchServerHealth(row.serverId, "unhealthy");
-      const detail = toolResultErrorText(result);
-      log.warn(
-        { toolId: row.toolId, serverId: row.serverId, detail },
-        "proxyToolCall upstream isError",
-      );
-      return err(
-        new MeshError("INTERNAL", `Upstream tool returned error: ${detail}`),
-      );
+      return err(result.error);
     }
 
     await touchServerHealth(row.serverId, "healthy");
-
-    log.info(
-      {
-        toolId: row.toolId,
-        serverId: row.serverId,
-        upstreamName: row.toolName,
-        meshName: tool.name,
-      },
-      "proxyToolCall ok",
-    );
-
-    return ok(result);
-  } catch (cause) {
-    await touchServerHealth(row.serverId, "unhealthy");
-    const meshErr = formatUpstreamError(cause, "call");
-    log.warn(
-      { err: cause, toolId: row.toolId, serverId: row.serverId },
-      "proxyToolCall failed",
-    );
-    return err(meshErr);
-  } finally {
-    await connected.value.close();
+    return ok(result.value);
   }
+
+  if (row.kind === "mcp") {
+    return proxyMcpToolCall(ctx, tool, upstreamServer, row.toolName, args);
+  }
+
+  return err(
+    new BadRequestError(`Unsupported server kind "${row.kind as string}"`),
+  );
 }

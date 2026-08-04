@@ -52,6 +52,20 @@ export function SecretsPage() {
     setUsers(userPage.items);
   }
 
+  async function onDelete(id: string, name: string) {
+    if (!tenantId) return;
+    if (!window.confirm(`Delete secret “${name}”? This cannot be undone.`)) {
+      return;
+    }
+    setError(null);
+    try {
+      await meshApi.deleteSecret(tenantId, id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Delete failed");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -120,36 +134,48 @@ export function SecretsPage() {
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 Binding
               </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Id
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!loading && items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  No secrets yet. Bind an api_key or oauth credential to a server.
-                </TableCell>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                  Id
+                </TableHead>
+                <TableHead />
               </TableRow>
-            ) : null}
-            {items.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-medium">{row.name}</TableCell>
-                <TableCell>
-                  <KindBadge kind={row.kind} />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {row.serverId
-                    ? (serverById.get(row.serverId)?.name ?? row.serverId.slice(0, 8))
-                    : "—"}
-                  {row.userId ? ` · user ${row.userId.slice(0, 8)}…` : ""}
-                </TableCell>
-                <TableCell>
-                  <MonoId>{row.id.slice(0, 8)}…</MonoId>
-                </TableCell>
-              </TableRow>
-            ))}
+            </TableHeader>
+            <TableBody>
+              {!loading && items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-muted-foreground">
+                    No secrets yet. Bind an api_key or oauth credential to a server.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              {items.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.name}</TableCell>
+                  <TableCell>
+                    <KindBadge kind={row.kind} />
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {row.serverId
+                      ? (serverById.get(row.serverId)?.name ??
+                        row.serverId.slice(0, 8))
+                      : "—"}
+                    {row.userId ? ` · user ${row.userId.slice(0, 8)}…` : ""}
+                  </TableCell>
+                  <TableCell>
+                    <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-deny"
+                      onClick={() => void onDelete(row.id, row.name)}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </section>
