@@ -657,16 +657,22 @@ function ServerForm({
         </Field>
       ) : null}
 
-      {needsSecret && credentialMode !== "subject_required" ? (
+      {needsSecret ? (
         <div className="space-y-3 border border-border bg-muted/30 p-3">
           <div>
-            <p className="text-sm font-medium">Server-level credential</p>
+            <p className="text-sm font-medium">
+              {credentialMode === "subject_required"
+                ? "Server-level credential (optional)"
+                : "Server-level credential"}
+            </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {mode === "create"
-                ? "Stored encrypted and used for tool sync and upstream calls."
-                : hasExistingSecret
-                  ? "A credential already exists. Leave blank to keep it, or enter a new value to rotate."
-                  : "No server-level credential yet. Add one to enable sync."}
+              {credentialMode === "subject_required"
+                ? "Optional for tool sync only — callers must connect in My Access."
+                : mode === "create"
+                  ? "Stored encrypted and used for tool sync and upstream calls."
+                  : hasExistingSecret
+                    ? "A credential already exists. Leave blank to keep it, or enter a new value to rotate."
+                    : "No server-level credential yet. Add one to enable sync."}
             </p>
           </div>
           <Field label="Credential name" htmlFor="server-secret-name">
@@ -690,7 +696,9 @@ function ServerForm({
                 id="server-secret-value"
                 type="password"
                 autoComplete="off"
-                required={mode === "create"}
+                required={
+                  mode === "create" && credentialMode !== "subject_required"
+                }
                 value={secretValue}
                 onChange={(e) => setSecretValue(e.target.value)}
                 placeholder={
@@ -722,7 +730,9 @@ function ServerForm({
                     id="oauth-access"
                     type="password"
                     autoComplete="off"
-                    required={mode === "create"}
+                    required={
+                      mode === "create" && credentialMode !== "subject_required"
+                    }
                     value={accessToken}
                     onChange={(e) => setAccessToken(e.target.value)}
                   />
@@ -735,7 +745,10 @@ function ServerForm({
                     <Input
                       id="oauth-token-url"
                       type="url"
-                      required={mode === "create"}
+                      required={
+                        mode === "create" &&
+                        credentialMode !== "subject_required"
+                      }
                       value={tokenUrl}
                       onChange={(e) => setTokenUrl(e.target.value)}
                     />
@@ -747,7 +760,8 @@ function ServerForm({
                       onChange={(e) => setClientId(e.target.value)}
                       required={
                         mode === "create" &&
-                        oauthMode === "client_credentials"
+                        oauthMode === "client_credentials" &&
+                        credentialMode !== "subject_required"
                       }
                     />
                   </Field>
@@ -760,7 +774,8 @@ function ServerForm({
                       onChange={(e) => setClientSecret(e.target.value)}
                       required={
                         mode === "create" &&
-                        oauthMode === "client_credentials"
+                        oauthMode === "client_credentials" &&
+                        credentialMode !== "subject_required"
                       }
                     />
                   </Field>
@@ -780,7 +795,10 @@ function ServerForm({
                       id="oauth-refresh"
                       type="password"
                       autoComplete="off"
-                      required={mode === "create"}
+                      required={
+                        mode === "create" &&
+                        credentialMode !== "subject_required"
+                      }
                       value={refreshToken}
                       onChange={(e) => setRefreshToken(e.target.value)}
                     />

@@ -8,6 +8,7 @@ import {
   PublicConnectionSchema,
   PublicEffectiveToolSchema,
   PublicGatewayCredentialSchema,
+  UpstreamCredentialStatusSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
@@ -130,6 +131,11 @@ const EffectiveToolsResponseSchema = successEnvelopeSchema(
   "EffectiveToolsResponse",
 );
 
+const UpstreamCredentialsResponseSchema = successEnvelopeSchema(
+  z.object({ items: z.array(UpstreamCredentialStatusSchema) }),
+  "UpstreamCredentialsResponse",
+);
+
 const listEffectiveTools = createRoute({
   method: "get",
   path: "/connections/{id}/effective-tools",
@@ -144,6 +150,28 @@ const listEffectiveTools = createRoute({
       description: "Resolved tools with source attribution",
       content: {
         "application/json": { schema: EffectiveToolsResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...connectionNotFound,
+  },
+});
+
+const listUpstreamCredentials = createRoute({
+  method: "get",
+  path: "/connections/{id}/upstream-credentials",
+  tags: ["Connections"],
+  summary:
+    "List upstream credential readiness for the connection subject across active servers",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Per-server upstream credential status for the subject",
+      content: {
+        "application/json": { schema: UpstreamCredentialsResponseSchema },
       },
     },
     ...tenantScopedErrors,
@@ -503,6 +531,7 @@ export const connectionRoutes = {
   create,
   get,
   listEffectiveTools,
+  listUpstreamCredentials,
   update,
   delete: remove,
   attachRole,

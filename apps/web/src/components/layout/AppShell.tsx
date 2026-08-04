@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Cable,
   FileSearch,
@@ -11,6 +11,7 @@ import {
   Settings,
   Shield,
   Sun,
+  UserRound,
   Users,
   Wrench,
 } from "lucide-react";
@@ -19,7 +20,16 @@ import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const nav = [
+type ShellView = "personal" | "admin";
+
+const SHELL_VIEW_KEY = "mesh.shellView";
+
+const personalNav = [
+  { to: "/my-access", label: "My Access", icon: UserRound },
+  { to: "/connections", label: "Connections", icon: Cable },
+] as const;
+
+const adminNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/audit", label: "Audit", icon: FileSearch },
@@ -30,6 +40,18 @@ const nav = [
   { to: "/users", label: "Users", icon: Users },
   { to: "/secrets", label: "Secrets", icon: KeyRound },
   { to: "/settings", label: "Settings", icon: Settings },
+] as const;
+
+const adminOnlyPrefixes = [
+  "/dashboard",
+  "/audit",
+  "/servers",
+  "/tools",
+  "/roles",
+  "/clients",
+  "/users",
+  "/secrets",
+  "/settings",
 ] as const;
 
 function LatticeMark({ className }: { className?: string }) {
@@ -54,8 +76,34 @@ function LatticeMark({ className }: { className?: string }) {
   );
 }
 
+function readStoredView(): ShellView {
+  try {
+    const raw = localStorage.getItem(SHELL_VIEW_KEY);
+    if (raw === "personal" || raw === "admin") return raw;
+  } catch {
+    /* ignore */
+  }
+  return "admin";
+}
+
+function isAdminOnlyPath(pathname: string): boolean {
+  return adminOnlyPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function isPersonalPath(pathname: string): boolean {
+  return (
+    pathname === "/my-access" ||
+    pathname === "/connections" ||
+    pathname.startsWith("/connections/")
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, tenant, membership, memberships, tenantId, setTenantId, signOut } =
     useAuth();
 
@@ -63,11 +111,53 @@ export function AppShell({ children }: { children: ReactNode }) {
     membership?.role === "full_admin" ||
     membership?.role === "delegated_admin";
 
-  const visibleNav = nav.filter((item) => {
-    if (item.to === "/settings") return isAdmin;
-    if (item.to === "/secrets") return membership?.role === "full_admin";
-    return true;
-  });
+  const [view, setView] = useState<ShellView>(() =>
+    isAdmin ? readStoredView() : "personal",
+  );
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setView("personal");
+      return;
+    }
+    if (isAdminOnlyPath(location.pathname) && view !== "admin") {
+      setView("admin");
+      try {
+        localStorage.setItem(SHELL_VIEW_KEY, "admin");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [isAdmin, location.pathname, view]);
+
+  function switchView(next: ShellView) {
+    if (!isAdmin || next === view) return;
+    setView(next);
+    try {
+      localStorage.setItem(SHELL_VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+    if (next === "personal" && !isPersonalPath(location.pathname)) {
+      navigate("/my-access");
+    } else if (next === "admin" && !isAdminOnlyPath(location.pathname)) {
+      if (location.pathname === "/my-access") {
+        navigate("/dashboard");
+      }
+    }
+  }
+
+  const visibleNav = useMemo(() => {
+    const activeView = isAdmin ? view : "personal";
+    if (activeView === "personal") {
+      return [...personalNav];
+    }
+    return adminNav.filter((item) => {
+      if (item.to === "/settings") return isAdmin;
+      if (item.to === "/secrets") return membership?.role === "full_admin";
+      return true;
+    });
+  }, [isAdmin, membership?.role, view]);
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
@@ -76,9 +166,46 @@ export function AppShell({ children }: { children: ReactNode }) {
           <LatticeMark className="text-primary" />
           <div className="leading-none">
             <div className="text-sm font-medium tracking-[-0.02em]">Mesh</div>
-            <div className="section-label mt-1">Control plane</div>
+            <div className="section-label mt-1">
+              {isAdmin && view === "admin" ? "Control plane" : "My Access"}
+            </div>
           </div>
         </div>
+
+        {isAdmin ? (
+          <div className="border-b border-sidebar-border p-2">
+            <div
+              role="group"
+              aria-label="Shell view"
+              className="grid grid-cols-2 gap-0.5 border border-border bg-background p-0.5"
+            >
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1.5 text-xs transition-colors",
+                  view === "personal"
+                    ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted/70",
+                )}
+                onClick={() => switchView("personal")}
+              >
+                Personal
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1.5 text-xs transition-colors",
+                  view === "admin"
+                    ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted/70",
+                )}
+                onClick={() => switchView("admin")}
+              >
+                Admin
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <nav className="flex flex-1 flex-col gap-0.5 p-2">
           {visibleNav.map((item) => {

@@ -26,6 +26,7 @@ import type {
   PublicRole,
   PublicTool,
   PublicUser,
+  UpstreamCredentialStatus,
 } from "@mesh/shared";
 
 export function ConnectionDetailPage() {
@@ -41,6 +42,9 @@ export function ConnectionDetailPage() {
   const [effectiveTools, setEffectiveTools] = useState<PublicEffectiveTool[]>(
     [],
   );
+  const [upstreamCredentials, setUpstreamCredentials] = useState<
+    UpstreamCredentialStatus[]
+  >([]);
   const [denies, setDenies] = useState<PublicAuditEvent[]>([]);
   const [minted, setMinted] = useState<MintedGatewayCredential | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +64,7 @@ export function ConnectionDetailPage() {
       toolPage,
       creds,
       effective,
+      upstream,
       denyPage,
     ] = await Promise.all([
       meshApi.getConnection(tenantId, id),
@@ -69,6 +74,7 @@ export function ConnectionDetailPage() {
       meshApi.listTools(tenantId),
       meshApi.listCredentials(tenantId, id),
       meshApi.listEffectiveTools(tenantId, id),
+      meshApi.listUpstreamCredentials(tenantId, id),
       meshApi.listAuditEvents(tenantId, {
         connectionId: id,
         outcome: "deny",
@@ -83,6 +89,7 @@ export function ConnectionDetailPage() {
     setTools(toolPage.items);
     setCredentials(creds);
     setEffectiveTools(effective.items);
+    setUpstreamCredentials(upstream.items);
     setDenies(denyPage.items);
     const available = rolePage.items.find((r) => !conn.roleIds.includes(r.id));
     setAttachRoleId(available?.id ?? "");
@@ -517,6 +524,69 @@ export function ConnectionDetailPage() {
           ) : null}
         </section>
       </div>
+
+      <section className="border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <p className="section-label">Upstream credentials</p>
+          <span className="text-xs text-muted-foreground">
+            Subject readiness across active servers
+          </span>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Server
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Ownership
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Personal
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Shared
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Readiness
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {upstreamCredentials.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-muted-foreground">
+                  No active servers in this tenant yet.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {upstreamCredentials.map((row) => (
+              <TableRow key={row.serverId}>
+                <TableCell>
+                  <div className="text-sm font-medium">{row.name}</div>
+                  <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
+                </TableCell>
+                <TableCell>
+                  <KindBadge kind={row.credentialMode} />
+                </TableCell>
+                <TableCell>
+                  <KindBadge
+                    kind={row.subjectConnected ? "connected" : "missing"}
+                  />
+                </TableCell>
+                <TableCell>
+                  <KindBadge
+                    kind={row.sharedAvailable ? "available" : "none"}
+                  />
+                </TableCell>
+                <TableCell>
+                  <KindBadge kind={row.readiness} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </section>
 
       <section className="border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">

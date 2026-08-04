@@ -19,6 +19,7 @@ export type UpstreamServerRow = {
   id: string;
   baseUrl: string;
   authMethod: "api_key" | "oauth" | "mtls";
+  credentialMode: "shared" | "subject_required" | "either";
   kind: "mcp" | "api";
   status: string;
 };
@@ -29,6 +30,7 @@ async function loadUpstreamSecret(
   serverId: string,
   userId: string,
   authMethod: UpstreamServerRow["authMethod"],
+  credentialMode: UpstreamServerRow["credentialMode"],
 ): Promise<Result<SecretRow, MeshError>> {
   if (authMethod === "mtls") {
     return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
@@ -36,39 +38,73 @@ async function loadUpstreamSecret(
 
   const kind = upstreamSecretKind(authMethod);
 
-  const [userSecret] = await db
-    .select()
-    .from(secrets)
-    .where(
-      and(
-        eq(secrets.tenantId, tenantId),
-        eq(secrets.serverId, serverId),
-        eq(secrets.userId, userId),
-        eq(secrets.kind, kind),
-        isNull(secrets.connectionId),
-      ),
-    )
-    .limit(1);
+  async function loadUserSecret() {
+    const [userSecret] = await db
+      .select()
+      .from(secrets)
+      .where(
+        and(
+          eq(secrets.tenantId, tenantId),
+          eq(secrets.serverId, serverId),
+          eq(secrets.userId, userId),
+          eq(secrets.kind, kind),
+          isNull(secrets.connectionId),
+        ),
+      )
+      .limit(1);
+    return userSecret ?? null;
+  }
 
+  async function loadServerSecret() {
+    const [serverSecret] = await db
+      .select()
+      .from(secrets)
+      .where(
+        and(
+          eq(secrets.tenantId, tenantId),
+          eq(secrets.serverId, serverId),
+          eq(secrets.kind, kind),
+          isNull(secrets.userId),
+          isNull(secrets.connectionId),
+        ),
+      )
+      .limit(1);
+    return serverSecret ?? null;
+  }
+
+  if (credentialMode === "shared") {
+    const serverSecret = await loadServerSecret();
+    if (!serverSecret) {
+      return err(
+        new NotFoundError(
+          `No shared upstream ${kind} credential found for this server`,
+        ),
+      );
+    }
+    log.debug({ serverId, kind }, "using server-level upstream secret");
+    return ok(serverSecret);
+  }
+
+  if (credentialMode === "subject_required") {
+    const userSecret = await loadUserSecret();
+    if (!userSecret) {
+      return err(
+        new NotFoundError(
+          "Connect this account in My Access before calling this server",
+        ),
+      );
+    }
+    log.debug({ serverId, userId, kind }, "using per-user upstream secret");
+    return ok(userSecret);
+  }
+
+  const userSecret = await loadUserSecret();
   if (userSecret) {
     log.debug({ serverId, userId, kind }, "using per-user upstream secret");
     return ok(userSecret);
   }
 
-  const [serverSecret] = await db
-    .select()
-    .from(secrets)
-    .where(
-      and(
-        eq(secrets.tenantId, tenantId),
-        eq(secrets.serverId, serverId),
-        eq(secrets.kind, kind),
-        isNull(secrets.userId),
-        isNull(secrets.connectionId),
-      ),
-    )
-    .limit(1);
-
+  const serverSecret = await loadServerSecret();
   if (!serverSecret) {
     return err(
       new NotFoundError(
@@ -146,6 +182,7 @@ export async function resolveUpstreamAuthHeaders(
     server.id,
     userId,
     server.authMethod,
+    server.credentialMode,
   );
   if (secretRow.isErr()) return err(secretRow.error);
 
@@ -244,6 +281,7 @@ export async function loadUpstreamServer(
       id: servers.id,
       baseUrl: servers.baseUrl,
       authMethod: servers.authMethod,
+      credentialMode: servers.credentialMode,
       kind: servers.kind,
       status: servers.status,
     })

@@ -122,6 +122,7 @@ export async function proxyToolCall(
       serverId: servers.id,
       baseUrl: servers.baseUrl,
       authMethod: servers.authMethod,
+      credentialMode: servers.credentialMode,
       kind: servers.kind,
       serverStatus: servers.status,
     })
@@ -142,6 +143,7 @@ export async function proxyToolCall(
     id: row.serverId,
     baseUrl: row.baseUrl,
     authMethod: row.authMethod,
+    credentialMode: row.credentialMode,
     kind: row.kind,
     status: row.serverStatus,
   };

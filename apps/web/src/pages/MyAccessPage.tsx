@@ -1,0 +1,439 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { encodeOAuthSecretValue, upstreamSecretKind } from "@mesh/shared";
+import type { MyAccessServer, ServerAuthMethod } from "@mesh/shared";
+import { useAuth } from "@/components/auth-provider";
+import { Field, FieldSelect } from "@/components/mesh/FormBits";
+import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
+import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ApiError } from "@/lib/api";
+import { meshApi } from "@/lib/mesh-api";
+
+type OAuthMode = "access_token" | "client_credentials" | "refreshable";
+
+function modeLabel(mode: MyAccessServer["credentialMode"]) {
+  switch (mode) {
+    case "shared":
+      return "Shared org credential";
+    case "subject_required":
+      return "Personal required";
+    case "either":
+      return "Personal or shared";
+  }
+}
+
+export function MyAccessPage() {
+  const { tenantId } = useAuth();
+  const [items, setItems] = useState<MyAccessServer[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState<MyAccessServer | null>(null);
+
+  async function load() {
+    if (!tenantId) return;
+    const data = await meshApi.listMyAccessServers(tenantId);
+    setItems(data.items);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        await load();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : "Failed to load");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
+  async function onDisconnect(row: MyAccessServer) {
+    if (!tenantId) return;
+    if (
+      !window.confirm(
+        `Disconnect your personal credential for “${row.name}”?`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setInfo(null);
+    try {
+      await meshApi.deleteMyAccessCredential(tenantId, row.serverId);
+      setInfo(`Disconnected ${row.name}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Disconnect failed");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="My Access"
+        description="Connect your personal accounts for the apps your organization enables. Tool permissions stay with IT."
+      />
+
+      {error ? (
+        <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {info ? (
+        <p className="border border-border bg-muted/40 px-3 py-2 text-sm">
+          {info}
+        </p>
+      ) : null}
+
+      <div className="border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Server</TableHead>
+              <TableHead>Ownership</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Loading…
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!loading && items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  No active servers yet. Ask an admin to enable apps for your
+                  organization.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {items.map((row) => (
+              <TableRow key={row.serverId}>
+                <TableCell>
+                  <div className="font-medium">{row.name}</div>
+                  <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
+                  <div className="mt-1">
+                    <KindBadge kind={row.authMethod} />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">{modeLabel(row.credentialMode)}</div>
+                  {row.credentialMode === "either" &&
+                  row.sharedFallbackAvailable ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Shared org credential available as fallback
+                    </p>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  {row.credentialMode === "shared" ? (
+                    <KindBadge kind="org_managed" />
+                  ) : (
+                    <KindBadge
+                      kind={
+                        row.status === "connected" ? "connected" : "missing"
+                      }
+                    />
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {row.canConnect ? (
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setError(null);
+                          setInfo(null);
+                          setConnecting(row);
+                        }}
+                      >
+                        {row.status === "connected" ? "Rotate" : "Connect"}
+                      </Button>
+                      {row.status === "connected" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void onDisconnect(row)}
+                        >
+                          Disconnect
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Managed by your organization
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog
+        open={!!connecting}
+        onOpenChange={(open) => {
+          if (!open) setConnecting(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {connecting?.status === "connected" ? "Rotate" : "Connect"}{" "}
+              {connecting?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {connecting ? (
+            <ConnectForm
+              server={connecting}
+              onDone={async () => {
+                setConnecting(null);
+                setInfo(`Connected ${connecting.name}`);
+                await load();
+              }}
+              onError={setError}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ConnectForm({
+  server,
+  onDone,
+  onError,
+}: {
+  server: MyAccessServer;
+  onDone: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const { tenantId } = useAuth();
+  const authMethod: ServerAuthMethod = server.authMethod;
+  const [secretName, setSecretName] = useState("");
+  const [secretValue, setSecretValue] = useState("");
+  const [oauthMode, setOauthMode] = useState<OAuthMode>("access_token");
+  const [accessToken, setAccessToken] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [tokenUrl, setTokenUrl] = useState("");
+  const [scopes, setScopes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function resolvePlaintext(): Promise<string | null> {
+    if (authMethod === "mtls") return null;
+    if (authMethod === "api_key") {
+      const trimmed = secretValue.trim();
+      return trimmed || null;
+    }
+
+    const hasAny =
+      accessToken.trim() ||
+      refreshToken.trim() ||
+      clientId.trim() ||
+      clientSecret.trim() ||
+      tokenUrl.trim();
+    if (!hasAny) return null;
+
+    const encoded = encodeOAuthSecretValue({
+      mode: oauthMode,
+      accessToken,
+      refreshToken,
+      clientId,
+      clientSecret,
+      tokenUrl,
+      scopes,
+    });
+    if (encoded.isErr()) {
+      throw new Error(encoded.error.message);
+    }
+    return encoded.value;
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setBusy(true);
+    try {
+      let plaintext: string | null = null;
+      try {
+        plaintext = await resolvePlaintext();
+      } catch (err) {
+        onError(err instanceof Error ? err.message : "Invalid credential");
+        return;
+      }
+      if (!plaintext) {
+        onError("Paste a credential value to connect.");
+        return;
+      }
+
+      await meshApi.upsertMyAccessCredential(tenantId, server.serverId, {
+        name:
+          secretName.trim() ||
+          `${server.name} personal ${upstreamSecretKind(authMethod)}`,
+        value: plaintext,
+      });
+      await onDone();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Connect failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (authMethod === "mtls") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        mTLS upstream auth is not supported yet.
+      </p>
+    );
+  }
+
+  return (
+    <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
+      <Field label="Credential name (optional)" htmlFor="my-secret-name">
+        <Input
+          id="my-secret-name"
+          value={secretName}
+          onChange={(e) => setSecretName(e.target.value)}
+          placeholder={`${server.name} personal`}
+        />
+      </Field>
+      {authMethod === "api_key" ? (
+        <Field label="API key / bearer" htmlFor="my-secret-value">
+          <Input
+            id="my-secret-value"
+            type="password"
+            autoComplete="off"
+            required
+            value={secretValue}
+            onChange={(e) => setSecretValue(e.target.value)}
+          />
+        </Field>
+      ) : (
+        <>
+          <Field label="OAuth mode">
+            <FieldSelect
+              value={oauthMode}
+              onChange={(e) => setOauthMode(e.target.value as OAuthMode)}
+            >
+              <option value="access_token">Access token (Bearer)</option>
+              <option value="client_credentials">Client credentials</option>
+              <option value="refreshable">Refreshable token</option>
+            </FieldSelect>
+          </Field>
+          {oauthMode === "access_token" ? (
+            <Field label="Access token" htmlFor="my-oauth-access">
+              <Input
+                id="my-oauth-access"
+                type="password"
+                autoComplete="off"
+                required
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+              />
+            </Field>
+          ) : null}
+          {oauthMode === "client_credentials" ||
+          oauthMode === "refreshable" ? (
+            <>
+              <Field label="Token URL" htmlFor="my-oauth-token-url">
+                <Input
+                  id="my-oauth-token-url"
+                  type="url"
+                  required
+                  value={tokenUrl}
+                  onChange={(e) => setTokenUrl(e.target.value)}
+                />
+              </Field>
+              <Field label="Client ID" htmlFor="my-oauth-client-id">
+                <Input
+                  id="my-oauth-client-id"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  required={oauthMode === "client_credentials"}
+                />
+              </Field>
+              <Field label="Client secret" htmlFor="my-oauth-client-secret">
+                <Input
+                  id="my-oauth-client-secret"
+                  type="password"
+                  autoComplete="off"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  required={oauthMode === "client_credentials"}
+                />
+              </Field>
+              <Field label="Scopes (optional)" htmlFor="my-oauth-scopes">
+                <Input
+                  id="my-oauth-scopes"
+                  value={scopes}
+                  onChange={(e) => setScopes(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : null}
+          {oauthMode === "refreshable" ? (
+            <>
+              <Field label="Refresh token" htmlFor="my-oauth-refresh">
+                <Input
+                  id="my-oauth-refresh"
+                  type="password"
+                  autoComplete="off"
+                  required
+                  value={refreshToken}
+                  onChange={(e) => setRefreshToken(e.target.value)}
+                />
+              </Field>
+              <Field label="Access token (optional)" htmlFor="my-oauth-access-opt">
+                <Input
+                  id="my-oauth-access-opt"
+                  type="password"
+                  autoComplete="off"
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : null}
+        </>
+      )}
+      <Button type="submit" className="w-full" disabled={busy}>
+        {busy ? "Saving…" : "Save credential"}
+      </Button>
+    </form>
+  );
+}

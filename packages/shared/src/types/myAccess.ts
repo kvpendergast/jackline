@@ -34,8 +34,9 @@ export type UpsertMyAccessCredentialBody = z.infer<
 export const UpstreamCredentialReadinessSchema = z.enum([
   "ready_personal",
   "ready_shared",
-  "missing_personal",
   "ready_shared_only",
+  "missing_personal",
+  "missing_shared",
 ]);
 export type UpstreamCredentialReadiness = z.infer<
   typeof UpstreamCredentialReadinessSchema

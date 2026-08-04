@@ -12,6 +12,7 @@ const routeOrder = [
   "list",
   "create",
   "listEffectiveTools",
+  "listUpstreamCredentials",
   "get",
   "update",
   "delete",

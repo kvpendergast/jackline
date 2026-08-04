@@ -3,6 +3,7 @@ import type {
   ClientKind,
   MeData,
   MintedGatewayCredential,
+  MyAccessServer,
   PublicAuditEvent,
   PublicClient,
   PublicConnection,
@@ -16,9 +17,11 @@ import type {
   PublicUser,
   RoleType,
   ServerAuthMethod,
+  ServerCredentialMode,
   ServerKind,
   ToolStatus,
   ToolHttpMethod,
+  UpstreamCredentialStatus,
 } from "@mesh/shared";
 
 export type SignupInput = {
@@ -54,6 +57,7 @@ export const meshApi = {
       authMethod: ServerAuthMethod;
       kind: ServerKind;
       source?: "custom" | "catalog";
+      credentialMode?: ServerCredentialMode;
       connectorKey?: string | null;
       docsUrl?: string | null;
     },
@@ -68,6 +72,7 @@ export const meshApi = {
       authMethod?: ServerAuthMethod;
       kind?: ServerKind;
       status?: PublicServer["status"];
+      credentialMode?: ServerCredentialMode;
       docsUrl?: string | null;
     },
   ) =>
@@ -358,5 +363,31 @@ export const meshApi = {
   listSsoProviders: () =>
     api<{ items: Array<{ providerId: string; label: string }> }>(
       "/api/v1/sso/providers",
+    ),
+
+  listMyAccessServers: (tenantId: string) =>
+    api<{ items: MyAccessServer[] }>("/api/v1/me/servers", { tenantId }),
+
+  upsertMyAccessCredential: (
+    tenantId: string,
+    serverId: string,
+    body: { name?: string; value: string },
+  ) =>
+    api<PublicSecret>(`/api/v1/me/servers/${serverId}/credential`, {
+      tenantId,
+      method: "PUT",
+      body,
+    }),
+
+  deleteMyAccessCredential: (tenantId: string, serverId: string) =>
+    api<{ deleted: true }>(`/api/v1/me/servers/${serverId}/credential`, {
+      tenantId,
+      method: "DELETE",
+    }),
+
+  listUpstreamCredentials: (tenantId: string, connectionId: string) =>
+    api<{ items: UpstreamCredentialStatus[] }>(
+      `/api/v1/connections/${connectionId}/upstream-credentials`,
+      { tenantId },
     ),
 };

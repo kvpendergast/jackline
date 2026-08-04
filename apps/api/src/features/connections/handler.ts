@@ -1,6 +1,7 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { MeshEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
+import { myAccessServices } from "../myAccess/service.js";
 import { listEffectiveTools as listEffectiveToolsService } from "./effectiveTools.js";
 import { Connection } from "./resource.js";
 
@@ -58,6 +59,29 @@ const listEffectiveTools: RouteHandler<
   const result = await listEffectiveToolsService(log, auth.tenantId, id);
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope({ items: result.value }), 200);
+};
+
+const listUpstreamCredentials: RouteHandler<
+  typeof Connection.routes.listUpstreamCredentials,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const connection = await Connection.services.get(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+  );
+  if (connection.isErr()) throw connection.error;
+
+  const result = await myAccessServices.listUpstreamCredentialsForSubject(
+    log,
+    auth.tenantId,
+    connection.value.userId,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
 };
 
 const update: RouteHandler<typeof Connection.routes.update, MeshEnv> = async (
@@ -254,6 +278,7 @@ export const connectionHandlers = {
   create,
   get,
   listEffectiveTools,
+  listUpstreamCredentials,
   update,
   delete: remove,
   attachRole,

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { AppShell } from "@/components/layout/AppShell";
@@ -6,6 +7,7 @@ import { ClientsPage } from "@/pages/ClientsPage";
 import { ConnectionDetailPage } from "@/pages/ConnectionDetailPage";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
 import { LoginPage, SignupPage } from "@/pages/LoginPage";
+import { MyAccessPage } from "@/pages/MyAccessPage";
 import { RolesPage } from "@/pages/RolesPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SecretsPage } from "@/pages/SecretsPage";
@@ -44,6 +46,33 @@ function ProtectedLayout() {
   );
 }
 
+function HomeRedirect() {
+  const { membership } = useAuth();
+  const isAdmin =
+    membership?.role === "full_admin" ||
+    membership?.role === "delegated_admin";
+  return <Navigate to={isAdmin ? "/dashboard" : "/my-access"} replace />;
+}
+
+function AdminOnly({ children }: { children: ReactNode }) {
+  const { membership } = useAuth();
+  const isAdmin =
+    membership?.role === "full_admin" ||
+    membership?.role === "delegated_admin";
+  if (!isAdmin) {
+    return <Navigate to="/my-access" replace />;
+  }
+  return children;
+}
+
+function FullAdminOnly({ children }: { children: ReactNode }) {
+  const { membership } = useAuth();
+  if (membership?.role !== "full_admin") {
+    return <Navigate to="/my-access" replace />;
+  }
+  return children;
+}
+
 export function App() {
   return (
     <AuthProvider>
@@ -51,18 +80,82 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route element={<ProtectedLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/my-access" element={<MyAccessPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <AdminOnly>
+                <DashboardPage />
+              </AdminOnly>
+            }
+          />
           <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/connections/:id" element={<ConnectionDetailPage />} />
-          <Route path="/audit" element={<AuditPage />} />
-          <Route path="/servers" element={<ServersPage />} />
-          <Route path="/tools" element={<ToolsPage />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/secrets" element={<SecretsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/audit"
+            element={
+              <AdminOnly>
+                <AuditPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/servers"
+            element={
+              <AdminOnly>
+                <ServersPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/tools"
+            element={
+              <AdminOnly>
+                <ToolsPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/roles"
+            element={
+              <AdminOnly>
+                <RolesPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/clients"
+            element={
+              <AdminOnly>
+                <ClientsPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <AdminOnly>
+                <UsersPage />
+              </AdminOnly>
+            }
+          />
+          <Route
+            path="/secrets"
+            element={
+              <FullAdminOnly>
+                <SecretsPage />
+              </FullAdminOnly>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <AdminOnly>
+                <SettingsPage />
+              </AdminOnly>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
