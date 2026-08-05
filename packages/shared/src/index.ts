@@ -1,4 +1,4 @@
-export { loadConfig, getConfig } from "./env/load.js";
+export { loadConfig, getConfig, publicApiBaseUrl, webTrustedOrigins } from "./env/load.js";
 export { EnvSchema, type Env } from "./env/schema.js";
 export {
   ErrorCode,
@@ -22,6 +22,14 @@ export {
   resolveOAuthAccessToken,
   encodeOAuthSecretValue,
   upstreamSecretKind,
+  OAUTH_CLIENT_SECRET_KIND,
+  OAUTH_CALLBACK_PATH,
+  oauthCallbackUrl,
+  createPkcePair,
+  createOAuthState,
+  buildOAuthAuthorizeUrl,
+  exchangeAuthorizationCode,
+  type PkcePair,
 } from "./upstream/oauth.js";
 export {
   formatMcpToolName,

@@ -39,6 +39,10 @@ export {
   UpstreamCredentialStatusSchema,
   type UpstreamCredentialReadiness,
   UpstreamCredentialReadinessSchema,
+  type StartOauthBody,
+  StartOauthBodySchema,
+  type StartOauthResult,
+  StartOauthResultSchema,
 } from './myAccess.js';
 export { cursorPageSchema, type CursorPage } from './pagination.js';
 export {

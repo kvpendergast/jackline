@@ -24,13 +24,20 @@ export const ConnectorPresetSchema = z.strictObject({
   authHint: z.string().min(1),
   /** Human docs (not OpenAPI). */
   learnMoreUrl: z.url().nullable(),
+  /** Classic OAuth authorize URL (admin-supplied app / future Connect flow). */
+  oauthAuthorizeUrl: z.url().optional(),
+  /** OAuth token URL for auth-code / refresh / client_credentials. */
+  oauthTokenUrl: z.url().optional(),
+  /** Space-delimited default scopes for personal OAuth. */
+  oauthScopes: z.string().optional(),
 });
 
 export type ConnectorPreset = z.infer<typeof ConnectorPresetSchema>;
 
 /**
  * Curated remote MCP hosts for one-click server create.
- * Credentials are still supplied by humans (Mesh does not run vendor OAuth UI yet).
+ * Browser OAuth Connect is not wired yet — members paste tokens in My Access,
+ * or Mesh will use these OAuth endpoints once the authorize/callback flow ships.
  */
 export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
   {
@@ -39,13 +46,16 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     description: "Issues, projects, and comments in Linear.",
     category: "productivity",
     kind: "mcp",
-    authMethod: "api_key",
+    authMethod: "oauth",
     credentialMode: "either",
     baseUrl: "https://mcp.linear.app/mcp",
     docsUrl: null,
     authHint:
-      "Create a Linear API key (Settings → Security & access). Use a shared org key, or let each person connect their own in My Access.",
+      "Linear accepts OAuth access tokens or API keys as Bearer. Use a shared org credential on the server, and/or let each person connect their own in My Access (OAuth token or API key). For OAuth apps: authorize at linear.app/oauth/authorize, token at api.linear.app/oauth/token.",
     learnMoreUrl: "https://linear.app/docs/mcp",
+    oauthAuthorizeUrl: "https://linear.app/oauth/authorize",
+    oauthTokenUrl: "https://api.linear.app/oauth/token",
+    oauthScopes: "read,write",
   },
   {
     key: "notion",

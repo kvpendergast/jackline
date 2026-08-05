@@ -63,27 +63,65 @@ export function MyAccessPage() {
         const nextItems = await load();
         if (cancelled) return;
 
-        const deepLinkServerId = searchParams.get("server");
-        if (!deepLinkServerId) return;
+        const oauthError = searchParams.get("oauth_error");
+        if (oauthError) {
+          setError(`OAuth failed: ${oauthError}`);
+        } else if (searchParams.get("connected") === "1") {
+          setInfo("Connected successfully.");
+        }
 
-        const target = nextItems.find(
-          (row) => row.serverId === deepLinkServerId && row.canConnect,
-        );
-        if (target) {
-          setConnecting(target);
-        } else {
-          setError(
-            "That server is not available to connect. Ask an admin if it should be enabled for you.",
+        const deepLinkServerId = searchParams.get("server");
+        if (deepLinkServerId) {
+          const target = nextItems.find(
+            (row) => row.serverId === deepLinkServerId && row.canConnect,
+          );
+          if (target) {
+            if (
+              target.oauthConnectAvailable &&
+              searchParams.get("connected") !== "1" &&
+              !oauthError
+            ) {
+              try {
+                const result = await meshApi.startOauthConnect(
+                  tenantId!,
+                  target.serverId,
+                );
+                window.location.assign(result.authorizeUrl);
+                return;
+              } catch (err) {
+                setError(
+                  err instanceof ApiError
+                    ? err.message
+                    : "Could not start OAuth Connect",
+                );
+                setConnecting(target);
+              }
+            } else if (!target.oauthConnectAvailable) {
+              setConnecting(target);
+            }
+          } else if (!oauthError) {
+            setError(
+              "That server is not available to connect. Ask an admin if it should be enabled for you.",
+            );
+          }
+        }
+
+        if (
+          searchParams.has("server") ||
+          searchParams.has("connected") ||
+          searchParams.has("oauth_error")
+        ) {
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete("server");
+              next.delete("connected");
+              next.delete("oauth_error");
+              return next;
+            },
+            { replace: true },
           );
         }
-        setSearchParams(
-          (prev) => {
-            const next = new URLSearchParams(prev);
-            next.delete("server");
-            return next;
-          },
-          { replace: true },
-        );
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : "Failed to load");
@@ -97,6 +135,20 @@ export function MyAccessPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
+
+  async function onOauthConnect(row: MyAccessServer) {
+    if (!tenantId) return;
+    setError(null);
+    setInfo(null);
+    try {
+      const result = await meshApi.startOauthConnect(tenantId, row.serverId);
+      window.location.assign(result.authorizeUrl);
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Could not start OAuth Connect",
+      );
+    }
+  }
 
   async function onDisconnect(row: MyAccessServer) {
     if (!tenantId) return;
@@ -194,6 +246,16 @@ export function MyAccessPage() {
                 <TableCell className="text-right">
                   {row.canConnect ? (
                     <div className="flex justify-end gap-2">
+                      {row.oauthConnectAvailable ? (
+                        <Button
+                          size="sm"
+                          onClick={() => void onOauthConnect(row)}
+                        >
+                          {row.status === "connected"
+                            ? "Reconnect"
+                            : "Connect with OAuth"}
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outline"
                         size="sm"
@@ -203,7 +265,11 @@ export function MyAccessPage() {
                           setConnecting(row);
                         }}
                       >
-                        {row.status === "connected" ? "Rotate" : "Connect"}
+                        {row.oauthConnectAvailable
+                          ? "Paste instead"
+                          : row.status === "connected"
+                            ? "Rotate"
+                            : "Connect"}
                       </Button>
                       {row.status === "connected" ? (
                         <Button
@@ -249,6 +315,11 @@ export function MyAccessPage() {
                 await load();
               }}
               onError={setError}
+              onOauthConnect={
+                connecting.oauthConnectAvailable
+                  ? () => void onOauthConnect(connecting)
+                  : undefined
+              }
             />
           ) : null}
         </DialogContent>
@@ -261,10 +332,12 @@ function ConnectForm({
   server,
   onDone,
   onError,
+  onOauthConnect,
 }: {
   server: MyAccessServer;
   onDone: () => Promise<void>;
   onError: (message: string) => void;
+  onOauthConnect?: () => void;
 }) {
   const { tenantId } = useAuth();
   const authMethod: ServerAuthMethod = server.authMethod;
@@ -350,6 +423,23 @@ function ConnectForm({
 
   return (
     <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
+      {onOauthConnect ? (
+        <div className="space-y-2 border border-border bg-muted/30 p-3">
+          <p className="text-sm text-muted-foreground">
+            Connect with your provider account (recommended).
+          </p>
+          <Button
+            type="button"
+            className="w-full"
+            onClick={onOauthConnect}
+          >
+            Connect with OAuth
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Or paste a token below.
+          </p>
+        </div>
+      ) : null}
       <Field label="Credential name (optional)" htmlFor="my-secret-name">
         <Input
           id="my-secret-name"
@@ -364,7 +454,7 @@ function ConnectForm({
             id="my-secret-value"
             type="password"
             autoComplete="off"
-            required
+            required={!onOauthConnect}
             value={secretValue}
             onChange={(e) => setSecretValue(e.target.value)}
           />
@@ -387,7 +477,7 @@ function ConnectForm({
                 id="my-oauth-access"
                 type="password"
                 autoComplete="off"
-                required
+                required={!onOauthConnect}
                 value={accessToken}
                 onChange={(e) => setAccessToken(e.target.value)}
               />
@@ -400,7 +490,7 @@ function ConnectForm({
                 <Input
                   id="my-oauth-token-url"
                   type="url"
-                  required
+                  required={!onOauthConnect}
                   value={tokenUrl}
                   onChange={(e) => setTokenUrl(e.target.value)}
                 />
@@ -410,7 +500,9 @@ function ConnectForm({
                   id="my-oauth-client-id"
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
-                  required={oauthMode === "client_credentials"}
+                  required={
+                    !onOauthConnect && oauthMode === "client_credentials"
+                  }
                 />
               </Field>
               <Field label="Client secret" htmlFor="my-oauth-client-secret">
@@ -420,7 +512,9 @@ function ConnectForm({
                   autoComplete="off"
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
-                  required={oauthMode === "client_credentials"}
+                  required={
+                    !onOauthConnect && oauthMode === "client_credentials"
+                  }
                 />
               </Field>
               <Field label="Scopes (optional)" htmlFor="my-oauth-scopes">
@@ -439,7 +533,7 @@ function ConnectForm({
                   id="my-oauth-refresh"
                   type="password"
                   autoComplete="off"
-                  required
+                  required={!onOauthConnect}
                   value={refreshToken}
                   onChange={(e) => setRefreshToken(e.target.value)}
                 />
@@ -457,8 +551,8 @@ function ConnectForm({
           ) : null}
         </>
       )}
-      <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? "Saving…" : "Save credential"}
+      <Button type="submit" className="w-full" disabled={busy} variant="outline">
+        {busy ? "Saving…" : "Save pasted credential"}
       </Button>
     </form>
   );

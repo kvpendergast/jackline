@@ -290,3 +290,111 @@ export function upstreamSecretKind(
   if (authMethod === "api_key") return "api_key";
   return "mtls";
 }
+
+/** Server-level secret holding the OAuth app client secret. */
+export const OAUTH_CLIENT_SECRET_KIND = "oauth_client" as const;
+
+/** Public API path for the upstream OAuth callback (append to MESH_PUBLIC_API_URL / BETTER_AUTH_URL). */
+export const OAUTH_CALLBACK_PATH = "/api/v1/oauth/callback" as const;
+
+export function oauthCallbackUrl(apiBaseUrl: string): string {
+  const base = apiBaseUrl.replace(/\/$/, "");
+  return `${base}${OAUTH_CALLBACK_PATH}`;
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export type PkcePair = {
+  codeVerifier: string;
+  codeChallenge: string;
+};
+
+/** PKCE S256 pair for OAuth authorization-code Connect. */
+export async function createPkcePair(): Promise<PkcePair> {
+  const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
+  const codeVerifier = base64Url(verifierBytes);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(codeVerifier),
+  );
+  return {
+    codeVerifier,
+    codeChallenge: base64Url(new Uint8Array(digest)),
+  };
+}
+
+export function createOAuthState(): string {
+  return base64Url(crypto.getRandomValues(new Uint8Array(24)));
+}
+
+export function buildOAuthAuthorizeUrl(input: {
+  authorizeUrl: string;
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
+  scopes?: string | null;
+}): string {
+  const url = new URL(input.authorizeUrl);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("state", input.state);
+  url.searchParams.set("code_challenge", input.codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  if (input.scopes?.trim()) {
+    url.searchParams.set("scope", input.scopes.trim());
+  }
+  return url.toString();
+}
+
+/**
+ * Exchange an authorization code for tokens (OAuth 2.1 auth-code + PKCE).
+ */
+export async function exchangeAuthorizationCode(input: {
+  tokenUrl: string;
+  code: string;
+  redirectUri: string;
+  clientId: string;
+  clientSecret: string;
+  codeVerifier: string;
+}): Promise<
+  Result<
+    {
+      accessToken: string;
+      refreshToken?: string;
+      expiresAt?: number;
+      scopes?: string;
+    },
+    MeshError
+  >
+> {
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: input.code,
+    redirect_uri: input.redirectUri,
+    client_id: input.clientId,
+    code_verifier: input.codeVerifier,
+  });
+
+  const token = await tokenRequest(input.tokenUrl, body, {
+    clientId: input.clientId,
+    clientSecret: input.clientSecret,
+  });
+  if (token.isErr()) return err(token.error);
+
+  return ok({
+    accessToken: token.value.access_token,
+    ...(token.value.refresh_token
+      ? { refreshToken: token.value.refresh_token }
+      : {}),
+    ...(token.value.expires_in
+      ? { expiresAt: Date.now() + token.value.expires_in * 1000 }
+      : {}),
+  });
+}
+

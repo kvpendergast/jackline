@@ -41,6 +41,14 @@ export const servers = pgTable(
     health: serverHealthEnum("health").notNull().default("unknown"),
     connectorKey: text("connector_key"),
     docsUrl: text("docs_url"),
+    /** Upstream OAuth app — authorize endpoint (auth-code Connect). */
+    oauthAuthorizeUrl: text("oauth_authorize_url"),
+    /** Upstream OAuth app — token endpoint. */
+    oauthTokenUrl: text("oauth_token_url"),
+    /** Default scopes string (provider-specific delimiter, e.g. Linear commas). */
+    oauthScopes: text("oauth_scopes"),
+    /** Public OAuth client id (secret stored separately as kind oauth_client). */
+    oauthClientId: text("oauth_client_id"),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),

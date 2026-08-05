@@ -16,6 +16,10 @@ const ENV_KEYS = [
   "WEB_ORIGIN",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "MESH_PUBLIC_API_URL",
+  "MESH_OIDC_ISSUER",
+  "MESH_OIDC_CLIENT_ID",
+  "MESH_OIDC_CLIENT_SECRET",
 ] as const;
 
 let config: Env | undefined;
@@ -41,4 +45,31 @@ export function getConfig(): Result<Env, SetupError> {
   }
 
   return ok(config);
+}
+
+/** Browser-reachable API origin (ngrok in local OAuth tests). */
+export function publicApiBaseUrl(env: Env): string {
+  return (env.MESH_PUBLIC_API_URL ?? env.BETTER_AUTH_URL).replace(/\/$/, "");
+}
+
+/**
+ * Origins allowed for the web UI (CORS + Better Auth trustedOrigins).
+ * Expands localhost ↔ 127.0.0.1 so either hostname works in local dev.
+ */
+export function webTrustedOrigins(env: Env): string[] {
+  const primary = env.WEB_ORIGIN.replace(/\/$/, "");
+  const origins = new Set<string>([primary]);
+  try {
+    const url = new URL(primary);
+    if (url.hostname === "localhost") {
+      url.hostname = "127.0.0.1";
+      origins.add(url.origin);
+    } else if (url.hostname === "127.0.0.1") {
+      url.hostname = "localhost";
+      origins.add(url.origin);
+    }
+  } catch {
+    /* keep primary only */
+  }
+  return [...origins];
 }

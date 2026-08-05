@@ -1,10 +1,11 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, servers, type Server } from "@mesh/db";
+import { db, secrets, servers, type Server } from "@mesh/db";
 import {
   MeshError,
   NotFoundError,
+  OAUTH_CLIENT_SECRET_KIND,
   SetupError,
   type CursorPage,
   type PublicServer,
@@ -33,6 +34,10 @@ export type CreateServerInput = {
   credentialMode?: ServerCredentialMode | undefined;
   connectorKey?: string | null | undefined;
   docsUrl?: string | null | undefined;
+  oauthAuthorizeUrl?: string | null | undefined;
+  oauthTokenUrl?: string | null | undefined;
+  oauthScopes?: string | null | undefined;
+  oauthClientId?: string | null | undefined;
 };
 
 export type UpdateServerInput = {
@@ -45,9 +50,38 @@ export type UpdateServerInput = {
   credentialMode?: ServerCredentialMode | undefined;
   connectorKey?: string | null | undefined;
   docsUrl?: string | null | undefined;
+  oauthAuthorizeUrl?: string | null | undefined;
+  oauthTokenUrl?: string | null | undefined;
+  oauthScopes?: string | null | undefined;
+  oauthClientId?: string | null | undefined;
 };
 
-function toPublicServer(row: Server): PublicServer {
+async function loadOauthClientSecretFlags(
+  tenantId: string,
+  serverIds: string[],
+): Promise<Set<string>> {
+  if (serverIds.length === 0) return new Set();
+  const rows = await db
+    .select({ serverId: secrets.serverId })
+    .from(secrets)
+    .where(
+      and(
+        eq(secrets.tenantId, tenantId),
+        eq(secrets.kind, OAUTH_CLIENT_SECRET_KIND),
+        inArray(secrets.serverId, serverIds),
+        isNull(secrets.userId),
+        isNull(secrets.connectionId),
+      ),
+    );
+  return new Set(
+    rows.map((r) => r.serverId).filter((id): id is string => id != null),
+  );
+}
+
+function toPublicServer(
+  row: Server,
+  hasOauthClientSecret: boolean,
+): PublicServer {
   return {
     id: row.id,
     name: row.name,
@@ -60,6 +94,11 @@ function toPublicServer(row: Server): PublicServer {
     health: row.health,
     connectorKey: row.connectorKey,
     docsUrl: row.docsUrl,
+    oauthAuthorizeUrl: row.oauthAuthorizeUrl,
+    oauthTokenUrl: row.oauthTokenUrl,
+    oauthScopes: row.oauthScopes,
+    oauthClientId: row.oauthClientId,
+    hasOauthClientSecret,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -83,6 +122,10 @@ async function create(
         credentialMode: input.credentialMode ?? "either",
         connectorKey: input.connectorKey ?? null,
         docsUrl: input.docsUrl ?? null,
+        oauthAuthorizeUrl: input.oauthAuthorizeUrl ?? null,
+        oauthTokenUrl: input.oauthTokenUrl ?? null,
+        oauthScopes: input.oauthScopes ?? null,
+        oauthClientId: input.oauthClientId ?? null,
         tenantId,
       })
       .returning();
@@ -92,7 +135,7 @@ async function create(
     }
 
     log.info({ serverId: row.id, tenantId }, "server created");
-    return ok(toPublicServer(row));
+    return ok(toPublicServer(row, false));
   } catch (cause) {
     return err(
       fromDbWriteError(cause, "A server with this name already exists"),
@@ -137,6 +180,11 @@ async function list(
     }),
   );
 
+  const flags = await loadOauthClientSecretFlags(
+    tenantId,
+    page.items.map((r) => r.id),
+  );
+
   log.debug(
     {
       tenantId,
@@ -147,7 +195,9 @@ async function list(
   );
 
   return ok({
-    items: page.items.map(toPublicServer),
+    items: page.items.map((row) =>
+      toPublicServer(row, flags.has(row.id)),
+    ),
     nextCursor: page.nextCursor,
   });
 }
@@ -167,8 +217,9 @@ async function get(
     return err(new NotFoundError("Server not found"));
   }
 
+  const flags = await loadOauthClientSecretFlags(tenantId, [serverId]);
   log.debug({ serverId, tenantId }, "getServer");
-  return ok(toPublicServer(row));
+  return ok(toPublicServer(row, flags.has(serverId)));
 }
 
 async function update(
@@ -192,6 +243,16 @@ async function update(
   }
   if (input.connectorKey !== undefined) patch.connectorKey = input.connectorKey;
   if (input.docsUrl !== undefined) patch.docsUrl = input.docsUrl;
+  if (input.oauthAuthorizeUrl !== undefined) {
+    patch.oauthAuthorizeUrl = input.oauthAuthorizeUrl;
+  }
+  if (input.oauthTokenUrl !== undefined) {
+    patch.oauthTokenUrl = input.oauthTokenUrl;
+  }
+  if (input.oauthScopes !== undefined) patch.oauthScopes = input.oauthScopes;
+  if (input.oauthClientId !== undefined) {
+    patch.oauthClientId = input.oauthClientId;
+  }
 
   try {
     const [row] = await db
@@ -204,8 +265,9 @@ async function update(
       return err(new NotFoundError("Server not found"));
     }
 
+    const flags = await loadOauthClientSecretFlags(tenantId, [serverId]);
     log.info({ serverId, tenantId }, "server updated");
-    return ok(toPublicServer(row));
+    return ok(toPublicServer(row, flags.has(serverId)));
   } catch (cause) {
     return err(
       fromDbWriteError(cause, "A server with this name already exists"),
@@ -228,7 +290,7 @@ async function remove(
   }
 
   log.info({ serverId, tenantId }, "server deleted");
-  return ok(toPublicServer(row));
+  return ok(toPublicServer(row, false));
 }
 
 export const serverServices = {

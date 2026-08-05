@@ -23,6 +23,12 @@ export const PublicServerSchema = z.strictObject({
   health: ServerHealthSchema,
   connectorKey: z.string().nullable(),
   docsUrl: z.string().nullable(),
+  oauthAuthorizeUrl: z.string().nullable(),
+  oauthTokenUrl: z.string().nullable(),
+  oauthScopes: z.string().nullable(),
+  oauthClientId: z.string().nullable(),
+  /** True when an encrypted oauth_client secret exists for this server. */
+  hasOauthClientSecret: z.boolean(),
   tenantId: z.uuid(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

@@ -1,12 +1,13 @@
 import { cors } from "hono/cors";
 import { auth } from "@mesh/auth";
-import { getConfig } from "@mesh/shared";
+import { getConfig, webTrustedOrigins } from "@mesh/shared";
 import { createMeshApp } from "./lib/http/createApp.js";
 import {
   requestMiddleware,
   tenantContextMiddleware,
 } from "./lib/request/index.js";
 import { scimApp } from "./features/identity/scim.js";
+import { oauthCallbackHandler } from "./features/oauth/handler.js";
 import {
   publicV1Features,
   rootFeatures,
@@ -16,13 +17,14 @@ import {
 const configResult = getConfig();
 if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
+const trustedWebOrigins = webTrustedOrigins(config);
 
 export const app = createMeshApp();
 
 app.use(
   "*",
   cors({
-    origin: config.WEB_ORIGIN,
+    origin: trustedWebOrigins,
     credentials: true,
   }),
 );
@@ -42,6 +44,9 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 app.route("/scim/v2", scimApp);
 
 const v1 = createMeshApp();
+
+/** Browser OAuth redirect — must stay outside tenant middleware. */
+v1.get("/oauth/callback", oauthCallbackHandler);
 
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {

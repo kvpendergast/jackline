@@ -6,7 +6,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 import { createSecretBox } from "@mesh/crypto";
 import { db, schema, ssoConfigs } from "@mesh/db";
-import { getConfig } from "@mesh/shared";
+import { getConfig, webTrustedOrigins } from "@mesh/shared";
 
 function ssoSecretAad(tenantId: string): Uint8Array {
   return new TextEncoder().encode(`mesh:sso_client_secret:${tenantId}`);
@@ -120,7 +120,7 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
     },
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
-    trustedOrigins: [config.WEB_ORIGIN],
+    trustedOrigins: webTrustedOrigins(config),
     emailAndPassword: { enabled: true, disableSignUp: false },
     plugins:
       oauthConfigs.length > 0

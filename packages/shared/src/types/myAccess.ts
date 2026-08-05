@@ -20,8 +20,23 @@ export const MyAccessServerSchema = z.strictObject({
   canConnect: z.boolean(),
   /** True when a server-level credential exists (used as fallback for either). */
   sharedFallbackAvailable: z.boolean(),
+  /**
+   * True when browser OAuth Connect is configured (authorize + token + client id + secret).
+   */
+  oauthConnectAvailable: z.boolean(),
 });
 export type MyAccessServer = z.infer<typeof MyAccessServerSchema>;
+
+export const StartOauthBodySchema = z.strictObject({
+  serverId: z.uuid(),
+});
+export type StartOauthBody = z.infer<typeof StartOauthBodySchema>;
+
+export const StartOauthResultSchema = z.strictObject({
+  authorizeUrl: z.url(),
+  redirectUri: z.url(),
+});
+export type StartOauthResult = z.infer<typeof StartOauthResultSchema>;
 
 export const UpsertMyAccessCredentialBodySchema = z.strictObject({
   name: z.string().min(1).optional(),

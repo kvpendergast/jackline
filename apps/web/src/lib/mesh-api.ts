@@ -60,6 +60,10 @@ export const meshApi = {
       credentialMode?: ServerCredentialMode;
       connectorKey?: string | null;
       docsUrl?: string | null;
+      oauthAuthorizeUrl?: string | null;
+      oauthTokenUrl?: string | null;
+      oauthScopes?: string | null;
+      oauthClientId?: string | null;
     },
   ) => api<PublicServer>("/api/v1/servers", { tenantId, method: "POST", body }),
 
@@ -74,6 +78,12 @@ export const meshApi = {
       status?: PublicServer["status"];
       credentialMode?: ServerCredentialMode;
       docsUrl?: string | null;
+      connectorKey?: string | null;
+      source?: "custom" | "catalog";
+      oauthAuthorizeUrl?: string | null;
+      oauthTokenUrl?: string | null;
+      oauthScopes?: string | null;
+      oauthClientId?: string | null;
     },
   ) =>
     api<PublicServer>(`/api/v1/servers/${id}`, {
@@ -367,6 +377,13 @@ export const meshApi = {
 
   listMyAccessServers: (tenantId: string) =>
     api<{ items: MyAccessServer[] }>("/api/v1/me/servers", { tenantId }),
+
+  startOauthConnect: (tenantId: string, serverId: string) =>
+    api<{ authorizeUrl: string; redirectUri: string }>("/api/v1/oauth/start", {
+      tenantId,
+      method: "POST",
+      body: { serverId },
+    }),
 
   upsertMyAccessCredential: (
     tenantId: string,

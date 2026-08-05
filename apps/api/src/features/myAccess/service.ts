@@ -6,6 +6,7 @@ import {
   BadRequestError,
   MeshError,
   NotFoundError,
+  OAUTH_CLIENT_SECRET_KIND,
   SetupError,
   upstreamSecretKind,
   type MyAccessServer,
@@ -77,6 +78,17 @@ async function listMyServers(
         s.kind === kind,
     );
     const canConnect = server.credentialMode !== "shared";
+    const oauthConnectAvailable =
+      server.authMethod === "oauth" &&
+      !!server.oauthAuthorizeUrl &&
+      !!server.oauthTokenUrl &&
+      !!server.oauthClientId &&
+      secretRows.some(
+        (s) =>
+          s.serverId === server.id &&
+          s.userId === null &&
+          s.kind === OAUTH_CLIENT_SECRET_KIND,
+      );
 
     return {
       serverId: server.id,
@@ -86,6 +98,7 @@ async function listMyServers(
       status: subjectConnected ? "connected" : "missing",
       canConnect,
       sharedFallbackAvailable,
+      oauthConnectAvailable,
     };
   });
 

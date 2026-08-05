@@ -10,6 +10,7 @@ import {
   identityTenantFeature,
 } from "./features/identity/index.js";
 import { myAccessFeature } from "./features/myAccess/index.js";
+import { oauthFeature } from "./features/oauth/index.js";
 import { rolesFeature } from "./features/roles/index.js";
 import { secretsFeature } from "./features/secrets/index.js";
 import { serversFeature } from "./features/servers/index.js";
@@ -37,6 +38,7 @@ export const tenantV1Features: AppSlice[] = [
   auditEventsFeature,
   identityTenantFeature,
   myAccessFeature,
+  oauthFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */

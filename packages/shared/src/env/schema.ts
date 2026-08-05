@@ -13,7 +13,18 @@ export const EnvSchema = z.object({
   GATEWAY_PORT: z.coerce.number().int().positive().default(8081),
   WEB_ORIGIN: z.string().default("http://127.0.0.1:5173"),
   BETTER_AUTH_SECRET: z.string().min(1),
+  /**
+   * Better Auth base URL (where `/api/auth` is served). Keep this as the
+   * URL the web app / Vite proxy actually hits (e.g. http://127.0.0.1:8080).
+   */
   BETTER_AUTH_URL: z.string().min(1),
+  /**
+   * Public base URL for browser redirects that must reach the API from the
+   * internet (upstream OAuth callbacks). Defaults to BETTER_AUTH_URL.
+   * Local OAuth testing: set this to your ngrok URL while leaving
+   * BETTER_AUTH_URL on localhost.
+   */
+  MESH_PUBLIC_API_URL: z.string().url().optional(),
   /** Optional global OIDC (discovery via issuer/.well-known/openid-configuration). */
   MESH_OIDC_ISSUER: z.string().url().optional(),
   MESH_OIDC_CLIENT_ID: z.string().min(1).optional(),

@@ -37,6 +37,10 @@ const CreateServerBodySchema = z
     credentialMode: ServerCredentialModeSchema.optional(),
     connectorKey: z.string().min(1).nullable().optional(),
     docsUrl: z.url().nullable().optional(),
+    oauthAuthorizeUrl: z.url().nullable().optional(),
+    oauthTokenUrl: z.url().nullable().optional(),
+    oauthScopes: z.string().min(1).nullable().optional(),
+    oauthClientId: z.string().min(1).nullable().optional(),
   })
   .openapi("CreateServerBody");
 
@@ -51,6 +55,10 @@ const UpdateServerBodySchema = z
     credentialMode: ServerCredentialModeSchema.optional(),
     connectorKey: z.string().min(1).nullable().optional(),
     docsUrl: z.url().nullable().optional(),
+    oauthAuthorizeUrl: z.url().nullable().optional(),
+    oauthTokenUrl: z.url().nullable().optional(),
+    oauthScopes: z.string().min(1).nullable().optional(),
+    oauthClientId: z.string().min(1).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",

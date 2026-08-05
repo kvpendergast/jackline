@@ -4,6 +4,7 @@ import {
   CONNECTOR_CATEGORIES,
   CONNECTOR_PRESETS,
   encodeOAuthSecretValue,
+  getConnectorPreset,
   upstreamSecretKind,
   type ConnectorPreset,
   type PublicServer,
@@ -12,6 +13,7 @@ import {
   type ServerKind,
 } from "@mesh/shared";
 import { useAuth } from "@/components/auth-provider";
+import { ConnectorLogo } from "@/components/mesh/ConnectorLogo";
 import { Field, FieldSelect } from "@/components/mesh/FormBits";
 import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
 import { KindBadge } from "@/components/mesh/StatusBadge";
@@ -160,14 +162,22 @@ export function ServersPage() {
                       className="border border-border bg-card p-4 text-left transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium">{preset.name}</span>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex size-8 shrink-0 items-center justify-center border border-border bg-background">
+                            <ConnectorLogo
+                              connectorKey={preset.key}
+                              name={preset.name}
+                            />
+                          </span>
+                          <span className="font-medium">{preset.name}</span>
+                        </div>
                         {added ? (
                           <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                             Added
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {preset.description}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1">
@@ -224,18 +234,31 @@ export function ServersPage() {
             {items.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="font-medium">{row.name}</div>
-                  <MonoId>{row.id.slice(0, 8)}…</MonoId>
-                  {row.source === "catalog" || row.connectorKey ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {row.source === "catalog" ? (
-                        <KindBadge kind="catalog" />
-                      ) : null}
-                      {row.connectorKey ? (
-                        <KindBadge kind={row.connectorKey} />
+                  <div className="flex items-center gap-2">
+                    {row.connectorKey ? (
+                      <span className="flex size-7 shrink-0 items-center justify-center border border-border bg-background">
+                        <ConnectorLogo
+                          connectorKey={row.connectorKey}
+                          name={row.name}
+                          className="size-4"
+                        />
+                      </span>
+                    ) : null}
+                    <div className="min-w-0">
+                      <div className="font-medium">{row.name}</div>
+                      <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                      {row.source === "catalog" || row.connectorKey ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {row.source === "catalog" ? (
+                            <KindBadge kind="catalog" />
+                          ) : null}
+                          {row.connectorKey ? (
+                            <KindBadge kind={row.connectorKey} />
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
-                  ) : null}
+                  </div>
                 </TableCell>
                 <TableCell className="max-w-[220px] truncate font-mono text-[12px]">
                   {row.baseUrl}
@@ -347,6 +370,21 @@ export function ServersPage() {
 
 type OAuthMode = "access_token" | "client_credentials" | "refreshable";
 
+function resolveFormPreset(
+  server: PublicServer | undefined,
+  preset: ConnectorPreset | null | undefined,
+): ConnectorPreset | null {
+  if (preset) return preset;
+  if (!server) return null;
+  if (server.connectorKey) {
+    return getConnectorPreset(server.connectorKey) ?? null;
+  }
+  const byName = CONNECTOR_PRESETS.find(
+    (p) => p.name.toLowerCase() === server.name.trim().toLowerCase(),
+  );
+  return byName ?? null;
+}
+
 function ServerForm({
   mode,
   server,
@@ -361,27 +399,37 @@ function ServerForm({
   onError: (message: string) => void;
 }) {
   const { tenantId } = useAuth();
-  const [name, setName] = useState(server?.name ?? preset?.name ?? "");
+  const catalogPreset = resolveFormPreset(server, preset);
+  const [name, setName] = useState(server?.name ?? catalogPreset?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(
-    server?.baseUrl ?? preset?.baseUrl ?? "https://",
+    server?.baseUrl ?? catalogPreset?.baseUrl ?? "https://",
   );
   const [docsUrl, setDocsUrl] = useState(
-    server?.docsUrl ?? preset?.docsUrl ?? "",
+    server?.docsUrl ?? catalogPreset?.docsUrl ?? "",
   );
-  const [authMethod, setAuthMethod] = useState<ServerAuthMethod>(
-    server?.authMethod ?? preset?.authMethod ?? "api_key",
-  );
+  const [authMethod, setAuthMethod] = useState<ServerAuthMethod>(() => {
+    // Existing catalog servers may still be api_key from before OAuth Connect.
+    // Prefer the catalog auth method so OAuth app fields show on edit.
+    if (server?.oauthAuthorizeUrl || server?.oauthClientId) {
+      return server.authMethod;
+    }
+    return (
+      catalogPreset?.authMethod ?? server?.authMethod ?? "api_key"
+    );
+  });
   const [credentialMode, setCredentialMode] = useState<ServerCredentialMode>(
-    server?.credentialMode ?? preset?.credentialMode ?? "either",
+    server?.credentialMode ?? catalogPreset?.credentialMode ?? "either",
   );
   const [kind, setKind] = useState<ServerKind>(
-    server?.kind ?? preset?.kind ?? "mcp",
+    server?.kind ?? catalogPreset?.kind ?? "mcp",
   );
   const [status, setStatus] = useState<PublicServer["status"]>(
     server?.status ?? "pending",
   );
   const [secretValue, setSecretValue] = useState("");
   const [secretName, setSecretName] = useState("");
+  // Shared-credential paste (optional for OAuth Connect). Do not seed tokenUrl/scopes
+  // from the catalog preset — those belong on the OAuth app fields below.
   const [oauthMode, setOauthMode] = useState<OAuthMode>("access_token");
   const [accessToken, setAccessToken] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
@@ -389,6 +437,25 @@ function ServerForm({
   const [clientSecret, setClientSecret] = useState("");
   const [tokenUrl, setTokenUrl] = useState("");
   const [scopes, setScopes] = useState("");
+  const [oauthAuthorizeUrl, setOauthAuthorizeUrl] = useState(
+    server?.oauthAuthorizeUrl ?? catalogPreset?.oauthAuthorizeUrl ?? "",
+  );
+  const [oauthTokenUrl, setOauthTokenUrl] = useState(
+    server?.oauthTokenUrl ?? catalogPreset?.oauthTokenUrl ?? "",
+  );
+  const [oauthScopes, setOauthScopes] = useState(
+    server?.oauthScopes ?? catalogPreset?.oauthScopes ?? "",
+  );
+  const [oauthClientId, setOauthClientId] = useState(
+    server?.oauthClientId ?? "",
+  );
+  const [oauthAppSecret, setOauthAppSecret] = useState("");
+  const [existingOauthAppSecretId, setExistingOauthAppSecretId] = useState<
+    string | null
+  >(null);
+  const [hasOauthAppSecret, setHasOauthAppSecret] = useState(
+    server?.hasOauthClientSecret ?? false,
+  );
   const [existingSecretId, setExistingSecretId] = useState<string | null>(null);
   const [hasExistingSecret, setHasExistingSecret] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -407,11 +474,20 @@ function ServerForm({
             s.connectionId == null &&
             s.kind === secretKind,
         );
+        const appSecret = page.items.find(
+          (s) =>
+            s.serverId === server.id &&
+            s.userId == null &&
+            s.connectionId == null &&
+            s.kind === "oauth_client",
+        );
         if (!cancelled) {
           setExistingSecretId(match?.id ?? null);
           setHasExistingSecret(!!match);
           if (match) setSecretName(match.name);
           else if (!secretName) setSecretName("");
+          setExistingOauthAppSecretId(appSecret?.id ?? null);
+          setHasOauthAppSecret(!!appSecret);
         }
       } catch {
         /* ignore — edit still works without secret metadata */
@@ -431,13 +507,14 @@ function ServerForm({
       return trimmed || null;
     }
 
-    const hasAny =
-      accessToken.trim() ||
-      refreshToken.trim() ||
-      clientId.trim() ||
-      clientSecret.trim() ||
-      tokenUrl.trim();
-    if (!hasAny) return null;
+    // Only treat as a shared credential when the admin actually entered secret material.
+    // Prefilling token URL alone (or leaving OAuth app fields) must not trigger encode.
+    const hasCredentialMaterial =
+      !!accessToken.trim() ||
+      !!refreshToken.trim() ||
+      !!clientId.trim() ||
+      !!clientSecret.trim();
+    if (!hasCredentialMaterial) return null;
 
     const encoded = encodeOAuthSecretValue({
       mode: oauthMode,
@@ -485,6 +562,30 @@ function ServerForm({
     return name.trim() || "server";
   }
 
+  async function upsertOauthAppSecret(targetServerId: string): Promise<void> {
+    if (!tenantId) return;
+    const value = oauthAppSecret.trim();
+    if (!value) return;
+    const credentialName = `${nameFromForm()} oauth app`;
+
+    if (existingOauthAppSecretId) {
+      await meshApi.updateSecret(tenantId, existingOauthAppSecretId, {
+        name: credentialName,
+        value,
+      });
+      return;
+    }
+
+    await meshApi.createSecret(tenantId, {
+      kind: "oauth_client",
+      name: credentialName,
+      value,
+      serverId: targetServerId,
+      userId: null,
+      connectionId: null,
+    });
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!tenantId) return;
@@ -499,13 +600,38 @@ function ServerForm({
       }
 
       if (mode === "create" && authMethod !== "mtls" && !plaintext) {
-        if (credentialMode !== "subject_required") {
+        if (credentialMode !== "subject_required" && authMethod === "api_key") {
           onError(
             "Add a server-level credential to sync and call this upstream.",
           );
           return;
         }
       }
+
+      if (
+        authMethod === "oauth" &&
+        mode === "create" &&
+        oauthClientId.trim() &&
+        !oauthAppSecret.trim()
+      ) {
+        onError("OAuth client secret is required when setting a client id.");
+        return;
+      }
+
+      const oauthFields =
+        authMethod === "oauth"
+          ? {
+              oauthAuthorizeUrl: oauthAuthorizeUrl.trim() || null,
+              oauthTokenUrl: oauthTokenUrl.trim() || null,
+              oauthScopes: oauthScopes.trim() || null,
+              oauthClientId: oauthClientId.trim() || null,
+            }
+          : {
+              oauthAuthorizeUrl: null,
+              oauthTokenUrl: null,
+              oauthScopes: null,
+              oauthClientId: null,
+            };
 
       let serverId = server?.id;
       if (mode === "create") {
@@ -516,8 +642,9 @@ function ServerForm({
           kind,
           credentialMode,
           docsUrl: kind === "api" && docsUrl.trim() ? docsUrl.trim() : null,
-          ...(preset
-            ? { source: "catalog" as const, connectorKey: preset.key }
+          ...oauthFields,
+          ...(catalogPreset
+            ? { source: "catalog" as const, connectorKey: catalogPreset.key }
             : {}),
         });
         serverId = created.id;
@@ -530,11 +657,18 @@ function ServerForm({
           status,
           credentialMode,
           docsUrl: kind === "api" && docsUrl.trim() ? docsUrl.trim() : null,
+          ...oauthFields,
+          ...(catalogPreset && !server?.connectorKey
+            ? { connectorKey: catalogPreset.key, source: "catalog" as const }
+            : {}),
         });
       }
 
       if (serverId && plaintext) {
         await upsertServerSecret(serverId, plaintext);
+      }
+      if (serverId && authMethod === "oauth") {
+        await upsertOauthAppSecret(serverId);
       }
 
       await onDone();
@@ -555,12 +689,28 @@ function ServerForm({
 
   return (
     <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
-      {preset && mode === "create" ? (
+      {catalogPreset && mode === "create" ? (
         <div className="space-y-2 border border-border bg-muted/30 p-3">
-          <p className="text-sm text-muted-foreground">{preset.authHint}</p>
-          {preset.learnMoreUrl ? (
+          <p className="text-sm text-muted-foreground">{catalogPreset.authHint}</p>
+          {catalogPreset.oauthAuthorizeUrl || catalogPreset.oauthTokenUrl ? (
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {catalogPreset.oauthAuthorizeUrl
+                ? `Authorize: ${catalogPreset.oauthAuthorizeUrl}`
+                : null}
+              {catalogPreset.oauthAuthorizeUrl && catalogPreset.oauthTokenUrl
+                ? " · "
+                : null}
+              {catalogPreset.oauthTokenUrl
+                ? `Token: ${catalogPreset.oauthTokenUrl}`
+                : null}
+              {catalogPreset.oauthScopes
+                ? ` · Scopes: ${catalogPreset.oauthScopes}`
+                : null}
+            </p>
+          ) : null}
+          {catalogPreset.learnMoreUrl ? (
             <a
-              href={preset.learnMoreUrl}
+              href={catalogPreset.learnMoreUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs underline underline-offset-2"
@@ -570,6 +720,14 @@ function ServerForm({
             </a>
           ) : null}
         </div>
+      ) : null}
+
+      {catalogPreset && mode === "edit" && authMethod === "oauth" ? (
+        <p className="text-xs text-muted-foreground">
+          Configure the OAuth app below so members can Connect in My Access.
+          Callback:{" "}
+          <span className="font-mono">/api/v1/oauth/callback</span>
+        </p>
       ) : null}
 
       <Field label="Name" htmlFor="server-name">
@@ -657,22 +815,99 @@ function ServerForm({
         </Field>
       ) : null}
 
+      {authMethod === "oauth" ? (
+        <div className="space-y-3 border border-border bg-muted/30 p-3">
+          <div>
+            <p className="text-sm font-medium">OAuth app (Connect)</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Register a Mesh callback on the provider
+              ({`{API_URL}/api/v1/oauth/callback`}). Members use Connect in My
+              Access when client id + secret are set.
+            </p>
+          </div>
+          <Field label="Authorize URL" htmlFor="oauth-app-authorize">
+            <Input
+              id="oauth-app-authorize"
+              type="url"
+              value={oauthAuthorizeUrl}
+              onChange={(e) => setOauthAuthorizeUrl(e.target.value)}
+              placeholder="https://linear.app/oauth/authorize"
+            />
+          </Field>
+          <Field label="Token URL" htmlFor="oauth-app-token">
+            <Input
+              id="oauth-app-token"
+              type="url"
+              value={oauthTokenUrl}
+              onChange={(e) => setOauthTokenUrl(e.target.value)}
+              placeholder="https://api.linear.app/oauth/token"
+            />
+          </Field>
+          <Field label="Scopes" htmlFor="oauth-app-scopes">
+            <Input
+              id="oauth-app-scopes"
+              value={oauthScopes}
+              onChange={(e) => setOauthScopes(e.target.value)}
+              placeholder="read,write"
+            />
+          </Field>
+          <Field label="Client ID" htmlFor="oauth-app-client-id">
+            <Input
+              id="oauth-app-client-id"
+              value={oauthClientId}
+              onChange={(e) => setOauthClientId(e.target.value)}
+              autoComplete="off"
+            />
+          </Field>
+          <Field
+            label={
+              hasOauthAppSecret
+                ? "Client secret (optional)"
+                : "Client secret"
+            }
+            htmlFor="oauth-app-client-secret"
+          >
+            <Input
+              id="oauth-app-client-secret"
+              type="password"
+              autoComplete="off"
+              value={oauthAppSecret}
+              onChange={(e) => setOauthAppSecret(e.target.value)}
+              placeholder={
+                hasOauthAppSecret ? "•••••••• (unchanged)" : undefined
+              }
+              required={
+                mode === "create" &&
+                !!oauthClientId.trim() &&
+                !hasOauthAppSecret
+              }
+            />
+          </Field>
+        </div>
+      ) : null}
+
       {needsSecret ? (
         <div className="space-y-3 border border-border bg-muted/30 p-3">
           <div>
             <p className="text-sm font-medium">
-              {credentialMode === "subject_required"
-                ? "Server-level credential (optional)"
-                : "Server-level credential"}
+              {authMethod === "oauth"
+                ? credentialMode === "subject_required"
+                  ? "Shared credential (optional)"
+                  : "Shared credential (optional paste)"
+                : credentialMode === "subject_required"
+                  ? "Server-level credential (optional)"
+                  : "Server-level credential"}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {credentialMode === "subject_required"
-                ? "Optional for tool sync only — callers must connect in My Access."
-                : mode === "create"
-                  ? "Stored encrypted and used for tool sync and upstream calls."
-                  : hasExistingSecret
-                    ? "A credential already exists. Leave blank to keep it, or enter a new value to rotate."
-                    : "No server-level credential yet. Add one to enable sync."}
+              {authMethod === "oauth"
+                ? "Optional org-wide token for sync/fallback. Prefer OAuth Connect above for members."
+                : credentialMode === "subject_required"
+                  ? "Optional for tool sync only — callers must connect in My Access."
+                  : mode === "create"
+                    ? "Stored encrypted and used for tool sync and upstream calls."
+                    : hasExistingSecret
+                      ? "A credential already exists. Leave blank to keep it, or enter a new value to rotate."
+                      : "No server-level credential yet. Add one to enable sync."}
             </p>
           </div>
           <Field label="Credential name" htmlFor="server-secret-name">
@@ -725,14 +960,11 @@ function ServerForm({
                 </FieldSelect>
               </Field>
               {oauthMode === "access_token" ? (
-                <Field label="Access token" htmlFor="oauth-access">
+                <Field label="Access token (optional)" htmlFor="oauth-access">
                   <Input
                     id="oauth-access"
                     type="password"
                     autoComplete="off"
-                    required={
-                      mode === "create" && credentialMode !== "subject_required"
-                    }
                     value={accessToken}
                     onChange={(e) => setAccessToken(e.target.value)}
                   />
@@ -745,10 +977,6 @@ function ServerForm({
                     <Input
                       id="oauth-token-url"
                       type="url"
-                      required={
-                        mode === "create" &&
-                        credentialMode !== "subject_required"
-                      }
                       value={tokenUrl}
                       onChange={(e) => setTokenUrl(e.target.value)}
                     />
@@ -758,11 +986,6 @@ function ServerForm({
                       id="oauth-client-id"
                       value={clientId}
                       onChange={(e) => setClientId(e.target.value)}
-                      required={
-                        mode === "create" &&
-                        oauthMode === "client_credentials" &&
-                        credentialMode !== "subject_required"
-                      }
                     />
                   </Field>
                   <Field label="Client secret" htmlFor="oauth-client-secret">
@@ -772,11 +995,6 @@ function ServerForm({
                       autoComplete="off"
                       value={clientSecret}
                       onChange={(e) => setClientSecret(e.target.value)}
-                      required={
-                        mode === "create" &&
-                        oauthMode === "client_credentials" &&
-                        credentialMode !== "subject_required"
-                      }
                     />
                   </Field>
                   <Field label="Scopes (optional)" htmlFor="oauth-scopes">
@@ -795,10 +1013,6 @@ function ServerForm({
                       id="oauth-refresh"
                       type="password"
                       autoComplete="off"
-                      required={
-                        mode === "create" &&
-                        credentialMode !== "subject_required"
-                      }
                       value={refreshToken}
                       onChange={(e) => setRefreshToken(e.target.value)}
                     />
