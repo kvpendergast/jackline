@@ -125,6 +125,7 @@ export async function proxyToolCall(
       credentialMode: servers.credentialMode,
       kind: servers.kind,
       serverStatus: servers.status,
+      serverName: servers.name,
     })
     .from(tools)
     .innerJoin(servers, eq(servers.id, tools.serverId))
@@ -141,6 +142,7 @@ export async function proxyToolCall(
 
   const upstreamServer: UpstreamServerRow = {
     id: row.serverId,
+    name: row.serverName,
     baseUrl: row.baseUrl,
     authMethod: row.authMethod,
     credentialMode: row.credentialMode,

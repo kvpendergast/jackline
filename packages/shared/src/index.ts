@@ -34,3 +34,8 @@ export {
   ConnectorPresetSchema,
   type ConnectorPreset,
 } from "./connectors/catalog.js";
+export {
+  myAccessReconnectUrl,
+  formatUpstreamCredentialFailure,
+  type UpstreamCredentialFailureKind,
+} from "./myAccess/reconnectUrl.js";

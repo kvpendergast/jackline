@@ -7,6 +7,9 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { db, secrets, servers, type Secret as SecretRow } from "@mesh/db";
 import {
   BadRequestError,
+  ForbiddenError,
+  formatUpstreamCredentialFailure,
+  getConfig,
   MeshError,
   NotFoundError,
   NotImplementedError,
@@ -17,6 +20,7 @@ import { getSecretBox, secretAad } from "../secretBox.js";
 
 export type UpstreamServerRow = {
   id: string;
+  name: string;
   baseUrl: string;
   authMethod: "api_key" | "oauth" | "mtls";
   credentialMode: "shared" | "subject_required" | "either";
@@ -24,14 +28,47 @@ export type UpstreamServerRow = {
   status: string;
 };
 
+function webOrigin(): string {
+  const config = getConfig();
+  return config.isOk() ? config.value.WEB_ORIGIN : "http://127.0.0.1:5173";
+}
+
+function personalCredentialError(
+  server: Pick<UpstreamServerRow, "id" | "name">,
+  kind: "missing_personal" | "expired_personal",
+): ForbiddenError {
+  return new ForbiddenError(
+    formatUpstreamCredentialFailure({
+      webOrigin: webOrigin(),
+      serverId: server.id,
+      serverName: server.name,
+      kind,
+    }),
+  );
+}
+
+function sharedCredentialError(
+  server: Pick<UpstreamServerRow, "id" | "name">,
+  kind: "missing_shared" | "expired_shared",
+): ForbiddenError {
+  return new ForbiddenError(
+    formatUpstreamCredentialFailure({
+      webOrigin: webOrigin(),
+      serverId: server.id,
+      serverName: server.name,
+      kind,
+    }),
+  );
+}
+
 async function loadUpstreamSecret(
   log: Logger,
   tenantId: string,
-  serverId: string,
+  server: UpstreamServerRow,
   userId: string,
-  authMethod: UpstreamServerRow["authMethod"],
-  credentialMode: UpstreamServerRow["credentialMode"],
 ): Promise<Result<SecretRow, MeshError>> {
+  const { id: serverId, authMethod, credentialMode } = server;
+
   if (authMethod === "mtls") {
     return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
   }
@@ -75,11 +112,7 @@ async function loadUpstreamSecret(
   if (credentialMode === "shared") {
     const serverSecret = await loadServerSecret();
     if (!serverSecret) {
-      return err(
-        new NotFoundError(
-          `No shared upstream ${kind} credential found for this server`,
-        ),
-      );
+      return err(sharedCredentialError(server, "missing_shared"));
     }
     log.debug({ serverId, kind }, "using server-level upstream secret");
     return ok(serverSecret);
@@ -88,11 +121,7 @@ async function loadUpstreamSecret(
   if (credentialMode === "subject_required") {
     const userSecret = await loadUserSecret();
     if (!userSecret) {
-      return err(
-        new NotFoundError(
-          "Connect this account in My Access before calling this server",
-        ),
-      );
+      return err(personalCredentialError(server, "missing_personal"));
     }
     log.debug({ serverId, userId, kind }, "using per-user upstream secret");
     return ok(userSecret);
@@ -106,11 +135,7 @@ async function loadUpstreamSecret(
 
   const serverSecret = await loadServerSecret();
   if (!serverSecret) {
-    return err(
-      new NotFoundError(
-        `No upstream ${kind} credential found for this server`,
-      ),
-    );
+    return err(personalCredentialError(server, "missing_personal"));
   }
 
   log.debug({ serverId, kind }, "using server-level upstream secret");
@@ -143,22 +168,30 @@ function decryptSecret(row: SecretRow): Result<string, MeshError> {
 }
 
 async function bearerFromPlaintext(
-  authMethod: UpstreamServerRow["authMethod"],
+  server: UpstreamServerRow,
+  secretRow: SecretRow,
   plaintext: string,
 ): Promise<Result<string, MeshError>> {
-  if (authMethod === "api_key") {
+  if (server.authMethod === "api_key") {
     return ok(plaintext);
   }
 
-  if (authMethod === "oauth") {
+  if (server.authMethod === "oauth") {
     const token = await resolveOAuthAccessToken(plaintext);
-    if (token.isErr()) return err(token.error);
+    if (token.isErr()) {
+      const personal = secretRow.userId != null;
+      return err(
+        personal
+          ? personalCredentialError(server, "expired_personal")
+          : sharedCredentialError(server, "expired_shared"),
+      );
+    }
     return ok(token.value.accessToken);
   }
 
   return err(
     new NotImplementedError(
-      `Upstream auth method "${authMethod}" is not supported yet`,
+      `Upstream auth method "${server.authMethod}" is not supported yet`,
     ),
   );
 }
@@ -176,20 +209,17 @@ export async function resolveUpstreamAuthHeaders(
     return err(new BadRequestError(`Server is ${server.status}`));
   }
 
-  const secretRow = await loadUpstreamSecret(
-    log,
-    tenantId,
-    server.id,
-    userId,
-    server.authMethod,
-    server.credentialMode,
-  );
+  const secretRow = await loadUpstreamSecret(log, tenantId, server, userId);
   if (secretRow.isErr()) return err(secretRow.error);
 
   const plaintext = decryptSecret(secretRow.value);
   if (plaintext.isErr()) return err(plaintext.error);
 
-  const bearer = await bearerFromPlaintext(server.authMethod, plaintext.value);
+  const bearer = await bearerFromPlaintext(
+    server,
+    secretRow.value,
+    plaintext.value,
+  );
   if (bearer.isErr()) return err(bearer.error);
 
   return ok({ Authorization: `Bearer ${bearer.value}` });
@@ -279,6 +309,7 @@ export async function loadUpstreamServer(
   const [row] = await db
     .select({
       id: servers.id,
+      name: servers.name,
       baseUrl: servers.baseUrl,
       authMethod: servers.authMethod,
       credentialMode: servers.credentialMode,

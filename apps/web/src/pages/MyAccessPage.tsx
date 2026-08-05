@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { encodeOAuthSecretValue, upstreamSecretKind } from "@mesh/shared";
 import type { MyAccessServer, ServerAuthMethod } from "@mesh/shared";
 import { useAuth } from "@/components/auth-provider";
@@ -39,6 +40,7 @@ function modeLabel(mode: MyAccessServer["credentialMode"]) {
 
 export function MyAccessPage() {
   const { tenantId } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<MyAccessServer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -46,9 +48,10 @@ export function MyAccessPage() {
   const [connecting, setConnecting] = useState<MyAccessServer | null>(null);
 
   async function load() {
-    if (!tenantId) return;
+    if (!tenantId) return [];
     const data = await meshApi.listMyAccessServers(tenantId);
     setItems(data.items);
+    return data.items;
   }
 
   useEffect(() => {
@@ -57,7 +60,30 @@ export function MyAccessPage() {
       setLoading(true);
       setError(null);
       try {
-        await load();
+        const nextItems = await load();
+        if (cancelled) return;
+
+        const deepLinkServerId = searchParams.get("server");
+        if (!deepLinkServerId) return;
+
+        const target = nextItems.find(
+          (row) => row.serverId === deepLinkServerId && row.canConnect,
+        );
+        if (target) {
+          setConnecting(target);
+        } else {
+          setError(
+            "That server is not available to connect. Ask an admin if it should be enabled for you.",
+          );
+        }
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("server");
+            return next;
+          },
+          { replace: true },
+        );
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : "Failed to load");
