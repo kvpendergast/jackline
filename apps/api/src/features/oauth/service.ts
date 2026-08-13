@@ -17,6 +17,7 @@ import {
   exchangeAuthorizationCode,
   ForbiddenError,
   getConfig,
+  getConnectorPreset,
   MeshError,
   NotFoundError,
   OAUTH_CLIENT_SECRET_KIND,
@@ -146,6 +147,11 @@ async function startConnect(
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   });
 
+  const catalogExtra =
+    server.connectorKey != null
+      ? getConnectorPreset(server.connectorKey)?.oauthAuthorizeExtraParams
+      : undefined;
+
   const authorizeUrl = buildOAuthAuthorizeUrl({
     authorizeUrl: server.oauthAuthorizeUrl,
     clientId: server.oauthClientId,
@@ -153,6 +159,7 @@ async function startConnect(
     state,
     codeChallenge: pkce.codeChallenge,
     scopes: server.oauthScopes,
+    extraParams: catalogExtra ?? null,
   });
 
   log.info({ tenantId, userId, serverId }, "Oauth.services.startConnect");

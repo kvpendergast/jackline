@@ -1,0 +1,38 @@
+{
+  "name": "@mesh/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "mesh": "./dist/index.js"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.0"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.10",
+    "@mesh/crypto": "workspace:*",
+    "@mesh/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "citty": "^0.2.2",
+    "consola": "^3.4.2",
+    "hono": "^4.12.30",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
+}

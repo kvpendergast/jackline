@@ -30,6 +30,11 @@ export type ResolvedUpstreamBearer = {
   accessToken: string;
   /** When known, unix ms; used for short-lived caches. */
   expiresAt?: number | undefined;
+  /**
+   * When a refresh / client-credentials grant minted a new token, callers
+   * should persist this plaintext in place of the previous secret value.
+   */
+  updatedPlaintext?: string | undefined;
 };
 
 const TokenResponseSchema = z.object({
@@ -147,12 +152,33 @@ async function tokenRequest(
   return ok(parsed.data);
 }
 
+function refreshedPlaintext(
+  secret: Exclude<UpstreamOAuthSecret, string>,
+  token: z.infer<typeof TokenResponseSchema>,
+): string {
+  const expiresAt = token.expires_in
+    ? Date.now() + token.expires_in * 1000
+    : undefined;
+  return JSON.stringify({
+    accessToken: token.access_token,
+    ...(token.refresh_token || secret.refreshToken
+      ? { refreshToken: token.refresh_token ?? secret.refreshToken }
+      : {}),
+    ...(secret.tokenUrl ? { tokenUrl: secret.tokenUrl } : {}),
+    ...(secret.clientId ? { clientId: secret.clientId } : {}),
+    ...(secret.clientSecret ? { clientSecret: secret.clientSecret } : {}),
+    ...(secret.scopes ? { scopes: secret.scopes } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
+  });
+}
+
 /**
  * Resolve a bearer access token from an OAuth secret plaintext.
  * Performs client_credentials or refresh_token grants when needed.
  */
 export async function resolveOAuthAccessToken(
   plaintext: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<Result<ResolvedUpstreamBearer, MeshError>> {
   const parsed = parseUpstreamOAuthSecret(plaintext);
   if (parsed.isErr()) return err(parsed.error);
@@ -162,7 +188,11 @@ export async function resolveOAuthAccessToken(
     return ok({ accessToken: secret });
   }
 
-  if (secret.accessToken && isFresh(secret.expiresAt)) {
+  if (
+    secret.accessToken &&
+    !options?.forceRefresh &&
+    isFresh(secret.expiresAt)
+  ) {
     return ok({
       accessToken: secret.accessToken,
       expiresAt: secret.expiresAt,
@@ -187,11 +217,13 @@ export async function resolveOAuthAccessToken(
     const token = await tokenRequest(secret.tokenUrl, body, basic);
     if (token.isErr()) return err(token.error);
 
+    const expiresAt = token.value.expires_in
+      ? Date.now() + token.value.expires_in * 1000
+      : undefined;
     return ok({
       accessToken: token.value.access_token,
-      expiresAt: token.value.expires_in
-        ? Date.now() + token.value.expires_in * 1000
-        : undefined,
+      expiresAt,
+      updatedPlaintext: refreshedPlaintext(secret, token.value),
     });
   }
 
@@ -207,11 +239,13 @@ export async function resolveOAuthAccessToken(
     });
     if (token.isErr()) return err(token.error);
 
+    const expiresAt = token.value.expires_in
+      ? Date.now() + token.value.expires_in * 1000
+      : undefined;
     return ok({
       accessToken: token.value.access_token,
-      expiresAt: token.value.expires_in
-        ? Date.now() + token.value.expires_in * 1000
-        : undefined,
+      expiresAt,
+      updatedPlaintext: refreshedPlaintext(secret, token.value),
     });
   }
 
@@ -238,10 +272,24 @@ export function encodeOAuthSecretValue(input: {
   clientSecret?: string;
   tokenUrl?: string;
   scopes?: string;
+  expiresAt?: number;
 }): Result<string, MeshError> {
   if (input.mode === "access_token") {
     if (!input.accessToken?.trim()) {
       return err(new BadRequestError("Access token is required"));
+    }
+    // Persist BYO OAuth app next to the token so `mesh connect` can reuse it.
+    if (input.clientId?.trim() && input.clientSecret?.trim()) {
+      return ok(
+        JSON.stringify({
+          accessToken: input.accessToken.trim(),
+          clientId: input.clientId.trim(),
+          clientSecret: input.clientSecret.trim(),
+          ...(input.tokenUrl?.trim() ? { tokenUrl: input.tokenUrl.trim() } : {}),
+          ...(input.scopes?.trim() ? { scopes: input.scopes.trim() } : {}),
+          ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+        }),
+      );
     }
     return ok(input.accessToken.trim());
   }
@@ -278,6 +326,7 @@ export function encodeOAuthSecretValue(input: {
         ? { clientSecret: input.clientSecret.trim() }
         : {}),
       ...(input.scopes?.trim() ? { scopes: input.scopes.trim() } : {}),
+      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
     }),
   );
 }
@@ -338,6 +387,8 @@ export function buildOAuthAuthorizeUrl(input: {
   state: string;
   codeChallenge: string;
   scopes?: string | null;
+  /** Provider-specific authorize params (e.g. Google access_type, Notion owner). */
+  extraParams?: Record<string, string> | null;
 }): string {
   const url = new URL(input.authorizeUrl);
   url.searchParams.set("response_type", "code");
@@ -347,7 +398,17 @@ export function buildOAuthAuthorizeUrl(input: {
   url.searchParams.set("code_challenge", input.codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
   if (input.scopes?.trim()) {
-    url.searchParams.set("scope", input.scopes.trim());
+    // Providers expect space-delimited scopes; accept commas from catalogs too.
+    const scope = input.scopes
+      .trim()
+      .replace(/,/g, " ")
+      .replace(/\s+/g, " ");
+    url.searchParams.set("scope", scope);
+  }
+  if (input.extraParams) {
+    for (const [key, value] of Object.entries(input.extraParams)) {
+      if (key && value) url.searchParams.set(key, value);
+    }
   }
   return url.toString();
 }
