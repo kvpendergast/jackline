@@ -390,18 +390,31 @@ No built-in pager. Typical setup:
 
 Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendly so export is additive.
 
+## Personal CLI
+
+Local MCP policy gateway (no control-plane required):
+
+```bash
+npm install -g @mesh/cli   # when published; or pnpm --filter @mesh/cli build && node apps/cli/dist/index.js
+mesh init && mesh catalog && mesh serve
+```
+
+See [`apps/cli/README.md`](apps/cli/README.md) for install, commands, and `~/.mesh` layout.
+
 ## Repo layout
 
 ```
 apps/
   api/       # control-plane (Hono)
   web/       # Vite/React admin UI (Steel Lattice + shadcn)
-  gateway/   # MCP gateway (stub)
+  gateway/   # MCP gateway (Streamable HTTP)
+  cli/       # personal Mesh CLI (@mesh/cli)
 packages/
-  shared/    # env, errors, tenancy, public DTOs
+  shared/    # env, errors, tenancy, public DTOs, connector catalog
   db/        # Drizzle schema + migrations
   auth/      # Better Auth instance
   crypto/    # AES-GCM envelope encryption
+  policy/    # policy evaluation
 ```
 
 ## License
