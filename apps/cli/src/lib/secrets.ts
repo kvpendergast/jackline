@@ -1,6 +1,7 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { createSecretBox } from "@mesh/crypto";
 import { z } from "zod";
+import { readMasterKey } from "./masterKey.js";
 import { getMeshPaths, type MeshPaths } from "./paths.js";
 
 const StoredSecretSchema = z.object({
@@ -25,19 +26,6 @@ async function pathExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function readMasterKey(paths: MeshPaths): Promise<string> {
-  if (!(await pathExists(paths.masterKey))) {
-    throw new Error(
-      `No master key at ${paths.masterKey}. Run \`mesh init\` first.`,
-    );
-  }
-  const key = (await readFile(paths.masterKey, "utf8")).trim();
-  if (!key) {
-    throw new Error(`Master key file is empty: ${paths.masterKey}`);
-  }
-  return key;
 }
 
 function getBox(masterKey: string) {
