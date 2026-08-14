@@ -4,7 +4,7 @@ packages:
 
 # Supply-chain hardening (see https://pnpm.io/supply-chain-security)
 # Delay new versions so malicious publishes can be yanked before we resolve them.
-minimumReleaseAge: 1440 # minutes (1 day)
+minimumReleaseAge: 4320 # minutes (3 days)
 # Refuse transitive git/tarball/URL deps; only direct deps may use exotic sources.
 blockExoticSubdeps: true
 # Fail if a package's trust evidence got weaker than earlier releases
