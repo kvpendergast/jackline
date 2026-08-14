@@ -1,0 +1,73 @@
+# Publish @mesh/cli to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
+# Configure the matching Trusted Publisher on npmjs.com before the first release:
+#   Organization/user: kvpendergast
+#   Repository:        mesh
+#   Workflow filename: publish-cli.yml
+#   Allowed action:    npm publish
+#
+# Release: bump apps/cli version, commit, then:
+#   git tag cli-vX.Y.Z && git push origin cli-vX.Y.Z
+name: Publish CLI
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+
+permissions:
+  contents: read
+  id-token: write # required for npm OIDC trusted publishing + provenance
+
+concurrency:
+  group: publish-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          # Release builds should not reuse install caches.
+          cache: ""
+
+      - name: Upgrade npm (OIDC trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Verify release tag matches package.json
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#cli-v}"
+          PKG="$(node -p "require('./apps/cli/package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag cli-v${TAG} does not match apps/cli version ${PKG}"
+            exit 1
+          fi
+          echo "Publishing @mesh/cli@${PKG}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck CLI
+        run: pnpm --filter @mesh/cli typecheck
+
+      - name: Build CLI
+        run: pnpm --filter @mesh/cli build
+
+      - name: Publish @mesh/cli
+        working-directory: apps/cli
+        # Build already ran; skip prepublishOnly (pnpm build) under npm.
+        # Auth is OIDC from id-token: write — do not set NODE_AUTH_TOKEN.
+        run: npm publish --access public --ignore-scripts
