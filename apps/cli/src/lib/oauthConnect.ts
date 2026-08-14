@@ -21,6 +21,28 @@ export type BrowserOAuthResult = {
   clientSecret: string;
 };
 
+/** Escape text interpolated into OAuth callback HTML pages. */
+export function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sendHtmlPage(
+  res: ServerResponse,
+  status: number,
+  title: string,
+  body: string,
+): void {
+  res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p></body></html>`,
+  );
+}
+
 async function openBrowser(url: string): Promise<void> {
   const os = platform();
   try {
@@ -95,10 +117,7 @@ export async function runBrowserOAuthConnect(input: {
         const err = params.get("error");
         if (err) {
           const desc = params.get("error_description") ?? err;
-          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(
-            `<html><body><h1>Authorization failed</h1><p>${desc}</p></body></html>`,
-          );
+          sendHtmlPage(res, 400, "Authorization failed", desc);
           clearTimeout(timer);
           server.close();
           reject(new Error(`OAuth error: ${desc}`));
@@ -108,9 +127,11 @@ export async function runBrowserOAuthConnect(input: {
         const returnedState = params.get("state");
         const authCode = params.get("code");
         if (!authCode || returnedState !== state) {
-          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(
-            `<html><body><h1>Invalid callback</h1><p>Missing code or state mismatch.</p></body></html>`,
+          sendHtmlPage(
+            res,
+            400,
+            "Invalid callback",
+            "Missing code or state mismatch.",
           );
           clearTimeout(timer);
           server.close();
@@ -118,9 +139,11 @@ export async function runBrowserOAuthConnect(input: {
           return;
         }
 
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(
-          `<html><body><h1>Connected</h1><p>You can close this tab and return to the terminal.</p></body></html>`,
+        sendHtmlPage(
+          res,
+          200,
+          "Connected",
+          "You can close this tab and return to the terminal.",
         );
         clearTimeout(timer);
         server.close();
