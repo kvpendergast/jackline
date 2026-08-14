@@ -28,6 +28,16 @@ export function generateScimToken(): string {
   return `scim_${randomBytes(32).toString("base64url")}`;
 }
 
+/** OAuth2 client_secret for Mesh Admin API client_credentials. */
+export function generateClientSecret(): string {
+  return `mesh_cs_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque OAuth2 access token for Mesh Admin API. */
+export function generateAccessToken(): string {
+  return `mesh_at_${randomBytes(32).toString("base64url")}`;
+}
+
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
   const config = getConfig();
   if (config.isErr()) throw config.error;

@@ -6,5 +6,7 @@ export {
   hashToken,
   generateInviteToken,
   generateScimToken,
+  generateClientSecret,
+  generateAccessToken,
   ssoSecretAad,
 } from "./createAuth.js";

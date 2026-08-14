@@ -8,7 +8,15 @@ export const Client = {
   handlers: clientHandlers,
 } as const;
 
-const routeOrder = ["list", "create", "get", "update", "delete"] as const;
+const routeOrder = [
+  "list",
+  "create",
+  "get",
+  "update",
+  "delete",
+  "rotateCredentials",
+  "revokeCredentials",
+] as const;
 
 export const clientsFeature: AppSlice = {
   name: "clients",

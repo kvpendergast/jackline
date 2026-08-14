@@ -179,6 +179,29 @@ export const meshApi = {
   createClient: (tenantId: string, body: { name: string; kind: ClientKind }) =>
     api<PublicClient>("/api/v1/clients", { tenantId, method: "POST", body }),
 
+  rotateClientCredentials: (
+    tenantId: string,
+    clientId: string,
+    body: { apiRole?: string; apiTeam?: string | null } = {},
+  ) =>
+    api<{
+      clientId: string;
+      clientSecret: string;
+      tokenUrl: string;
+      apiRole: string;
+      apiTeam: string | null;
+    }>(`/api/v1/clients/${clientId}/credentials`, {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  revokeClientCredentials: (tenantId: string, clientId: string) =>
+    api<PublicClient>(`/api/v1/clients/${clientId}/credentials`, {
+      tenantId,
+      method: "DELETE",
+    }),
+
   listUsers: (tenantId: string, kind?: string) =>
     apiPage<PublicUser>("/api/v1/users", {
       tenantId,

@@ -8,6 +8,7 @@ import {
 } from "./lib/request/index.js";
 import { scimApp } from "./features/identity/scim.js";
 import { oauthCallbackHandler } from "./features/oauth/handler.js";
+import { oauthTokenHandler } from "./features/clients/tokenHandler.js";
 import {
   publicV1Features,
   rootFeatures,
@@ -48,6 +49,9 @@ const v1 = createMeshApp();
 /** Browser OAuth redirect — must stay outside tenant middleware. */
 v1.get("/oauth/callback", oauthCallbackHandler);
 
+/** OAuth2 client_credentials token endpoint — public (client secret auth). */
+v1.post("/oauth/token", oauthTokenHandler);
+
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {
     v1.openapi(route, handler);
@@ -65,10 +69,28 @@ v1.route("/", tenantV1);
 
 app.route("/api/v1", v1);
 
+app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "Opaque",
+  description:
+    "OAuth2 access token from POST /api/v1/oauth/token (client_credentials).",
+});
+
+app.openAPIRegistry.registerComponent("securitySchemes", "sessionCookie", {
+  type: "apiKey",
+  in: "cookie",
+  name: "better-auth.session_token",
+  description: "Browser session cookie from Better Auth (admin UI).",
+});
+
 app.doc("/docs", {
   openapi: "3.0.0",
   info: {
     version: "1.0.0",
     title: "Mesh API",
+    description:
+      "Mesh control-plane API. Authenticate with a browser session cookie (admin UI) or an OAuth2 client_credentials access token (public/machine API).",
   },
+  security: [{ bearerAuth: [] }, { sessionCookie: [] }],
 });

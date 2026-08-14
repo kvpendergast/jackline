@@ -4,7 +4,9 @@ export type AuthContext = {
   userId: string;
   tenantId: string;
   membership: { id: string; role: string; team: string | null };
-  method: "session";
+  method: "session" | "oauth_client_credentials";
+  /** Present when method is oauth_client_credentials. */
+  clientId?: string;
 };
 
 export type AnonymousRequestContext = {

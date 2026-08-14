@@ -344,6 +344,61 @@ async function main() {
   }
   console.log("✓ gateway rejects quarantined connection");
 
+  // --- Public Admin API: OAuth2 client_credentials ---
+  const apiClient = await api<{ id: string }>("/api/v1/clients", {
+    method: "POST",
+    tenantId,
+    body: JSON.stringify({
+      name: `smoke-api-client-${Date.now()}`,
+      kind: "service",
+    }),
+  });
+  const creds = await api<{
+    clientId: string;
+    clientSecret: string;
+    tokenUrl: string;
+  }>(`/api/v1/clients/${apiClient.data.id}/credentials`, {
+    method: "POST",
+    tenantId,
+    body: "{}",
+  });
+  console.log("✓ OAuth2 client credentials minted");
+
+  const tokenRes = await fetch(creds.data.tokenUrl, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: creds.data.clientId,
+      client_secret: creds.data.clientSecret,
+    }),
+  });
+  const tokenJson = (await tokenRes.json()) as {
+    access_token?: string;
+    error?: string;
+  };
+  if (!tokenRes.ok || !tokenJson.access_token) {
+    throw new Error(
+      `oauth/token → ${tokenRes.status}: ${JSON.stringify(tokenJson)}`,
+    );
+  }
+  console.log("✓ oauth/token client_credentials");
+
+  const bearerServers = await fetch(`${API}/api/v1/servers?limit=5`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${tokenJson.access_token}`,
+      Origin: ORIGIN,
+    },
+  });
+  const bearerJson = await bearerServers.json();
+  if (!bearerServers.ok || bearerJson.success !== true) {
+    throw new Error(
+      `Bearer list servers → ${bearerServers.status}: ${JSON.stringify(bearerJson)}`,
+    );
+  }
+  console.log("✓ Bearer access token lists servers");
+
   console.log("\nGolden path OK");
 }
 

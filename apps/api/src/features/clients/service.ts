@@ -1,14 +1,37 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, clients, type Client as ClientRow } from "@mesh/db";
 import {
+  generateAccessToken,
+  generateClientSecret,
+  hashToken,
+} from "@mesh/auth";
+import {
+  db,
+  clients,
+  memberships,
+  oauthAccessTokens,
+  user,
+  type Client as ClientRow,
+} from "@mesh/db";
+import {
+  BadRequestError,
+  ForbiddenError,
+  getConfig,
   MeshError,
+  MembershipRoleSchema,
   NotFoundError,
+  oauthTokenUrl,
+  publicApiBaseUrl,
   SetupError,
+  UnauthorizedError,
   type ClientKind,
   type CursorPage,
+  type MembershipRole,
+  type MintedClientCredentials,
   type PublicClient,
+  MESH_ACCESS_TOKEN_TTL_SECONDS,
 } from "@mesh/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
@@ -26,21 +49,143 @@ export type CreateClientInput = {
 export type UpdateClientInput = {
   name?: string | undefined;
   kind?: ClientKind | undefined;
+  apiRole?: MembershipRole | undefined;
+  apiTeam?: string | null | undefined;
 };
 
 export type ListClientsQuery = PaginationQuery & {
   kind?: ClientKind | undefined;
 };
 
+export type RotateClientCredentialsInput = {
+  apiRole?: MembershipRole | undefined;
+  apiTeam?: string | null | undefined;
+};
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a, "utf8");
+    const bb = Buffer.from(b, "utf8");
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
 function toPublicClient(row: ClientRow): PublicClient {
+  const apiRole = MembershipRoleSchema.parse(row.apiRole);
   return {
     id: row.id,
     name: row.name,
     kind: row.kind,
     tenantId: row.tenantId,
+    hasClientSecret: row.clientSecretHash != null,
+    apiRole,
+    apiTeam: row.apiTeam ?? null,
+    clientSecretRotatedAt: row.clientSecretRotatedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function defaultServiceEmail(userId: string): string {
+  return `oauth-client+${userId.replace(/-/g, "")}@users.mesh.local`;
+}
+
+async function ensureServiceActor(
+  tenantId: string,
+  client: ClientRow,
+  apiRole: MembershipRole,
+  apiTeam: string | null,
+): Promise<Result<{ userId: string; membershipId: string }, MeshError>> {
+  if (client.serviceUserId) {
+    const [membership] = await db
+      .select()
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.userId, client.serviceUserId),
+          eq(memberships.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+
+    if (!membership) {
+      return err(
+        new SetupError("OAuth client service user is missing a membership"),
+      );
+    }
+
+    if (membership.role !== apiRole || (membership.team ?? null) !== apiTeam) {
+      const [updated] = await db
+        .update(memberships)
+        .set({
+          role: apiRole,
+          team: apiTeam,
+          updatedAt: new Date(),
+        })
+        .where(eq(memberships.id, membership.id))
+        .returning();
+      if (!updated) {
+        return err(new SetupError("Failed to update OAuth client membership"));
+      }
+      return ok({ userId: client.serviceUserId, membershipId: updated.id });
+    }
+
+    return ok({ userId: client.serviceUserId, membershipId: membership.id });
+  }
+
+  const id = crypto.randomUUID();
+  try {
+    const [row] = await db
+      .insert(user)
+      .values({
+        id,
+        name: `OAuth client: ${client.name}`,
+        email: defaultServiceEmail(id),
+        kind: "service",
+        emailVerified: true,
+      })
+      .returning();
+
+    if (!row) {
+      return err(new SetupError("Failed to create OAuth client service user"));
+    }
+
+    const [membership] = await db
+      .insert(memberships)
+      .values({
+        userId: row.id,
+        tenantId,
+        role: apiRole,
+        team: apiTeam,
+      })
+      .returning();
+
+    if (!membership) {
+      await db.delete(user).where(eq(user.id, row.id));
+      return err(
+        new SetupError("Failed to create OAuth client service membership"),
+      );
+    }
+
+    const [updatedClient] = await db
+      .update(clients)
+      .set({ serviceUserId: row.id, updatedAt: new Date() })
+      .where(and(eq(clients.id, client.id), eq(clients.tenantId, tenantId)))
+      .returning();
+
+    if (!updatedClient) {
+      await db.delete(user).where(eq(user.id, row.id));
+      return err(new SetupError("Failed to link OAuth client service user"));
+    }
+
+    return ok({ userId: row.id, membershipId: membership.id });
+  } catch (cause) {
+    await db.delete(user).where(eq(user.id, id)).catch(() => undefined);
+    return err(fromDbWriteError(cause, "Failed to create OAuth client actor"));
+  }
 }
 
 async function create(
@@ -157,6 +302,8 @@ async function update(
 
   if (input.name !== undefined) patch.name = input.name;
   if (input.kind !== undefined) patch.kind = input.kind;
+  if (input.apiRole !== undefined) patch.apiRole = input.apiRole;
+  if (input.apiTeam !== undefined) patch.apiTeam = input.apiTeam;
 
   try {
     const [row] = await db
@@ -167,6 +314,26 @@ async function update(
 
     if (!row) {
       return err(new NotFoundError("Client not found"));
+    }
+
+    if (
+      row.serviceUserId &&
+      (input.apiRole !== undefined || input.apiTeam !== undefined)
+    ) {
+      const apiRole = MembershipRoleSchema.parse(row.apiRole);
+      await db
+        .update(memberships)
+        .set({
+          role: apiRole,
+          team: row.apiTeam,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(memberships.userId, row.serviceUserId),
+            eq(memberships.tenantId, tenantId),
+          ),
+        );
     }
 
     log.info({ clientId, tenantId }, "Client.services.update");
@@ -190,8 +357,226 @@ async function remove(
     return err(new NotFoundError("Client not found"));
   }
 
+  if (row.serviceUserId) {
+    await db.delete(user).where(eq(user.id, row.serviceUserId)).catch(() => undefined);
+  }
+
   log.info({ clientId, tenantId }, "Client.services.delete");
   return ok(toPublicClient(row));
+}
+
+async function rotateCredentials(
+  log: Logger,
+  tenantId: string,
+  clientId: string,
+  input: RotateClientCredentialsInput = {},
+): Promise<Result<MintedClientCredentials, MeshError>> {
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .limit(1);
+
+  if (!client) {
+    return err(new NotFoundError("Client not found"));
+  }
+
+  if (client.kind !== "service") {
+    return err(
+      new BadRequestError(
+        "OAuth2 client credentials are only available for service clients",
+      ),
+    );
+  }
+
+  const apiRole = input.apiRole ?? MembershipRoleSchema.parse(client.apiRole);
+  const apiTeam =
+    input.apiTeam !== undefined ? input.apiTeam : (client.apiTeam ?? null);
+
+  if (apiRole === "delegated_admin" && !apiTeam) {
+    return err(
+      new BadRequestError("apiTeam is required when apiRole is delegated_admin"),
+    );
+  }
+
+  const actor = await ensureServiceActor(tenantId, client, apiRole, apiTeam);
+  if (actor.isErr()) return err(actor.error);
+
+  const config = getConfig();
+  if (config.isErr()) return err(config.error);
+
+  const clientSecret = generateClientSecret();
+  const now = new Date();
+
+  const [updated] = await db
+    .update(clients)
+    .set({
+      clientSecretHash: hashToken(clientSecret),
+      clientSecretRotatedAt: now,
+      apiRole,
+      apiTeam,
+      serviceUserId: actor.value.userId,
+      updatedAt: now,
+    })
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .returning();
+
+  if (!updated) {
+    return err(new SetupError("Failed to rotate client credentials"));
+  }
+
+  await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(oauthAccessTokens.clientId, clientId),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    );
+
+  log.info({ clientId, tenantId }, "Client.services.rotateCredentials");
+  return ok({
+    clientId: updated.id,
+    clientSecret,
+    tokenUrl: oauthTokenUrl(publicApiBaseUrl(config.value)),
+    apiRole,
+    apiTeam,
+  });
+}
+
+async function revokeCredentials(
+  log: Logger,
+  tenantId: string,
+  clientId: string,
+): Promise<Result<PublicClient, MeshError>> {
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .limit(1);
+
+  if (!client) {
+    return err(new NotFoundError("Client not found"));
+  }
+
+  if (!client.clientSecretHash) {
+    return err(new BadRequestError("Client has no credentials to revoke"));
+  }
+
+  const now = new Date();
+  await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(oauthAccessTokens.clientId, clientId),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    );
+
+  const [updated] = await db
+    .update(clients)
+    .set({
+      clientSecretHash: null,
+      clientSecretRotatedAt: null,
+      updatedAt: now,
+    })
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .returning();
+
+  if (!updated) {
+    return err(new SetupError("Failed to revoke client credentials"));
+  }
+
+  log.info({ clientId, tenantId }, "Client.services.revokeCredentials");
+  return ok(toPublicClient(updated));
+}
+
+export type IssueAccessTokenResult = {
+  accessToken: string;
+  expiresIn: number;
+  tokenType: "Bearer";
+};
+
+/**
+ * OAuth2 client_credentials grant. Validates client_id + client_secret.
+ */
+async function issueClientCredentialsToken(
+  log: Logger,
+  clientId: string,
+  clientSecret: string,
+): Promise<Result<IssueAccessTokenResult, MeshError>> {
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+
+  if (!client || !client.clientSecretHash) {
+    return err(new UnauthorizedError("Invalid client credentials"));
+  }
+
+  if (client.kind !== "service") {
+    return err(new UnauthorizedError("Invalid client credentials"));
+  }
+
+  if (
+    !timingSafeEqualHex(hashToken(clientSecret), client.clientSecretHash)
+  ) {
+    return err(new UnauthorizedError("Invalid client credentials"));
+  }
+
+  if (!client.serviceUserId) {
+    return err(
+      new SetupError("OAuth client is missing a linked service user"),
+    );
+  }
+
+  const [membership] = await db
+    .select()
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.userId, client.serviceUserId),
+        eq(memberships.tenantId, client.tenantId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return err(new ForbiddenError("OAuth client actor is not a tenant member"));
+  }
+
+  const accessToken = generateAccessToken();
+  const expiresIn = MESH_ACCESS_TOKEN_TTL_SECONDS;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+  const [row] = await db
+    .insert(oauthAccessTokens)
+    .values({
+      tokenHash: hashToken(accessToken),
+      clientId: client.id,
+      tenantId: client.tenantId,
+      userId: client.serviceUserId,
+      expiresAt,
+    })
+    .returning();
+
+  if (!row) {
+    return err(new SetupError("Failed to issue access token"));
+  }
+
+  log.info(
+    { clientId: client.id, tenantId: client.tenantId, expiresAt },
+    "Client.services.issueClientCredentialsToken",
+  );
+
+  return ok({
+    accessToken,
+    expiresIn,
+    tokenType: "Bearer",
+  });
 }
 
 export const clientServices = {
@@ -200,4 +585,7 @@ export const clientServices = {
   get,
   update,
   delete: remove,
+  rotateCredentials,
+  revokeCredentials,
+  issueClientCredentialsToken,
 } as const;

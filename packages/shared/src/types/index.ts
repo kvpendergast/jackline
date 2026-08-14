@@ -68,6 +68,17 @@ export {
   PublicClientSchema,
   type ClientKind,
   ClientKindSchema,
+  type MintedClientCredentials,
+  MintedClientCredentialsSchema,
+  type RotateClientCredentialsBody,
+  RotateClientCredentialsBodySchema,
+  type OauthTokenResponse,
+  OauthTokenResponseSchema,
+  MESH_ACCESS_TOKEN_PREFIX,
+  MESH_CLIENT_SECRET_PREFIX,
+  MESH_ACCESS_TOKEN_TTL_SECONDS,
+  OAUTH_TOKEN_PATH,
+  oauthTokenUrl,
 } from './client.js';
 export {
   type PublicConnection,
