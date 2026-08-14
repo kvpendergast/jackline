@@ -1,0 +1,41 @@
+---
+title: Introduction
+---
+
+# Mesh
+
+Mesh is an open-source, self-hostable **MCP policy gateway** with a control-plane API and admin UI.
+
+Clients (Cursor, Claude Code, agents) connect to Mesh as an MCP server. Mesh authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
+
+## What's in these docs
+
+- **Guides** — authentication for the public Admin API and self-hosting with Docker Compose
+- **[API Reference](/api)** — generated automatically from Mesh's OpenAPI schema (`GET /docs` on the API)
+
+## Quick start
+
+```bash
+pnpm install
+cp .env.example .env
+# set MESH_MASTER_KEY and BETTER_AUTH_SECRET
+
+pnpm db:migrate
+pnpm dev
+```
+
+Or with Compose:
+
+```bash
+cp .env.example .env
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+| Surface | Default URL |
+| --- | --- |
+| Admin UI | http://127.0.0.1:5173 |
+| API | http://127.0.0.1:8080 |
+| Gateway MCP | http://127.0.0.1:8081/mcp |
+| Docs (this site) | http://127.0.0.1:3000 |
+
+OpenAPI JSON from a running API: [`GET /docs`](http://127.0.0.1:8080/docs).

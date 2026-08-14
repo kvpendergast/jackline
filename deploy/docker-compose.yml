@@ -6,6 +6,7 @@
 # UI:      http://127.0.0.1:5173
 # API:     http://127.0.0.1:8080
 # Gateway: http://127.0.0.1:8081
+# Docs:    http://127.0.0.1:3000
 
 services:
   postgres:
@@ -93,6 +94,21 @@ services:
       VITE_API_PROXY: http://api:8080
     ports:
       - "5173:5173"
+    depends_on:
+      - api
+
+  docs:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    # Exports OpenAPI then serves Zudoku. Prefer host networking-friendly bind.
+    command: ["pnpm", "--filter", "@mesh/docs", "dev", "--", "--port", "3000"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+    ports:
+      - "3000:3000"
     depends_on:
       - api
 

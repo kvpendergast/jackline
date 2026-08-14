@@ -1,0 +1,5 @@
+# Zudoku / Vite
+dist
+.zudoku
+*.local
+.DS_Store
