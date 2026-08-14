@@ -399,7 +399,7 @@ npm install -g @mesh/cli   # when published; or pnpm --filter @mesh/cli build &&
 mesh init && mesh catalog && mesh serve
 ```
 
-See [`apps/cli/README.md`](apps/cli/README.md) for install, commands, and `~/.mesh` layout.
+`/mcp` requires a long-lived local bearer (`msh_…`) printed by `mesh init` / `mesh serve` / `mesh auth show`. See [`apps/cli/README.md`](apps/cli/README.md).
 
 ## Repo layout
 

@@ -38,6 +38,8 @@ export type MeshConfigServer = {
 export type MeshConfig = {
   version: 1;
   port: number;
+  /** Secret id for the long-lived local MCP gateway bearer token. */
+  gatewayTokenSecretId?: string | undefined;
   servers: MeshConfigServer[];
 };
 
@@ -46,4 +48,5 @@ export const DEFAULT_CONFIG_YAML = `\
 version: 1
 port: 8081
 servers: []
+# gatewayTokenSecretId is set by mesh init / first mesh serve
 `;

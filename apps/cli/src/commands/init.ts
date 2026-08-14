@@ -2,6 +2,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { consola } from "consola";
 import { defineMeshCommand } from "./defineMeshCommand.js";
+import { cursorMcpSettingsSnippet, mintGatewayToken } from "../lib/gatewayAuth.js";
 import { DEFAULT_CONFIG_YAML, getMeshPaths } from "../lib/paths.js";
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -59,9 +60,15 @@ export default defineMeshCommand({
       { encoding: "utf8", mode: 0o600 },
     );
 
+    const token = await mintGatewayToken(paths);
+
     consola.success(`Mesh initialized at ${paths.root}`);
     consola.info(`Config:     ${paths.config}`);
     consola.info(`Master key: ${paths.masterKey}`);
     consola.info(`Secrets:    ${paths.secrets}`);
+    consola.info("Gateway bearer token (add to MCP clients):");
+    consola.log(token);
+    consola.info("Cursor / Claude MCP settings:");
+    consola.log(cursorMcpSettingsSnippet("127.0.0.1", 8081, token));
   },
 });

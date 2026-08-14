@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getMeshPaths, type MeshPaths } from "./paths.js";
 
 const StoredSecretSchema = z.object({
-  kind: z.enum(["api_key", "oauth"]),
+  kind: z.enum(["api_key", "oauth", "gateway_token"]),
   ciphertext: z.string().min(1),
   nonce: z.string().min(1),
   keyVersion: z.number().int().positive(),
@@ -80,7 +80,7 @@ async function saveSecretsFile(
 export async function putSecret(
   input: {
     secretId: string;
-    kind: "api_key" | "oauth";
+    kind: "api_key" | "oauth" | "gateway_token";
     plaintext: string;
   },
   paths?: MeshPaths,
@@ -107,7 +107,7 @@ export async function putSecret(
 export async function getSecretPlaintext(
   secretId: string,
   paths?: MeshPaths,
-): Promise<{ kind: "api_key" | "oauth"; value: string }> {
+): Promise<{ kind: "api_key" | "oauth" | "gateway_token"; value: string }> {
   const p = paths ?? getMeshPaths();
   const file = await loadSecretsFile(p);
   const row = file.secrets[secretId];
