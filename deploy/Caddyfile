@@ -1,0 +1,48 @@
+# Mesh edge proxy (production Compose).
+# Path routing keeps Admin UI + API on one origin (cookies / CORS stay simple).
+#
+#   http://localhost/           → admin UI
+#   http://localhost/api/*      → API
+#   http://localhost/scim/*     → SCIM
+#   http://localhost/health     → API health
+#   http://localhost/openapi.json → OpenAPI JSON
+#   http://localhost/mcp        → MCP gateway
+#   http://docs.localhost/      → Zudoku docs
+
+{
+	auto_https off
+}
+
+http://{$MESH_HOST:localhost} {
+	encode gzip
+
+	handle /mcp* {
+		reverse_proxy gateway:8081
+	}
+
+	handle /api* {
+		reverse_proxy api:8080
+	}
+
+	handle /scim* {
+		reverse_proxy api:8080
+	}
+
+	handle /health {
+		reverse_proxy api:8080
+	}
+
+	handle /openapi.json {
+		rewrite * /docs
+		reverse_proxy api:8080
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}
+
+http://docs.{$MESH_HOST:localhost} {
+	encode gzip
+	reverse_proxy docs:80
+}

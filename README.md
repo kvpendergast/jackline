@@ -25,7 +25,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
-| Compose stand-up | `deploy/docker-compose.yml` |
+| Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod images + Caddy) |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 
@@ -83,11 +83,39 @@ WEB_ORIGIN=http://127.0.0.1:5173
 MESH_TENANCY=single   # or multi
 ```
 
-Also: `deploy/docker-compose.yml` for a single-host stand-up (Postgres + migrate + api + gateway + web).
+Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
 
 ```bash
 cp .env.example .env   # set MESH_MASTER_KEY, BETTER_AUTH_SECRET
 docker compose -f deploy/docker-compose.yml up --build
+```
+
+### Production Compose (recommended self-host)
+
+Multi-stage images (`deploy/Dockerfile`) + Caddy edge proxy (`deploy/compose.prod.yml`):
+
+```bash
+cp deploy/.env.prod.example .env.prod
+# set MESH_MASTER_KEY and BETTER_AUTH_SECRET
+docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+```
+
+| URL | Service |
+| --- | --- |
+| http://localhost/ | Admin UI (API at `/api`, MCP at `/mcp`) |
+| http://docs.localhost/ | Docs |
+| http://localhost/openapi.json | OpenAPI JSON |
+| http://localhost/health | API health |
+
+Same-origin routing keeps session cookies simple. Set `MESH_HOST` / `WEB_ORIGIN` / `BETTER_AUTH_URL` / `MESH_PUBLIC_*` when using a real domain.
+
+Build a single target:
+
+```bash
+docker build -f deploy/Dockerfile --target api -t mesh-api .
+docker build -f deploy/Dockerfile --target gateway -t mesh-gateway .
+docker build -f deploy/Dockerfile --target web -t mesh-web .
+docker build -f deploy/Dockerfile --target docs -t mesh-docs .
 ```
 
 Migrate and start:

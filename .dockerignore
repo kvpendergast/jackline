@@ -1,0 +1,20 @@
+# Keep production image builds fast and small
+node_modules
+**/node_modules
+**/dist
+**/.zudoku
+.git
+.github
+.env
+.env.*
+!.env.example
+deploy/.env.prod.example
+*.log
+.DS_Store
+coverage
+.turbo
+**/*.tsbuildinfo
+apps/cli
+_design_preview
+*.md
+!README.md

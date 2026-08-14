@@ -173,6 +173,7 @@ export function MyAccessPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Personal"
         title="My Access"
         description="Connect your personal accounts for the apps your organization enables. Tool permissions stay with IT."
       />

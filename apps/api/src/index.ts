@@ -1,10 +1,14 @@
+import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@mesh/shared";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-loadEnvFile(path.join(root, ".env"));
+const envPath = path.join(root, ".env");
+if (existsSync(envPath)) {
+  loadEnvFile(envPath);
+}
 const configResult = loadConfig();
 
 if (configResult.isErr()) throw configResult.error;
