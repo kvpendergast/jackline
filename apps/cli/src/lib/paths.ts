@@ -38,6 +38,8 @@ export type MeshConfigServer = {
 export type MeshConfig = {
   version: 1;
   port: number;
+  /** Where the AES master key is kept. Default / preferred: OS keychain. */
+  keyStorage?: "keychain" | "file" | undefined;
   /** Secret id for the long-lived local MCP gateway bearer token. */
   gatewayTokenSecretId?: string | undefined;
   servers: MeshConfigServer[];
@@ -47,6 +49,18 @@ export const DEFAULT_CONFIG_YAML = `\
 # Personal Mesh configuration
 version: 1
 port: 8081
+keyStorage: keychain
 servers: []
 # gatewayTokenSecretId is set by mesh init / first mesh serve
 `;
+
+export function defaultConfigYaml(keyStorage: "keychain" | "file"): string {
+  return `\
+# Personal Mesh configuration
+version: 1
+port: 8081
+keyStorage: ${keyStorage}
+servers: []
+# gatewayTokenSecretId is set by mesh init / first mesh serve
+`;
+}

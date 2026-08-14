@@ -50,7 +50,8 @@ mesh serve
 
 | Command | Purpose |
 | --- | --- |
-| `mesh init` | Create `~/.mesh` config, master key, secrets store, and gateway token |
+| `mesh init` | Create `~/.mesh` config, master key (keychain by default), secrets store, and gateway token |
+| `mesh init --file-key` | Same, but store the master key as a plaintext file (warns; less secure) |
 | `mesh auth show` | Print the gateway bearer token and MCP client snippet |
 | `mesh catalog` | List built-in connector presets (`linear`, `gmail`, …) |
 | `mesh add <name-or-key>` | Register an upstream MCP server (API key, pasted OAuth, or `--connect`) |
@@ -83,22 +84,31 @@ mesh auth show
 
 Default root: `~/.mesh` (override with `--dir`).
 
-| Path | Role |
+| Path / store | Role |
 | --- | --- |
-| `config.yaml` | Port, `gatewayTokenSecretId`, upstream servers / tool policy |
-| `master.key` | Local AES-GCM master key (mode `0600`) |
+| `config.yaml` | Port, `keyStorage`, `gatewayTokenSecretId`, upstream servers / tool policy |
+| OS keychain (default) | AES-GCM **master key** (`mesh-cli` service) |
+| `master.key` | Only when using `--file-key` / `keyStorage: file` (mode `0600`) |
 | `secrets.json` | Encrypted upstream credentials + gateway token secret (mode `0600`) |
 
-`mesh init --force` overwrites an existing config and master key (and mints a new gateway token).
+`mesh init` stores the master key in the **OS keychain** by default (macOS Keychain, Windows Credential Manager, Linux Secret Service via `secret-tool`).
+
+Opt out (less secure — prints a warning):
+
+```bash
+mesh init --file-key
+```
+
+`mesh init --force` overwrites an existing config and master key (and mints a new gateway token). Existing plaintext `master.key` installs are migrated into the keychain on first use when possible.
 
 ## Security notes
 
 - **`/mcp` requires** `Authorization: Bearer msh_…` (same token format as hosted Mesh). `/health` stays open for liveness.
 - The token is long-lived and stable across `mesh serve` restarts; it is not rotated automatically.
-- Secrets are encrypted at rest with the local master key (`@mesh/crypto`).
+- Secrets are encrypted at rest with the local master key (`@mesh/crypto`). Prefer keychain storage for that key so backups/sync of `~/.mesh` do not include the wrapping secret.
 - Config and secret files are written with mode `0600`.
 - The gateway listens on `127.0.0.1` by default — it is meant for local clients, not exposure to the network.
-- Treat `~/.mesh/master.key` and the gateway bearer like passwords; losing the master key makes stored secrets unrecoverable.
+- Treat the gateway bearer (and any `master.key` if you opted into `--file-key`) like passwords; losing the master key makes stored secrets unrecoverable.
 - Localhost binding + bearer slows down casual loopback abuse; it does not protect a fully compromised machine that can read your MCP client config.
 
 ## Development (monorepo)
