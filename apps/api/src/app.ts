@@ -9,6 +9,7 @@ import {
 import { scimApp } from "./features/identity/scim.js";
 import { oauthCallbackHandler } from "./features/oauth/handler.js";
 import { oauthTokenHandler } from "./features/clients/tokenHandler.js";
+import { oauthTokenRoute } from "./features/clients/tokenRoute.js";
 import {
   publicV1Features,
   rootFeatures,
@@ -49,8 +50,13 @@ const v1 = createMeshApp();
 /** Browser OAuth redirect — must stay outside tenant middleware. */
 v1.get("/oauth/callback", oauthCallbackHandler);
 
-/** OAuth2 client_credentials token endpoint — public (client secret auth). */
+/**
+ * OAuth2 client_credentials token endpoint — public (client secret auth).
+ * Registered with plain post so form-urlencoded + Basic auth are not run
+ * through the JSON OpenAPI validation hook; path is registered for /docs.
+ */
 v1.post("/oauth/token", oauthTokenHandler);
+v1.openAPIRegistry.registerPath(oauthTokenRoute);
 
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {
@@ -92,5 +98,11 @@ app.doc("/docs", {
     description:
       "Mesh control-plane API. Authenticate with a browser session cookie (admin UI) or an OAuth2 client_credentials access token (public/machine API).",
   },
+  servers: [
+    {
+      url: "http://127.0.0.1:8080",
+      description: "Local development",
+    },
+  ],
   security: [{ bearerAuth: [] }, { sessionCookie: [] }],
 });

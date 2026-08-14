@@ -1,0 +1,28 @@
+{
+  "name": "@mesh/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "predev": "pnpm --filter @mesh/api openapi:export",
+    "dev": "zudoku dev --port 3000",
+    "prebuild": "pnpm --filter @mesh/api openapi:export",
+    "build": "zudoku build",
+    "preview": "zudoku preview --port 3000",
+    "openapi:export": "pnpm --filter @mesh/api openapi:export",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"lint later\""
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zudoku": "0.83.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -6,6 +6,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "pnpm -r --parallel --filter @mesh/api --filter @mesh/web --filter @mesh/gateway dev",
+    "docs:dev": "pnpm --filter @mesh/docs dev",
+    "docs:build": "pnpm --filter @mesh/docs build",
+    "openapi:export": "pnpm --filter @mesh/api openapi:export",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",

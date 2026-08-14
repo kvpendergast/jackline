@@ -1,0 +1,45 @@
+---
+title: Self-hosting
+---
+
+# Self-hosting
+
+Mesh is designed to run on a single host with Docker Compose.
+
+```bash
+cp .env.example .env
+# set MESH_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
+
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+Services:
+
+| Service | Port |
+| --- | --- |
+| Postgres | 5433 → 5432 |
+| API | 8080 |
+| Gateway | 8081 |
+| Admin UI | 5173 |
+| Docs | 3000 |
+
+## Local development
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm db:migrate
+pnpm dev          # api + web + gateway
+pnpm docs:dev     # Zudoku on :3000 (exports OpenAPI first)
+```
+
+## Regenerating the API reference
+
+The API reference is built from OpenAPI exported from `@mesh/api`:
+
+```bash
+pnpm openapi:export   # writes apps/docs/apis/openapi.json
+pnpm docs:dev         # or docs:build
+```
+
+`docs:dev` / `docs:build` run the export automatically via `predev` / `prebuild`.
