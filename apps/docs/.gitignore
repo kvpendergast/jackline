@@ -1,0 +1,7 @@
+# Zudoku / Vite
+dist
+.zudoku
+.vercel
+.netlify
+*.local
+.DS_Store

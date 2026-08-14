@@ -27,6 +27,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
 | Compose stand-up | `deploy/docker-compose.yml` |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
+| Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 
 Next: My Access / access requests, OTEL, rate limits, mTLS.
 
@@ -104,6 +105,7 @@ API listens on `http://127.0.0.1:8080` by default.
 - Better Auth: `/api/auth/*`
 - Mesh v1: `/api/v1/*`
 - OAuth2 token (client_credentials): `POST /api/v1/oauth/token`
+- Docs site (Zudoku): `pnpm docs:dev` → http://127.0.0.1:3000 (exports OpenAPI via `pnpm openapi:export`)
 
 ## Smoke test
 

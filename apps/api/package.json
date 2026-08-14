@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"lint later\"",
-    "smoke": "tsx scripts/smoke-golden-path.ts"
+    "smoke": "tsx scripts/smoke-golden-path.ts",
+    "openapi:export": "tsx scripts/export-openapi.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
