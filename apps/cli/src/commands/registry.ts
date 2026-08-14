@@ -1,4 +1,5 @@
 import { defineCommand } from "citty";
+import packageJson from "../../package.json" with { type: "json" };
 
 /**
  * Command catalog. Add a module under ./ and one entry here.
@@ -38,8 +39,8 @@ const catalog = [
 export const main = defineCommand({
   meta: {
     name: "mesh",
-    version: "0.0.0",
-    description: "Personal Mesh CLI — local MCP policy gateway",
+    version: packageJson.version,
+    description: packageJson.description,
   },
   subCommands: Object.fromEntries(catalog.map((c) => [c.name, c.load])),
 });
