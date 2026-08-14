@@ -15,6 +15,10 @@ const catalog = [
     load: () => import("./init.js").then((m) => m.default),
   },
   {
+    name: "auth",
+    load: () => import("./auth.js").then((m) => m.default),
+  },
+  {
     name: "add",
     load: () => import("./add.js").then((m) => m.default),
   },

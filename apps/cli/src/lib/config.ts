@@ -6,6 +6,7 @@ import { getMeshPaths, type MeshConfig, type MeshPaths } from "./paths.js";
 const MeshConfigSchema = z.object({
   version: z.literal(1),
   port: z.number().int().min(1).max(65535),
+  gatewayTokenSecretId: z.string().uuid().optional(),
   servers: z.array(
     z.object({
       id: z.string().min(1),

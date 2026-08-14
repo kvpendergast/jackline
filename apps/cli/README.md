@@ -2,7 +2,7 @@
 
 Personal **Mesh** CLI — a local MCP policy gateway you run on your machine.
 
-Clients (Cursor, Claude Code, and other MCP hosts) connect to Mesh. Mesh authenticates upstream servers, applies per-tool allow/deny policy, and proxies allowed tool calls.
+Clients (Cursor, Claude Code, and other MCP hosts) connect to Mesh. Mesh authenticates the caller with a local gateway bearer token, applies per-tool allow/deny policy, and proxies allowed tool calls to upstream MCP servers.
 
 ## Requirements
 
@@ -29,25 +29,29 @@ mesh add linear --connect
 mesh serve
 ```
 
-Point your MCP client at the local gateway:
+`mesh init` / first `mesh serve` mints a **long-lived** local gateway token (`msh_…`). Put the same bearer in every MCP client:
 
 ```json
 {
   "mcpServers": {
     "mesh": {
-      "url": "http://127.0.0.1:8081/mcp"
+      "url": "http://127.0.0.1:8081/mcp",
+      "headers": {
+        "Authorization": "Bearer msh_<secretId>.<secret>"
+      }
     }
   }
 }
 ```
 
-`mesh serve` prints this snippet on startup.
+`mesh serve` prints this snippet on startup. Re-print anytime with `mesh auth show`.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `mesh init` | Create `~/.mesh` config, master key, and secrets store |
+| `mesh init` | Create `~/.mesh` config, master key, secrets store, and gateway token |
+| `mesh auth show` | Print the gateway bearer token and MCP client snippet |
 | `mesh catalog` | List built-in connector presets (`linear`, `gmail`, …) |
 | `mesh add <name-or-key>` | Register an upstream MCP server (API key, pasted OAuth, or `--connect`) |
 | `mesh connect <name>` | Re-run browser OAuth for an existing server |
@@ -70,6 +74,9 @@ mesh add my-server --url https://mcp.example.com/mcp --auth api_key --api-key "$
 mesh tools list linear
 mesh tools disable linear some_tool_name
 mesh tools enable linear some_tool_name
+
+# Re-print gateway token for Cursor / Claude
+mesh auth show
 ```
 
 ## Config layout
@@ -78,18 +85,21 @@ Default root: `~/.mesh` (override with `--dir`).
 
 | Path | Role |
 | --- | --- |
-| `config.yaml` | Port + upstream server list / tool policy |
+| `config.yaml` | Port, `gatewayTokenSecretId`, upstream servers / tool policy |
 | `master.key` | Local AES-GCM master key (mode `0600`) |
-| `secrets.json` | Encrypted upstream credentials (mode `0600`) |
+| `secrets.json` | Encrypted upstream credentials + gateway token secret (mode `0600`) |
 
-`mesh init --force` overwrites an existing config and master key.
+`mesh init --force` overwrites an existing config and master key (and mints a new gateway token).
 
 ## Security notes
 
+- **`/mcp` requires** `Authorization: Bearer msh_…` (same token format as hosted Mesh). `/health` stays open for liveness.
+- The token is long-lived and stable across `mesh serve` restarts; it is not rotated automatically.
 - Secrets are encrypted at rest with the local master key (`@mesh/crypto`).
 - Config and secret files are written with mode `0600`.
 - The gateway listens on `127.0.0.1` by default — it is meant for local clients, not exposure to the network.
-- Treat `~/.mesh/master.key` like a password backup; losing it makes stored secrets unrecoverable.
+- Treat `~/.mesh/master.key` and the gateway bearer like passwords; losing the master key makes stored secrets unrecoverable.
+- Localhost binding + bearer slows down casual loopback abuse; it does not protect a fully compromised machine that can read your MCP client config.
 
 ## Development (monorepo)
 
