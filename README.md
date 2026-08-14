@@ -26,6 +26,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
 | Compose stand-up | `deploy/docker-compose.yml` |
+| Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 
 Next: My Access / access requests, OTEL, rate limits, mTLS.
 
@@ -102,6 +103,7 @@ API listens on `http://127.0.0.1:8080` by default.
 - OpenAPI JSON: `GET /docs`
 - Better Auth: `/api/auth/*`
 - Mesh v1: `/api/v1/*`
+- OAuth2 token (client_credentials): `POST /api/v1/oauth/token`
 
 ## Smoke test
 
@@ -256,7 +258,7 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/users \
 
 ### Clients (tenant-scoped)
 
-Mesh front-door registrations: `interactive` (human harnesses) or `service` (machine clients). Names unique per tenant.
+Mesh front-door registrations: `interactive` (human harnesses) or `service` (machine / public Admin API). Names unique per tenant.
 
 ```bash
 curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
@@ -266,6 +268,40 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
 
 # GET /api/v1/clients?kind=interactive
 # GET|PATCH|DELETE /api/v1/clients/:id
+```
+
+#### Public Admin API (OAuth2 client_credentials)
+
+`service` clients can mint OAuth2 credentials. Access tokens authenticate the same `/api/v1` routes as session cookies (no `X-Mesh-Tenant-Id` required; tenant comes from the token).
+
+```bash
+# Create a service client + mint credentials (client_secret shown once)
+curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{"name":"ci-bot","kind":"service"}' | jq .
+
+CLIENT_ID='…'
+curl -sS -b /tmp/mesh-cookies.txt -X POST \
+  "http://127.0.0.1:8080/api/v1/clients/$CLIENT_ID/credentials" \
+  -H 'content-type: application/json' \
+  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -d '{}' | jq .
+# → data.clientId, data.clientSecret, data.tokenUrl
+
+# Exchange for an access token
+curl -sS -X POST http://127.0.0.1:8080/api/v1/oauth/token \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" | jq .
+# → access_token, token_type=Bearer, expires_in
+
+# Call the Admin API with the Bearer token
+curl -sS http://127.0.0.1:8080/api/v1/servers \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq .
+
+# Rotate / revoke
+# POST   /api/v1/clients/:id/credentials   (rotates secret; revokes outstanding tokens)
+# DELETE /api/v1/clients/:id/credentials
 ```
 
 ### Connections (tenant-scoped)

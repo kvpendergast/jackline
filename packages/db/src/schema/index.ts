@@ -10,3 +10,4 @@ export * from "./secrets.js";
 export * from "./auditEvents.js";
 export * from "./identity.js";
 export * from "./oauthStates.js";
+export * from "./oauthAccessTokens.js";

@@ -59,10 +59,46 @@ const remove: RouteHandler<typeof Client.routes.delete, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 200);
 };
 
+const rotateCredentials: RouteHandler<
+  typeof Client.routes.rotateCredentials,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const result = await Client.services.rotateCredentials(
+    log,
+    auth.tenantId,
+    id,
+    body,
+  );
+  if (result.isErr()) {
+    throw result.error;
+  }
+
+  return c.json(okEnvelope(result.value), 201);
+};
+
+const revokeCredentials: RouteHandler<
+  typeof Client.routes.revokeCredentials,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const result = await Client.services.revokeCredentials(log, auth.tenantId, id);
+  if (result.isErr()) {
+    throw result.error;
+  }
+
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const clientHandlers = {
   list,
   create,
   get,
   update,
   delete: remove,
+  rotateCredentials,
+  revokeCredentials,
 } as const;

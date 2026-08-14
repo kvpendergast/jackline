@@ -2,6 +2,8 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
   ClientKindSchema,
   cursorPageSchema,
+  MembershipRoleSchema,
+  MintedClientCredentialsSchema,
   PublicClientSchema,
 } from "@mesh/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
@@ -40,6 +42,8 @@ const UpdateClientBodySchema = z
   .strictObject({
     name: z.string().min(1).optional(),
     kind: ClientKindSchema.optional(),
+    apiRole: MembershipRoleSchema.optional(),
+    apiTeam: z.string().min(1).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",
@@ -55,6 +59,18 @@ const ClientListResponseSchema = successEnvelopeSchema(
   cursorPageSchema(PublicClientSchema),
   "ClientListResponse",
 );
+
+const MintedCredentialsResponseSchema = successEnvelopeSchema(
+  MintedClientCredentialsSchema,
+  "MintedClientCredentialsResponse",
+);
+
+const RotateCredentialsBodySchema = z
+  .strictObject({
+    apiRole: MembershipRoleSchema.optional(),
+    apiTeam: z.string().min(1).nullable().optional(),
+  })
+  .openapi("RotateClientCredentialsBody");
 
 const clientNotFound = notFoundError("Client not found");
 
@@ -171,10 +187,64 @@ const remove = createRoute({
   },
 });
 
+const rotateCredentials = createRoute({
+  method: "post",
+  path: "/clients/{id}/credentials",
+  tags: ["Clients"],
+  summary: "Mint or rotate OAuth2 client credentials",
+  description:
+    "Only service clients can hold client_credentials. The client_secret is shown once. Existing access tokens for this client are revoked.",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ClientIdParamSchema,
+    body: {
+      content: { "application/json": { schema: RotateCredentialsBodySchema } },
+      required: true,
+    },
+  },
+  responses: {
+    201: {
+      description: "Credentials minted; store client_secret now — it is not shown again",
+      content: {
+        "application/json": { schema: MintedCredentialsResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...clientNotFound,
+  },
+});
+
+const revokeCredentials = createRoute({
+  method: "delete",
+  path: "/clients/{id}/credentials",
+  tags: ["Clients"],
+  summary: "Revoke OAuth2 client credentials",
+  description:
+    "Clears the client_secret and revokes outstanding access tokens for this client.",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ClientIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Credentials revoked",
+      content: {
+        "application/json": { schema: ClientResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...clientNotFound,
+  },
+});
+
 export const clientRoutes = {
   list,
   create,
   get,
   update,
   delete: remove,
+  rotateCredentials,
+  revokeCredentials,
 } as const;
