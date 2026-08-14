@@ -1,37 +1,65 @@
 {
   "name": "@mesh/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Personal Mesh CLI — local MCP policy gateway",
   "type": "module",
   "license": "MIT",
+  "author": "Mesh contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kvpendergast/mesh.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/kvpendergast/mesh/tree/main/apps/cli",
+  "bugs": {
+    "url": "https://github.com/kvpendergast/mesh/issues"
+  },
+  "keywords": [
+    "mcp",
+    "cli",
+    "gateway",
+    "policy",
+    "mesh",
+    "model-context-protocol"
+  ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "bin": {
     "mesh": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
+    "prepublishOnly": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"lint later\""
   },
   "devDependencies": {
+    "@mesh/crypto": "workspace:*",
+    "@mesh/shared": "workspace:*",
     "tsup": "^8.5.1",
     "tsx": "^4.19.0"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.10",
-    "@mesh/crypto": "workspace:*",
-    "@mesh/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "hono": "^4.12.30",
+    "neverthrow": "^8.2.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   }
