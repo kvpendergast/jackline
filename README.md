@@ -41,7 +41,7 @@ Next: My Access / access requests, OTEL, rate limits, mTLS.
 ## Prerequisites
 
 - Node 22+
-- pnpm 9+
+- pnpm 10.16+ (supply-chain settings in `pnpm-workspace.yaml`: release age, trust policy, exotic subdeps)
 - Postgres 16+
 
 ## Setup

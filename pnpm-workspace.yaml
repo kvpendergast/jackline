@@ -1,5 +1,18 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Supply-chain hardening (see https://pnpm.io/supply-chain-security)
+# Delay new versions so malicious publishes can be yanked before we resolve them.
+minimumReleaseAge: 4320 # minutes (3 days)
+# Refuse transitive git/tarball/URL deps; only direct deps may use exotic sources.
+blockExoticSubdeps: true
+# Fail if a package's trust evidence got weaker than earlier releases
+# (e.g. trusted publisher → provenance-only / none).
+trustPolicy: no-downgrade
+# Older releases often predate trusted publishing; don't fail trust checks on them.
+trustPolicyIgnoreAfter: 525600 # minutes (365 days)
+
+# Lifecycle scripts: only explicitly allowed packages may build (pnpm v10+).
 allowBuilds:
   esbuild: true
