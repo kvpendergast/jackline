@@ -114,6 +114,38 @@ pnpm --filter @mesh/cli typecheck
 
 Workspace packages `@mesh/crypto` and `@mesh/shared` are **bundled into `dist`** at build time so the published package does not depend on private workspace packages.
 
+## Publishing (`@mesh/cli`)
+
+Releases are meant to go out **only from GitHub Actions** via npm **trusted publishing** (OIDC). There should be no long-lived `NPM_TOKEN` for routine publishes.
+
+### One-time setup (maintainer)
+
+1. Own the `@mesh` npm org; enforce 2FA for publishers.
+2. On npmjs.com → `@mesh/cli` → Trusted Publisher:
+   - GitHub user/org: `kvpendergast`
+   - Repository: `mesh`
+   - Workflow filename: `publish-cli.yml`
+   - Allowed action: `npm publish`
+3. Bootstrap the first package version if npm requires it (short-lived token), then **revoke** that token. Later releases use OIDC only.
+
+Workflow: [`.github/workflows/publish-cli.yml`](../../.github/workflows/publish-cli.yml).
+
+### Cut a release
+
+1. Bump `"version"` in `apps/cli/package.json` (keep in sync with any user-facing docs).
+2. Merge to `main`.
+3. Tag and push (tag must match the package version):
+
+```bash
+git tag cli-v0.1.0
+git push origin cli-v0.1.0
+```
+
+4. Confirm the **Publish CLI** workflow succeeded on GitHub Actions.
+5. Verify: `npm view @mesh/cli version`
+
+Do **not** run `npm publish` from a laptop for normal releases.
+
 ## License
 
 MIT

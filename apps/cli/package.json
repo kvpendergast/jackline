@@ -37,7 +37,8 @@
     ".": "./dist/index.js"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
