@@ -7,7 +7,6 @@
   "scripts": {
     "predev": "pnpm --filter @mesh/api openapi:export",
     "dev": "zudoku dev --port 3000",
-    "prebuild": "pnpm --filter @mesh/api openapi:export",
     "build": "zudoku build",
     "preview": "zudoku preview --port 3000",
     "openapi:export": "pnpm --filter @mesh/api openapi:export",

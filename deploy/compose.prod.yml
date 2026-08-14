@@ -1,0 +1,125 @@
+# Production single-host stand-up for Mesh.
+#
+# Usage (from repo root):
+#   cp deploy/.env.prod.example .env.prod
+#   # set MESH_MASTER_KEY, BETTER_AUTH_SECRET
+#   docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+#
+# Entry points:
+#   App (+ API + MCP):  http://localhost/
+#   Docs:               http://docs.localhost/
+#   OpenAPI JSON:       http://localhost/openapi.json
+#
+# Dev (tsx watch) stack remains: deploy/docker-compose.yml + Dockerfile.dev
+
+name: mesh
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mesh
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mesh}
+      POSTGRES_DB: mesh
+    volumes:
+      - mesh_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mesh -d mesh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: migrate
+    env_file:
+      - ../.env.prod
+    environment:
+      DATABASE_URL: postgresql://mesh:${POSTGRES_PASSWORD:-mesh}@postgres:5432/mesh
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: api
+    env_file:
+      - ../.env.prod
+    environment:
+      DATABASE_URL: postgresql://mesh:${POSTGRES_PASSWORD:-mesh}@postgres:5432/mesh
+      API_HOST: 0.0.0.0
+      API_PORT: 8080
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: gateway
+    env_file:
+      - ../.env.prod
+    environment:
+      DATABASE_URL: postgresql://mesh:${POSTGRES_PASSWORD:-mesh}@postgres:5432/mesh
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 8081
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: web
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  docs:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: docs
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.9-alpine
+    ports:
+      - "${MESH_HTTP_PORT:-80}:80"
+    environment:
+      MESH_HOST: ${MESH_HOST:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+      - gateway
+      - web
+      - docs
+    restart: unless-stopped
+
+volumes:
+  mesh_pg:

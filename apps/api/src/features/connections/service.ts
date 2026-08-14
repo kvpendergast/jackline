@@ -22,6 +22,7 @@ import {
   formatGatewayToken,
   GATEWAY_TOKEN_KIND,
   getConfig,
+  publicMcpUrl,
   MeshError,
   NotFoundError,
   SetupError,
@@ -765,9 +766,11 @@ function toPublicGatewayCredential(row: SecretRow): PublicGatewayCredential {
 
 function gatewayMcpConfig(token: string): MintedGatewayCredential["mcp"] {
   const configResult = getConfig();
-  const port = configResult.isOk() ? configResult.value.GATEWAY_PORT : 8081;
+  const url = configResult.isOk()
+    ? publicMcpUrl(configResult.value)
+    : "http://127.0.0.1:8081/mcp";
   return {
-    url: `http://127.0.0.1:${port}/mcp`,
+    url,
     headers: {
       Authorization: `Bearer ${token}`,
     },

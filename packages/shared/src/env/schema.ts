@@ -10,6 +10,7 @@ export const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1), // or z.url() if you want stricter
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().positive().default(8080),
+  GATEWAY_HOST: z.string().default("127.0.0.1"),
   GATEWAY_PORT: z.coerce.number().int().positive().default(8081),
   WEB_ORIGIN: z.string().default("http://127.0.0.1:5173"),
   BETTER_AUTH_SECRET: z.string().min(1),
@@ -25,6 +26,12 @@ export const EnvSchema = z.object({
    * BETTER_AUTH_URL on localhost.
    */
   MESH_PUBLIC_API_URL: z.string().url().optional(),
+  /**
+   * Public MCP gateway URL embedded in minted connection credentials.
+   * Defaults to http://127.0.0.1:${GATEWAY_PORT}/mcp.
+   * Production Compose (Caddy): http://localhost/mcp or https://mesh.example.com/mcp
+   */
+  MESH_PUBLIC_MCP_URL: z.string().url().optional(),
   /** Optional global OIDC (discovery via issuer/.well-known/openid-configuration). */
   MESH_OIDC_ISSUER: z.string().url().optional(),
   MESH_OIDC_CLIENT_ID: z.string().min(1).optional(),

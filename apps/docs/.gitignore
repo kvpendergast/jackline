@@ -1,4 +1,5 @@
-# Zudoku / Vite
+# Zudoku prerendered site is committed via build artifacts when needed;
+# local `zudoku build` output stays ignored.
 dist
 .zudoku
 *.local

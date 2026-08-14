@@ -4,16 +4,34 @@ title: Self-hosting
 
 # Self-hosting
 
-Mesh is designed to run on a single host with Docker Compose.
+## Production (recommended)
+
+Multi-stage images + Caddy edge proxy:
+
+```bash
+cp deploy/.env.prod.example .env.prod
+# set MESH_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
+
+docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+```
+
+| URL | Service |
+| --- | --- |
+| http://localhost/ | Admin UI (`/api`, `/mcp` on the same origin) |
+| http://docs.localhost/ | Docs |
+| http://localhost/openapi.json | OpenAPI JSON |
+| http://localhost/health | API health |
+
+Set `MESH_HOST`, `WEB_ORIGIN`, `BETTER_AUTH_URL`, and `MESH_PUBLIC_*` when using a real domain.
+
+## Dev Compose
+
+Hot-reload stack (`tsx` / Vite):
 
 ```bash
 cp .env.example .env
-# set MESH_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
-
 docker compose -f deploy/docker-compose.yml up --build
 ```
-
-Services:
 
 | Service | Port |
 | --- | --- |
@@ -23,7 +41,7 @@ Services:
 | Admin UI | 5173 |
 | Docs | 3000 |
 
-## Local development
+## Local development (no Docker)
 
 ```bash
 pnpm install
@@ -35,11 +53,9 @@ pnpm docs:dev     # Zudoku on :3000 (exports OpenAPI first)
 
 ## Regenerating the API reference
 
-The API reference is built from OpenAPI exported from `@mesh/api`:
-
 ```bash
 pnpm openapi:export   # writes apps/docs/apis/openapi.json
 pnpm docs:dev         # or docs:build
 ```
 
-`docs:dev` / `docs:build` run the export automatically via `predev` / `prebuild`.
+`docs:dev` runs the export automatically via `predev`. Commit an updated `openapi.json` before building production docs images.

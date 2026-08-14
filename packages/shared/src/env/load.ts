@@ -12,11 +12,13 @@ const ENV_KEYS = [
   "DATABASE_URL",
   "API_HOST",
   "API_PORT",
+  "GATEWAY_HOST",
   "GATEWAY_PORT",
   "WEB_ORIGIN",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "MESH_PUBLIC_API_URL",
+  "MESH_PUBLIC_MCP_URL",
   "MESH_OIDC_ISSUER",
   "MESH_OIDC_CLIENT_ID",
   "MESH_OIDC_CLIENT_SECRET",
@@ -50,6 +52,14 @@ export function getConfig(): Result<Env, SetupError> {
 /** Browser-reachable API origin (ngrok in local OAuth tests). */
 export function publicApiBaseUrl(env: Env): string {
   return (env.MESH_PUBLIC_API_URL ?? env.BETTER_AUTH_URL).replace(/\/$/, "");
+}
+
+/** Public MCP endpoint for minted connection credentials. */
+export function publicMcpUrl(env: Env): string {
+  if (env.MESH_PUBLIC_MCP_URL) {
+    return env.MESH_PUBLIC_MCP_URL.replace(/\/$/, "");
+  }
+  return `http://127.0.0.1:${env.GATEWAY_PORT}/mcp`;
 }
 
 /**
