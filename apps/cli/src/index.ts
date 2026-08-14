@@ -4,9 +4,9 @@ import { main } from "./commands/registry.js";
 
 function assertSupportedNode(): void {
   const major = Number(process.versions.node.split(".")[0]);
-  if (!Number.isFinite(major) || major < 20) {
+  if (!Number.isFinite(major) || major < 22) {
     console.error(
-      `mesh requires Node.js 20+ (found ${process.version}). Upgrade Node and try again.`,
+      `mesh requires Node.js 22+ (found ${process.version}). Upgrade Node and try again.`,
     );
     process.exit(1);
   }

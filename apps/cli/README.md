@@ -6,7 +6,7 @@ Clients (Cursor, Claude Code, and other MCP hosts) connect to Mesh. Mesh authent
 
 ## Requirements
 
-- Node.js **20+** (Web Crypto / `globalThis.crypto` required)
+- Node.js **22+** (Web Crypto / `globalThis.crypto` required)
 
 ## Install
 
