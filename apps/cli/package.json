@@ -1,6 +1,6 @@
 {
   "name": "@buildstuff/jackline",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Personal Jackline CLI — local MCP policy gateway",
   "type": "module",
   "license": "MIT",

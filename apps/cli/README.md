@@ -18,8 +18,6 @@ npx @buildstuff/jackline <command>
 
 The binary name is `jackline`.
 
-> Public npm package under the **`@buildstuff`** org (`publishConfig.access: public`).
-
 ## Quick start
 
 ```bash
@@ -103,68 +101,17 @@ jackline init --file-key
 
 ## Security notes
 
-- **`/mcp` requires** `Authorization: Bearer jkl_…` (same token format as hosted Jackline). `/health` stays open for liveness.
+- **`/mcp` requires** `Authorization: Bearer jkl_…`. `/health` stays open for liveness.
 - The token is long-lived and stable across `jackline serve` restarts; it is not rotated automatically.
-- Secrets are encrypted at rest with the local master key (`@jackline/crypto`). Prefer keychain storage for that key so backups/sync of `~/.jackline` do not include the wrapping secret.
+- Secrets are encrypted at rest with a local master key. Prefer keychain storage so backups/sync of `~/.jackline` do not include the wrapping secret.
 - Config and secret files are written with mode `0600`.
 - The gateway listens on `127.0.0.1` by default — it is meant for local clients, not exposure to the network.
 - Treat the gateway bearer (and any `master.key` if you opted into `--file-key`) like passwords; losing the master key makes stored secrets unrecoverable.
 - Localhost binding + bearer slows down casual loopback abuse; it does not protect a fully compromised machine that can read your MCP client config.
 
-## Development (monorepo)
+## Source
 
-From the repo root:
-
-```bash
-pnpm install
-pnpm --filter @buildstuff/jackline dev      # tsx watch
-pnpm --filter @buildstuff/jackline build    # tsup → dist/
-pnpm --filter @buildstuff/jackline typecheck
-```
-
-Workspace packages `@jackline/crypto` and `@jackline/shared` are **bundled into `dist`** at build time so the published package does not depend on private workspace packages.
-
-## Publishing (`@buildstuff/jackline`)
-
-Releases are meant to go out **only from GitHub Actions** via npm **trusted publishing** (OIDC). There should be no long-lived `NPM_TOKEN` for routine publishes.
-
-### One-time setup (maintainer)
-
-1. **Create the npm org** [`buildstuff`](https://www.npmjs.com/org/create) if it does not exist yet. Until then, `@buildstuff/*` publishes fail with a misleading `E404`. Enforce 2FA for publishers.
-2. **Bootstrap the package once** so a registry record exists (trusted publisher attaches to an existing package). From a built `apps/cli`:
-
-```bash
-cd apps/cli
-pnpm --filter @buildstuff/jackline build
-npm login
-# Provenance only works in GitHub Actions; disable it for this one-time local publish.
-npm publish --access public --ignore-scripts --provenance=false
-```
-
-3. On npmjs.com → `@buildstuff/jackline` → Settings → Trusted Publisher:
-   - GitHub user/org: `kvpendergast`
-   - Repository: `jackline`
-   - Workflow filename: `publish-cli.yml`
-   - Allowed action: `npm publish`
-4. Revoke any temporary publish / classic tokens. Later releases use OIDC only.
-
-Workflow: [`.github/workflows/publish-cli.yml`](../../.github/workflows/publish-cli.yml).
-
-### Cut a release
-
-1. Bump `"version"` in `apps/cli/package.json` (keep in sync with any user-facing docs).
-2. Merge to `main`.
-3. Tag and push (tag must match the package version):
-
-```bash
-git tag cli-v0.1.0
-git push origin cli-v0.1.0
-```
-
-4. Confirm the **Publish CLI** workflow succeeded on GitHub Actions.
-5. Verify: `npm view @buildstuff/jackline version`
-
-Do **not** run `npm publish` from a laptop for normal releases (bootstrap above is the exception).
+Source lives in the Jackline monorepo under [`apps/cli`](https://github.com/kvpendergast/jackline/tree/main/apps/cli). Issues: [github.com/kvpendergast/jackline/issues](https://github.com/kvpendergast/jackline/issues).
 
 ## License
 
