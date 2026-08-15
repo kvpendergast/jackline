@@ -3,7 +3,9 @@ import { verifyGatewayAuthorization } from "../lib/gatewayAuth.js";
 import { getMeshPaths, type MeshPaths } from "../lib/paths.js";
 import { createSessionHub } from "../lib/mcp/sessionHub.js";
 
-export function createApp(paths?: MeshPaths) {
+export type MeshCliApp = Hono & { close: () => void };
+
+export function createApp(paths?: MeshPaths): MeshCliApp {
   const app = new Hono();
   const meshPaths = paths ?? getMeshPaths();
   const hub = createSessionHub(meshPaths);
@@ -31,8 +33,9 @@ export function createApp(paths?: MeshPaths) {
 
   app.all("/mcp", (c) => hub.handleRequest(c.req.raw));
 
-  return app;
+  return Object.assign(app, {
+    close(): void {
+      hub.close();
+    },
+  });
 }
-
-/** Default app using ~/.mesh — used by tests and simple imports. */
-export const app = createApp();

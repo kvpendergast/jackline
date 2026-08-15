@@ -63,6 +63,9 @@ jobs:
       - name: Typecheck CLI
         run: pnpm --filter @mesh/cli typecheck
 
+      - name: Test CLI
+        run: pnpm --filter @mesh/cli test
+
       - name: Build CLI
         run: pnpm --filter @mesh/cli build
 

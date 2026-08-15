@@ -77,7 +77,10 @@ export function createSessionHub(paths: MeshPaths) {
         debounce = setTimeout(() => {
           void refreshSessions();
         }, 250);
+        debounce.unref();
       });
+      // Do not keep the process alive solely for config watching (tests/CLI exit).
+      watcher.unref();
       consola.info(`Watching ${paths.config} for tool policy changes`);
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : String(cause);

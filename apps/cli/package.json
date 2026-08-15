@@ -45,7 +45,7 @@
     "build": "tsup",
     "prepublishOnly": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\"",
+    "test": "node --import tsx --test --test-force-exit \"src/**/*.test.ts\"",
     "lint": "echo \"lint later\""
   },
   "devDependencies": {
