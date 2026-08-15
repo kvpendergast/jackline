@@ -137,7 +137,8 @@ Releases are meant to go out **only from GitHub Actions** via npm **trusted publ
 cd apps/cli
 pnpm --filter @buildstuff/jackline build
 npm login
-npm publish --access public --ignore-scripts
+# Provenance only works in GitHub Actions; disable it for this one-time local publish.
+npm publish --access public --ignore-scripts --provenance=false
 ```
 
 3. On npmjs.com → `@buildstuff/jackline` → Settings → Trusted Publisher:
