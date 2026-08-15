@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
@@ -14,10 +14,6 @@ function ssoSecretAad(tenantId: string): Uint8Array {
 
 export function ssoProviderId(tenantId: string): string {
   return `oidc-${tenantId}`;
-}
-
-export function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export function generateInviteToken(): string {

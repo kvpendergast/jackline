@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { and, eq, isNotNull, isNull, gt } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
@@ -17,11 +17,8 @@ import {
   isMcpOauthAccessToken,
   parseGatewayToken,
 } from "@jackline/shared";
+import { hashToken } from "@jackline/crypto";
 import { getSecretBox, secretAad } from "../secretBox.js";
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
 
 export type ResolvedGatewayAuth = {
   connection: Connection;
