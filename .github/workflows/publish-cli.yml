@@ -4,8 +4,8 @@
 # 1. Create the npm org "buildstuff" (https://www.npmjs.com/org/create) — the @buildstuff
 #    scope does not exist until you do. Without it, publish returns a misleading E404.
 # 2. Bootstrap the package once (trusted publisher requires an existing package record):
-#      cd apps/cli && npm login && npm publish --access public --ignore-scripts
-#    (build first; omit provenance on this one-time bootstrap if needed)
+#      cd apps/cli && npm login && npm publish --access public --ignore-scripts --provenance=false
+#    (build first; local publish cannot generate OIDC provenance)
 # 3. On npmjs.com → @buildstuff/jackline → Settings → Trusted Publisher:
 #      Organization/user: kvpendergast
 #      Repository:        jackline
