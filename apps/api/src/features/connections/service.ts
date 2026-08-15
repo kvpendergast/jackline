@@ -12,6 +12,7 @@ import {
   roles,
   secrets,
   tools,
+  roleTools,
   user,
   type Connection as ConnectionRow,
   type Secret as SecretRow,
@@ -37,6 +38,7 @@ import {
 } from "@mesh/shared";
 import {
   resolveTeamFilter,
+  isAdminRole,
   type ActorAuthz,
 } from "../../lib/authz/teamScope.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
@@ -146,25 +148,6 @@ async function getConnectionRow(
   return ok(row);
 }
 
-async function assertClientInTenant(
-  tenantId: string,
-  clientId: string,
-): Promise<Result<void, MeshError>> {
-  const [client] = await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
-    .limit(1);
-
-  if (!client) {
-    return err(
-      new BadRequestError("clientId does not reference a client in this tenant"),
-    );
-  }
-
-  return ok(undefined);
-}
-
 async function assertUserInTenant(
   tenantId: string,
   userId: string,
@@ -272,17 +255,22 @@ async function create(
   actor: ActorAuthz,
   input: CreateConnectionInput,
 ): Promise<Result<PublicConnectionDetail, MeshError>> {
+  const userId = isAdminRole(actor.role) ? input.userId : actor.userId;
+  if (!isAdminRole(actor.role) && input.userId !== actor.userId) {
+    return err(new ForbiddenError("Members can only create connections for themselves"));
+  }
+
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
   const teamFilter = teamResult.value;
 
-  const clientCheck = await assertClientInTenant(tenantId, input.clientId);
+  const clientCheck = await assertActorCanUseClient(tenantId, actor, input.clientId);
   if (clientCheck.isErr()) return err(clientCheck.error);
 
   const userCheck = await assertUserInTenant(
     tenantId,
-    input.userId,
-    teamFilter,
+    userId,
+    isAdminRole(actor.role) ? teamFilter : null,
   );
   if (userCheck.isErr()) return err(userCheck.error);
 
@@ -291,7 +279,7 @@ async function create(
       .insert(connections)
       .values({
         clientId: input.clientId,
-        userId: input.userId,
+        userId,
         status: input.status ?? "active",
         tenantId,
       })
@@ -320,10 +308,16 @@ async function list(
 
   const conditions = [eq(connections.tenantId, tenantId)];
 
-  if (query.clientId) conditions.push(eq(connections.clientId, query.clientId));
-  if (query.userId) conditions.push(eq(connections.userId, query.userId));
-  if (query.status) conditions.push(eq(connections.status, query.status));
-  if (teamFilter) conditions.push(eq(memberships.team, teamFilter));
+  if (!isAdminRole(actor.role)) {
+    conditions.push(eq(connections.userId, actor.userId));
+    if (query.clientId) conditions.push(eq(connections.clientId, query.clientId));
+    if (query.status) conditions.push(eq(connections.status, query.status));
+  } else {
+    if (query.clientId) conditions.push(eq(connections.clientId, query.clientId));
+    if (query.userId) conditions.push(eq(connections.userId, query.userId));
+    if (query.status) conditions.push(eq(connections.status, query.status));
+    if (teamFilter) conditions.push(eq(memberships.team, teamFilter));
+  }
 
   if (query.cursor) {
     const decoded = decodeCreatedAtIdCursor(query.cursor);
@@ -482,9 +476,57 @@ async function requireScopedConnection(
   actor: ActorAuthz,
   connectionId: string,
 ): Promise<Result<ConnectionRow, MeshError>> {
+  const rowResult = await getConnectionRow(tenantId, connectionId);
+  if (rowResult.isErr()) return err(rowResult.error);
+  const row = rowResult.value;
+
+  if (row.userId === actor.userId) {
+    return ok(row);
+  }
+
+  if (!isAdminRole(actor.role)) {
+    return err(new ForbiddenError("You can only access your own connections"));
+  }
+
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
   return assertConnectionInTeamScope(tenantId, connectionId, teamResult.value);
+}
+
+async function assertActorCanUseClient(
+  tenantId: string,
+  actor: ActorAuthz,
+  clientId: string,
+): Promise<Result<void, MeshError>> {
+  const [client] = await db
+    .select({
+      id: clients.id,
+      ownerUserId: clients.ownerUserId,
+      kind: clients.kind,
+    })
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .limit(1);
+
+  if (!client) {
+    return err(
+      new BadRequestError("clientId does not reference a client in this tenant"),
+    );
+  }
+
+  if (isAdminRole(actor.role)) {
+    return ok(undefined);
+  }
+
+  if (client.kind !== "interactive") {
+    return err(new ForbiddenError("Members may only use interactive clients"));
+  }
+
+  if (client.ownerUserId != null && client.ownerUserId !== actor.userId) {
+    return err(new ForbiddenError("You do not own this client"));
+  }
+
+  return ok(undefined);
 }
 
 async function attachRole(
@@ -927,6 +969,123 @@ async function revokeCredential(
   return ok(toPublicGatewayCredential(row));
 }
 
+/**
+ * Member toggle: turn off / on within admin-granted tools.
+ * Role grants: deny override off, delete deny on.
+ * Allow-override grants: flip type allow↔deny on the same row.
+ */
+async function setMemberToolEnabled(
+  log: Logger,
+  tenantId: string,
+  actor: ActorAuthz,
+  connectionId: string,
+  toolId: string,
+  enabled: boolean,
+): Promise<Result<PublicConnectionDetail, MeshError>> {
+  const rowResult = await requireScopedConnection(
+    tenantId,
+    actor,
+    connectionId,
+  );
+  if (rowResult.isErr()) return err(rowResult.error);
+
+  if (rowResult.value.userId !== actor.userId && !isAdminRole(actor.role)) {
+    return err(
+      new ForbiddenError("You can only toggle tools on your own connections"),
+    );
+  }
+
+  const toolsCheck = await assertToolsInTenant(tenantId, [toolId]);
+  if (toolsCheck.isErr()) return err(toolsCheck.error);
+
+  const roleIds = await loadRoleIds(tenantId, connectionId);
+  let hasRoleGrant = false;
+  if (roleIds.length > 0) {
+    const grants = await db
+      .select({ toolId: roleTools.toolId })
+      .from(roleTools)
+      .innerJoin(roles, eq(roles.id, roleTools.roleId))
+      .where(
+        and(
+          inArray(roleTools.roleId, roleIds),
+          eq(roleTools.toolId, toolId),
+          eq(roles.type, "grant"),
+        ),
+      )
+      .limit(1);
+    hasRoleGrant = grants.length > 0;
+  }
+
+  const [existing] = await db
+    .select({
+      id: connectionToolOverrides.id,
+      type: connectionToolOverrides.type,
+    })
+    .from(connectionToolOverrides)
+    .where(
+      and(
+        eq(connectionToolOverrides.connectionId, connectionId),
+        eq(connectionToolOverrides.tenantId, tenantId),
+        eq(connectionToolOverrides.toolId, toolId),
+      ),
+    )
+    .limit(1);
+
+  const hasAllowOrFlipped =
+    existing?.type === "allow" || existing?.type === "deny";
+  if (!hasRoleGrant && !hasAllowOrFlipped) {
+    return err(
+      new ForbiddenError("You can only toggle tools an admin has allowed"),
+    );
+  }
+  // Deny-only without role grant means a flipped allow-override — OK.
+  // Deny-only shouldn't happen without prior allow for non-role tools.
+
+  if (hasRoleGrant) {
+    if (enabled) {
+      if (existing?.type === "deny") {
+        await db
+          .delete(connectionToolOverrides)
+          .where(eq(connectionToolOverrides.id, existing.id));
+      }
+    } else if (existing) {
+      await db
+        .update(connectionToolOverrides)
+        .set({ type: "deny", updatedAt: new Date() })
+        .where(eq(connectionToolOverrides.id, existing.id));
+    } else {
+      await db.insert(connectionToolOverrides).values({
+        connectionId,
+        toolId,
+        type: "deny",
+        tenantId,
+      });
+    }
+  } else if (existing) {
+    await db
+      .update(connectionToolOverrides)
+      .set({ type: enabled ? "allow" : "deny", updatedAt: new Date() })
+      .where(eq(connectionToolOverrides.id, existing.id));
+  } else {
+    return err(
+      new ForbiddenError("You can only toggle tools an admin has allowed"),
+    );
+  }
+
+  await db
+    .update(connections)
+    .set({ updatedAt: new Date() })
+    .where(
+      and(eq(connections.id, connectionId), eq(connections.tenantId, tenantId)),
+    );
+
+  log.info(
+    { connectionId, toolId, enabled, tenantId },
+    "Connection.services.setMemberToolEnabled",
+  );
+  return ok(await toDetail(tenantId, rowResult.value));
+}
+
 export const connectionServices = {
   list,
   create,
@@ -942,4 +1101,5 @@ export const connectionServices = {
   mintCredential,
   listCredentials,
   revokeCredential,
+  setMemberToolEnabled,
 } as const;

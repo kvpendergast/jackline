@@ -8,6 +8,8 @@ export const PublicClientSchema = z.strictObject({
   name: z.string(),
   kind: ClientKindSchema,
   tenantId: z.uuid(),
+  /** Member owner for self-serve clients; null = org/admin-managed. */
+  ownerUserId: z.string().nullable(),
   /** True when an OAuth2 client_secret has been minted. */
   hasClientSecret: z.boolean(),
   /** Role assumed by client_credentials tokens. */

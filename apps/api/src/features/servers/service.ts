@@ -38,6 +38,7 @@ export type CreateServerInput = {
   oauthTokenUrl?: string | null | undefined;
   oauthScopes?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  requiresApproval?: boolean | undefined;
 };
 
 export type UpdateServerInput = {
@@ -54,6 +55,7 @@ export type UpdateServerInput = {
   oauthTokenUrl?: string | null | undefined;
   oauthScopes?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  requiresApproval?: boolean | undefined;
 };
 
 async function loadOauthClientSecretFlags(
@@ -99,6 +101,7 @@ function toPublicServer(
     oauthScopes: row.oauthScopes,
     oauthClientId: row.oauthClientId,
     hasOauthClientSecret,
+    requiresApproval: row.requiresApproval,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -252,6 +255,9 @@ async function update(
   if (input.oauthScopes !== undefined) patch.oauthScopes = input.oauthScopes;
   if (input.oauthClientId !== undefined) {
     patch.oauthClientId = input.oauthClientId;
+  }
+  if (input.requiresApproval !== undefined) {
+    patch.requiresApproval = input.requiresApproval;
   }
 
   try {

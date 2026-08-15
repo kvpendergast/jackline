@@ -25,6 +25,7 @@ const routeOrder = [
   "mintCredential",
   "listCredentials",
   "revokeCredential",
+  "setMemberToolEnabled",
 ] as const;
 
 export const connectionsFeature: AppSlice = {

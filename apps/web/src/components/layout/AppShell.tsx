@@ -27,11 +27,13 @@ const SHELL_VIEW_KEY = "mesh.shellView";
 const personalNav = [
   { to: "/my-access", label: "My Access", icon: UserRound },
   { to: "/connections", label: "Connections", icon: Cable },
+  { to: "/access-requests", label: "Access requests", icon: Shield },
 ] as const;
 
 const adminNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/connections", label: "Connections", icon: Cable },
+  { to: "/access-requests", label: "Access requests", icon: Shield },
   { to: "/audit", label: "Audit", icon: FileSearch },
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/tools", label: "Tools", icon: Wrench },
@@ -96,7 +98,8 @@ function isPersonalPath(pathname: string): boolean {
   return (
     pathname === "/my-access" ||
     pathname === "/connections" ||
-    pathname.startsWith("/connections/")
+    pathname.startsWith("/connections/") ||
+    pathname === "/access-requests"
   );
 }
 

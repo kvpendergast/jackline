@@ -4,7 +4,11 @@ import { okEnvelope } from "../../lib/http/envelope.js";
 import { User } from "./resource.js";
 
 function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
-  return { role: auth.membership.role, team: auth.membership.team };
+  return {
+    userId: auth.userId,
+    role: auth.membership.role,
+    team: auth.membership.team,
+  };
 }
 
 const list: RouteHandler<typeof User.routes.list, MeshEnv> = async (c) => {

@@ -29,6 +29,13 @@ export const clients = pgTable(
     serviceUserId: text("service_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    /**
+     * Member who owns this client (self-serve). Null = org/admin-managed.
+     * Admins may set this when creating a client on a member's behalf.
+     */
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
   },
   (t) => [unique("clients_tenant_name_unique").on(t.tenantId, t.name)],
 );

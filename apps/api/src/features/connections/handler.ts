@@ -6,7 +6,11 @@ import { listEffectiveTools as listEffectiveToolsService } from "./effectiveTool
 import { Connection } from "./resource.js";
 
 function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
-  return { role: auth.membership.role, team: auth.membership.team };
+  return {
+    userId: auth.userId,
+    role: auth.membership.role,
+    team: auth.membership.team,
+  };
 }
 
 const list: RouteHandler<typeof Connection.routes.list, MeshEnv> = async (c) => {
@@ -273,6 +277,25 @@ const revokeCredential: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
+const setMemberToolEnabled: RouteHandler<
+  typeof Connection.routes.setMemberToolEnabled,
+  MeshEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id, toolId } = c.req.valid("param");
+  const { enabled } = c.req.valid("json");
+  const result = await Connection.services.setMemberToolEnabled(
+    log,
+    auth.tenantId,
+    actorFrom(auth),
+    id,
+    toolId,
+    enabled,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const connectionHandlers = {
   list,
   create,
@@ -290,4 +313,5 @@ export const connectionHandlers = {
   mintCredential,
   listCredentials,
   revokeCredential,
+  setMemberToolEnabled,
 } as const;

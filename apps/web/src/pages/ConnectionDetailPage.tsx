@@ -31,7 +31,10 @@ import type {
 
 export function ConnectionDetailPage() {
   const { id = "" } = useParams();
-  const { tenantId } = useAuth();
+  const { tenantId, user, membership } = useAuth();
+  const isAdmin =
+    membership?.role === "full_admin" ||
+    membership?.role === "delegated_admin";
   const [detail, setDetail] = useState<PublicConnectionDetail | null>(null);
   const [client, setClient] = useState<PublicClient | null>(null);
   const [subject, setSubject] = useState<PublicUser | null>(null);
@@ -52,6 +55,12 @@ export function ConnectionDetailPage() {
   const [attachRoleId, setAttachRoleId] = useState("");
   const [overrideToolId, setOverrideToolId] = useState("");
   const [overrideType, setOverrideType] = useState<"allow" | "deny">("deny");
+  const [servers, setServers] = useState<
+    import("@mesh/shared").PublicServer[]
+  >([]);
+  const [catalogBusy, setCatalogBusy] = useState<string | null>(null);
+
+  const isOwner = Boolean(detail?.userId && user?.id === detail.userId);
 
   async function load() {
     if (!tenantId || !id) return;
@@ -66,11 +75,12 @@ export function ConnectionDetailPage() {
       effective,
       upstream,
       denyPage,
+      serverPage,
     ] = await Promise.all([
       meshApi.getConnection(tenantId, id),
       meshApi.listClients(tenantId),
-      meshApi.listUsers(tenantId),
-      meshApi.listRoles(tenantId),
+      meshApi.listUsers(tenantId).catch(() => ({ items: [] as PublicUser[] })),
+      meshApi.listRoles(tenantId).catch(() => ({ items: [] as PublicRole[] })),
       meshApi.listTools(tenantId),
       meshApi.listCredentials(tenantId, id),
       meshApi.listEffectiveTools(tenantId, id),
@@ -79,7 +89,8 @@ export function ConnectionDetailPage() {
         connectionId: id,
         outcome: "deny",
         limit: "10",
-      }),
+      }).catch(() => ({ items: [] as PublicAuditEvent[] })),
+      meshApi.listServers(tenantId),
     ]);
     setDetail(conn);
     setClient(clientPage.items.find((c) => c.id === conn.clientId) ?? null);
@@ -91,6 +102,7 @@ export function ConnectionDetailPage() {
     setEffectiveTools(effective.items);
     setUpstreamCredentials(upstream.items);
     setDenies(denyPage.items);
+    setServers(serverPage.items.filter((s) => s.status === "active"));
     const available = rolePage.items.find((r) => !conn.roleIds.includes(r.id));
     setAttachRoleId(available?.id ?? "");
     const overridden = new Set(conn.toolOverrides.map((o) => o.toolId));
@@ -132,6 +144,54 @@ export function ConnectionDetailPage() {
       setError(err instanceof ApiError ? err.message : "Mint failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onToggleTool(toolId: string, enabled: boolean) {
+    if (!tenantId || !id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await meshApi.setMemberToolEnabled(tenantId, id, toolId, enabled);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Toggle failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAttachAuto(serverId: string) {
+    if (!tenantId || !id) return;
+    setCatalogBusy(serverId);
+    setError(null);
+    try {
+      await meshApi.attachAutoAllowedTools(tenantId, {
+        connectionId: id,
+        serverId,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Attach failed");
+    } finally {
+      setCatalogBusy(null);
+    }
+  }
+
+  async function onRequestServer(serverId: string) {
+    if (!tenantId || !id) return;
+    setCatalogBusy(serverId);
+    setError(null);
+    try {
+      await meshApi.createAccessRequest(tenantId, {
+        connectionId: id,
+        serverId,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Request failed");
+    } finally {
+      setCatalogBusy(null);
     }
   }
 
@@ -611,14 +671,19 @@ export function ConnectionDetailPage() {
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 Sources
               </TableHead>
+              {(isOwner || isAdmin) ? (
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                  Toggle
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {effectiveTools.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  No tools from roles or overrides yet. Attach a grant role or
-                  add an allow override.
+                <TableCell colSpan={(isOwner || isAdmin) ? 5 : 4} className="text-muted-foreground">
+                  No tools yet. Attach auto-allowed servers below, request gated
+                  ones, or ask an admin to attach roles.
                 </TableCell>
               </TableRow>
             ) : null}
@@ -664,11 +729,77 @@ export function ConnectionDetailPage() {
                     </div>
                   ))}
                 </TableCell>
+                {(isOwner || isAdmin) ? (
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void onToggleTool(row.toolId, !row.allowed)}
+                    >
+                      {row.allowed ? "Turn off" : "Turn on"}
+                    </Button>
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </section>
+
+      {(isOwner || isAdmin) && servers.length > 0 ? (
+        <section className="border border-border bg-card">
+          <div className="border-b border-border px-4 py-2.5">
+            <p className="section-label">Servers catalog</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Auto-allow servers attach immediately. Gated servers create an access request.
+            </p>
+          </div>
+          <ul className="divide-y divide-border">
+            {servers.map((server) => {
+              const autoTools = tools.filter(
+                (t) =>
+                  t.serverId === server.id &&
+                  t.status === "active" &&
+                  !t.requiresApproval,
+              );
+              return (
+                <li
+                  key={server.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{server.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {server.requiresApproval
+                        ? "Requires approval"
+                        : `Auto-allow · ${autoTools.length} tool(s) without approval`}
+                    </p>
+                  </div>
+                  {server.requiresApproval ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={catalogBusy === server.id}
+                      onClick={() => void onRequestServer(server.id)}
+                    >
+                      Request access
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={catalogBusy === server.id || autoTools.length === 0}
+                      onClick={() => void onAttachAuto(server.id)}
+                    >
+                      Attach auto tools
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">

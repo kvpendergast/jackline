@@ -1,4 +1,12 @@
-import { jsonb, pgEnum, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
 import { servers } from "./servers.js";
@@ -30,6 +38,12 @@ export const tools = pgTable(
     httpMethod: toolHttpMethodEnum("http_method"),
     pathTemplate: text("path_template"),
     status: toolStatusEnum("status").notNull().default("needs_review"),
+    /**
+     * When true, members need approval before this tool can be granted.
+     * When false (and the server is auto-allow or already approved), members
+     * may self-attach it.
+     */
+    requiresApproval: boolean("requires_approval").notNull().default(true),
     serverId: uuid("server_id")
       .notNull()
       .references(() => servers.id, { onDelete: "cascade" }),

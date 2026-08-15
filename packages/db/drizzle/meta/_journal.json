@@ -99,6 +99,13 @@
       "when": 1786400000000,
       "tag": "0013_oauth_client_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786755000000,
+      "tag": "0014_member_access_loop",
+      "breakpoints": true
     }
   ]
 }

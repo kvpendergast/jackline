@@ -17,7 +17,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@mesh/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, audit |
+| Admin UI (`@mesh/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, access requests, audit |
 | Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry |
 | MCP gateway (`@mesh/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
@@ -28,8 +28,9 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod; optional gateway-split / byo-edge overlays) |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
+| Member access | Self-serve clients/connections, mint `msh_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
 
-Next: My Access / access requests, OTEL, rate limits, mTLS.
+Next: OTEL, rate limits, mTLS.
 
 ## Stack
 

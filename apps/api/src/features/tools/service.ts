@@ -37,6 +37,7 @@ export type UpdateToolInput = {
   inputSchema?: Record<string, unknown> | null | undefined;
   httpMethod?: ToolHttpMethod | null | undefined;
   pathTemplate?: string | null | undefined;
+  requiresApproval?: boolean | undefined;
 };
 
 export type ListToolsQuery = PaginationQuery & {
@@ -52,6 +53,7 @@ function toPublicTool(row: Tool): PublicTool {
     httpMethod: row.httpMethod,
     pathTemplate: row.pathTemplate,
     status: row.status,
+    requiresApproval: row.requiresApproval,
     serverId: row.serverId,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
@@ -264,6 +266,9 @@ async function update(
   if (input.inputSchema !== undefined) patch.inputSchema = input.inputSchema;
   if (input.httpMethod !== undefined) patch.httpMethod = input.httpMethod;
   if (input.pathTemplate !== undefined) patch.pathTemplate = input.pathTemplate;
+  if (input.requiresApproval !== undefined) {
+    patch.requiresApproval = input.requiresApproval;
+  }
 
   try {
     const [row] = await db

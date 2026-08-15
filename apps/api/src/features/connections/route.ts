@@ -204,7 +204,6 @@ const create = createRoute({
   path: "/connections",
   tags: ["Connections"],
   summary: "Create a connection (client + user)",
-  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     body: {
@@ -249,7 +248,6 @@ const update = createRoute({
   path: "/connections/{id}",
   tags: ["Connections"],
   summary: "Update connection status",
-  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -275,7 +273,6 @@ const remove = createRoute({
   path: "/connections/{id}",
   tags: ["Connections"],
   summary: "Delete a connection",
-  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -462,7 +459,6 @@ const mintCredential = createRoute({
   path: "/connections/{id}/credentials",
   tags: ["Connections"],
   summary: "Mint a gateway bearer token for a connection (plaintext returned once)",
-  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionIdParamSchema,
@@ -509,7 +505,6 @@ const revokeCredential = createRoute({
   path: "/connections/{id}/credentials/{secretId}",
   tags: ["Connections"],
   summary: "Revoke a gateway credential",
-  middleware: [requireAdmin] as const,
   request: {
     headers: TenantIdHeaderSchema,
     params: ConnectionCredentialParamsSchema,
@@ -526,7 +521,40 @@ const revokeCredential = createRoute({
   },
 });
 
+
+const setMemberToolEnabled = createRoute({
+  method: "post",
+  path: "/connections/{id}/member-tools/{toolId}",
+  tags: ["Connections"],
+  summary: "Enable or disable an admin-granted tool on your connection",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: ConnectionToolOverrideParamsSchema,
+    body: {
+      content: {
+        "application/json": {
+          schema: z
+            .strictObject({ enabled: z.boolean() })
+            .openapi("SetMemberToolEnabledBody"),
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      description: "Connection with updated toolOverrides",
+      content: {
+        "application/json": { schema: ConnectionDetailResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...connectionNotFound,
+  },
+});
+
 export const connectionRoutes = {
+
   list,
   create,
   get,
@@ -543,4 +571,5 @@ export const connectionRoutes = {
   mintCredential,
   listCredentials,
   revokeCredential,
+  setMemberToolEnabled,
 } as const;

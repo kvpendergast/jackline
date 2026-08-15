@@ -29,6 +29,11 @@ export const PublicServerSchema = z.strictObject({
   oauthClientId: z.string().nullable(),
   /** True when an encrypted oauth_client secret exists for this server. */
   hasOauthClientSecret: z.boolean(),
+  /**
+   * When true, members must request access. When false, members may
+   * self-attach tools that do not themselves require approval.
+   */
+  requiresApproval: z.boolean(),
   tenantId: z.uuid(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
