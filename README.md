@@ -477,7 +477,7 @@ Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendl
 Local MCP policy gateway (no control-plane required):
 
 ```bash
-npm install -g @jackline/cli   # when published; or pnpm --filter @jackline/cli build && node apps/cli/dist/index.js
+npm install -g @buildstuff/jackline   # when published; or pnpm --filter @buildstuff/jackline build && node apps/cli/dist/index.js
 jackline init && jackline catalog && jackline serve
 ```
 
@@ -490,7 +490,7 @@ apps/
   api/       # control-plane (Hono)
   web/       # Vite/React admin UI (Steel Lattice + shadcn)
   gateway/   # MCP gateway (Streamable HTTP)
-  cli/       # personal Jackline CLI (@jackline/cli)
+  cli/       # personal Jackline CLI (@buildstuff/jackline)
 packages/
   shared/    # env, errors, tenancy, public DTOs, connector catalog
   db/        # Drizzle schema + migrations
