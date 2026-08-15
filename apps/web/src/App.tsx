@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { AppShell } from "@/components/layout/AppShell";
 import { AccessRequestsPage } from "@/pages/AccessRequestsPage";
 import { AuditPage } from "@/pages/AuditPage";
+import { NotificationsPage } from "@/pages/NotificationsPage";
 import { ClientsPage } from "@/pages/ClientsPage";
 import { ConnectionDetailPage } from "@/pages/ConnectionDetailPage";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
@@ -94,6 +95,7 @@ export function App() {
           <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/connections/:id" element={<ConnectionDetailPage />} />
           <Route path="/access-requests" element={<AccessRequestsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route
             path="/audit"
             element={

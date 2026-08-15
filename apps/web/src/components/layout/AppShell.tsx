@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
+  Bell,
   Cable,
   FileSearch,
   KeyRound,
@@ -28,12 +29,14 @@ const personalNav = [
   { to: "/my-access", label: "My Access", icon: UserRound },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/access-requests", label: "Access requests", icon: Shield },
+  { to: "/notifications", label: "Notifications", icon: Bell },
 ] as const;
 
 const adminNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/access-requests", label: "Access requests", icon: Shield },
+  { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/audit", label: "Audit", icon: FileSearch },
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/tools", label: "Tools", icon: Wrench },
