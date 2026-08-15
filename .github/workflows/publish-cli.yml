@@ -1,9 +1,17 @@
 # Publish @buildstuff/jackline to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
-# Configure the matching Trusted Publisher on npmjs.com before the first release:
-#   Organization/user: kvpendergast
-#   Repository:        jackline
-#   Workflow filename: publish-cli.yml
-#   Allowed action:    npm publish
+#
+# Prerequisites (npm-side; CI cannot create these):
+# 1. Create the npm org "buildstuff" (https://www.npmjs.com/org/create) — the @buildstuff
+#    scope does not exist until you do. Without it, publish returns a misleading E404.
+# 2. Bootstrap the package once (trusted publisher requires an existing package record):
+#      cd apps/cli && npm login && npm publish --access public --ignore-scripts
+#    (build first; omit provenance on this one-time bootstrap if needed)
+# 3. On npmjs.com → @buildstuff/jackline → Settings → Trusted Publisher:
+#      Organization/user: kvpendergast
+#      Repository:        jackline
+#      Workflow filename: publish-cli.yml
+#      Allowed action:    npm publish
+# 4. Revoke any temporary publish tokens after OIDC works.
 #
 # Release: bump apps/cli version, commit, then:
 #   git tag cli-vX.Y.Z && git push origin cli-vX.Y.Z
@@ -34,11 +42,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      # Do not set registry-url here — setup-node would write an .npmrc with
+      # always-auth that can interfere with OIDC trusted publishing.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
           # Release builds should not reuse install caches.
           cache: ""
 

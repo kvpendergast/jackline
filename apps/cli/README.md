@@ -130,13 +130,22 @@ Releases are meant to go out **only from GitHub Actions** via npm **trusted publ
 
 ### One-time setup (maintainer)
 
-1. Own the **`@buildstuff`** npm org; enforce 2FA for publishers.
-2. On npmjs.com → `@buildstuff/jackline` → Trusted Publisher:
+1. **Create the npm org** [`buildstuff`](https://www.npmjs.com/org/create) if it does not exist yet. Until then, `@buildstuff/*` publishes fail with a misleading `E404`. Enforce 2FA for publishers.
+2. **Bootstrap the package once** so a registry record exists (trusted publisher attaches to an existing package). From a built `apps/cli`:
+
+```bash
+cd apps/cli
+pnpm --filter @buildstuff/jackline build
+npm login
+npm publish --access public --ignore-scripts
+```
+
+3. On npmjs.com → `@buildstuff/jackline` → Settings → Trusted Publisher:
    - GitHub user/org: `kvpendergast`
    - Repository: `jackline`
    - Workflow filename: `publish-cli.yml`
    - Allowed action: `npm publish`
-3. Bootstrap the first package version if npm requires it (short-lived token), then **revoke** that token. Later releases use OIDC only.
+4. Revoke any temporary publish / classic tokens. Later releases use OIDC only.
 
 Workflow: [`.github/workflows/publish-cli.yml`](../../.github/workflows/publish-cli.yml).
 
@@ -154,7 +163,7 @@ git push origin cli-v0.1.0
 4. Confirm the **Publish CLI** workflow succeeded on GitHub Actions.
 5. Verify: `npm view @buildstuff/jackline version`
 
-Do **not** run `npm publish` from a laptop for normal releases.
+Do **not** run `npm publish` from a laptop for normal releases (bootstrap above is the exception).
 
 ## License
 

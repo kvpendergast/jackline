@@ -27,7 +27,7 @@
     "node": ">=22"
   },
   "bin": {
-    "jackline": "./dist/index.js"
+    "jackline": "dist/index.js"
   },
   "files": [
     "dist",
