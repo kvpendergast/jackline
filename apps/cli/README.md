@@ -133,7 +133,7 @@ Releases are meant to go out **only from GitHub Actions** via npm **trusted publ
 1. Own the `@jackline` npm org; enforce 2FA for publishers.
 2. On npmjs.com → `@jackline/cli` → Trusted Publisher:
    - GitHub user/org: `kvpendergast`
-   - Repository: `mesh`
+   - Repository: `jackline`
    - Workflow filename: `publish-cli.yml`
    - Allowed action: `npm publish`
 3. Bootstrap the first package version if npm requires it (short-lived token), then **revoke** that token. Later releases use OIDC only.

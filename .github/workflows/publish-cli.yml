@@ -1,7 +1,7 @@
 # Publish @jackline/cli to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
 # Configure the matching Trusted Publisher on npmjs.com before the first release:
 #   Organization/user: kvpendergast
-#   Repository:        mesh
+#   Repository:        jackline
 #   Workflow filename: publish-cli.yml
 #   Allowed action:    npm publish
 #

@@ -7,12 +7,12 @@
   "author": "Jackline contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kvpendergast/mesh.git",
+    "url": "git+https://github.com/kvpendergast/jackline.git",
     "directory": "apps/cli"
   },
-  "homepage": "https://github.com/kvpendergast/mesh/tree/main/apps/cli",
+  "homepage": "https://github.com/kvpendergast/jackline/tree/main/apps/cli",
   "bugs": {
-    "url": "https://github.com/kvpendergast/mesh/issues"
+    "url": "https://github.com/kvpendergast/jackline/issues"
   },
   "keywords": [
     "mcp",
