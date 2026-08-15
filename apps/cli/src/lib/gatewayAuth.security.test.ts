@@ -5,7 +5,7 @@ import {
   verifyGatewayAuthorization,
 } from "./gatewayAuth.js";
 import { createApp } from "../server/app.js";
-import { createTempMeshHomeWithGatewayToken } from "../test/helpers.js";
+import { createTempJacklineHomeWithGatewayToken } from "../test/helpers.js";
 
 describe("extractBearer", () => {
   it("parses Bearer tokens case-insensitively", () => {
@@ -23,7 +23,7 @@ describe("extractBearer", () => {
 
 describe("gateway /mcp auth", () => {
   it("allows /health without a bearer token", async () => {
-    const { paths } = await createTempMeshHomeWithGatewayToken();
+    const { paths } = await createTempJacklineHomeWithGatewayToken();
     const app = createApp(paths);
     try {
       const res = await app.request("http://127.0.0.1/health");
@@ -35,7 +35,7 @@ describe("gateway /mcp auth", () => {
   });
 
   it("rejects /mcp without Authorization", async () => {
-    const { paths } = await createTempMeshHomeWithGatewayToken();
+    const { paths } = await createTempJacklineHomeWithGatewayToken();
     const app = createApp(paths);
     try {
       const res = await app.request("http://127.0.0.1/mcp", {
@@ -63,14 +63,14 @@ describe("gateway /mcp auth", () => {
   });
 
   it("rejects /mcp with a wrong bearer token", async () => {
-    const { paths } = await createTempMeshHomeWithGatewayToken();
+    const { paths } = await createTempJacklineHomeWithGatewayToken();
     const app = createApp(paths);
     try {
       const res = await app.request("http://127.0.0.1/mcp", {
         method: "POST",
         headers: {
           authorization:
-            "Bearer msh_00000000-0000-4000-8000-000000000000.not-the-secret",
+            "Bearer jkl_00000000-0000-4000-8000-000000000000.not-the-secret",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -86,7 +86,7 @@ describe("gateway /mcp auth", () => {
   });
 
   it("accepts /mcp with the minted gateway bearer", async () => {
-    const { paths, token } = await createTempMeshHomeWithGatewayToken();
+    const { paths, token } = await createTempJacklineHomeWithGatewayToken();
     assert.equal(
       await verifyGatewayAuthorization(`Bearer ${token}`, paths),
       true,
@@ -116,7 +116,7 @@ describe("gateway /mcp auth", () => {
       const body = (await res.json()) as {
         result?: { serverInfo?: { name?: string } };
       };
-      assert.equal(body.result?.serverInfo?.name, "mesh");
+      assert.equal(body.result?.serverInfo?.name, "jackline");
     } finally {
       app.close();
     }

@@ -2,15 +2,15 @@ import type { ZudokuConfig } from "zudoku";
 
 const config: ZudokuConfig = {
   site: {
-    title: "Mesh Docs",
+    title: "Jackline Docs",
     logo: {
       src: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
-      alt: "Mesh",
-      width: "120px",
+      alt: "Jackline",
+      width: "168px",
     },
   },
   metadata: {
-    title: "Mesh Docs",
+    title: "Jackline Docs",
     description:
       "Self-hostable MCP policy gateway — setup guides and Admin API reference generated from OpenAPI.",
   },
@@ -46,7 +46,7 @@ const config: ZudokuConfig = {
       examplesLanguage: "shell",
       schemaDownload: {
         enabled: true,
-        fileName: "mesh-openapi",
+        fileName: "jackline-openapi",
       },
     },
   },

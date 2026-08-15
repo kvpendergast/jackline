@@ -1,11 +1,11 @@
-import { db, memberships, tenants } from "@mesh/db";
+import { db, memberships, tenants } from "@jackline/db";
 import {
-  MeshError,
+  JacklineError,
   MembershipRoleSchema,
   type MembershipRole,
   type PublicTenant,
   type PublicUser,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { eq } from "drizzle-orm";
 import { ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
@@ -23,7 +23,7 @@ type MeSuccess = {
 async function get(
   log: Logger,
   user: PublicUser,
-): Promise<Result<MeSuccess, MeshError>> {
+): Promise<Result<MeSuccess, JacklineError>> {
   const rows = await db
     .select()
     .from(memberships)

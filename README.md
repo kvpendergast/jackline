@@ -1,8 +1,10 @@
-# Mesh
+# Jackline
 
-Open-source, self-hostable **MCP policy gateway** + control-plane API and admin UI.
+The open-source MCP control plane. Clip in, then go build.
 
-Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server. Mesh authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
+Self-hostable **MCP policy gateway** + control-plane API and admin UI.
+
+Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP server. Jackline authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
 
 ## Status
 
@@ -12,14 +14,14 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | --- | --- |
 | Monorepo (`pnpm`, TypeScript) | Done |
 | Postgres + Drizzle (`tenants`, `memberships`, auth tables, `secrets`) | Done |
-| Envelope crypto (`@mesh/crypto`) | Done |
+| Envelope crypto (`@jackline/crypto`) | Done |
 | Better Auth (email/password + sessions) | Done |
-| Control-plane API (`@mesh/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
+| Control-plane API (`@jackline/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@mesh/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, access requests, audit |
+| Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, access requests, audit |
 | Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry |
-| MCP gateway (`@mesh/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
+| MCP gateway (`@jackline/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
 | Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
@@ -28,7 +30,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod; optional gateway-split / byo-edge overlays) |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
-| Member access | Self-serve clients/connections, mint `msh_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
+| Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
 
 Next: OTEL, rate limits, mTLS.
 
@@ -36,7 +38,7 @@ Next: OTEL, rate limits, mTLS.
 
 - **API:** Hono + `@hono/zod-openapi`
 - **DB:** Drizzle + Postgres
-- **Auth:** Better Auth (identity only; Mesh owns tenants/memberships)
+- **Auth:** Better Auth (identity only; Jackline owns tenants/memberships)
 - **Errors:** neverthrow in services; HTTP envelope at the API edge
 - **License:** MIT
 
@@ -56,7 +58,7 @@ cp .env.example .env
 Generate secrets and put them in `.env`:
 
 ```bash
-openssl rand -base64 32   # MESH_MASTER_KEY (base64)
+openssl rand -base64 32   # JACKLINE_MASTER_KEY (base64)
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 ```
 
@@ -64,16 +66,16 @@ Set `DATABASE_URL` to your Postgres instance, for example:
 
 ```bash
 # local Postgres on default port
-DATABASE_URL=postgresql://mesh:mesh@127.0.0.1:5432/mesh
+DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5432/jackline
 
 # or Docker (example: publish container 5432 → host 5433)
-docker run -d --name mesh-pg \
-  -e POSTGRES_USER=mesh \
-  -e POSTGRES_PASSWORD=mesh \
-  -e POSTGRES_DB=mesh \
+docker run -d --name jackline-pg \
+  -e POSTGRES_USER=jackline \
+  -e POSTGRES_PASSWORD=jackline \
+  -e POSTGRES_DB=jackline \
   -p 5433:5432 postgres:16
 
-DATABASE_URL=postgresql://mesh:mesh@127.0.0.1:5433/mesh
+DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5433/jackline
 ```
 
 Also set:
@@ -81,13 +83,13 @@ Also set:
 ```bash
 BETTER_AUTH_URL=http://127.0.0.1:8080
 WEB_ORIGIN=http://127.0.0.1:5173
-MESH_TENANCY=single   # or multi
+JACKLINE_TENANCY=single   # or multi
 ```
 
 Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
 
 ```bash
-cp .env.example .env   # set MESH_MASTER_KEY, BETTER_AUTH_SECRET
+cp .env.example .env   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
@@ -98,7 +100,7 @@ Default topology: **UI + API + MCP on one origin** (simplest cookies/CORS). Cadd
 
 ```bash
 cp deploy/.env.prod.example .env.prod
-# set MESH_MASTER_KEY and BETTER_AUTH_SECRET
+# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET
 docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 ```
 
@@ -109,7 +111,7 @@ docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 | http://localhost/openapi.json | OpenAPI JSON |
 | http://localhost/health | API health |
 
-**HTTPS:** set `MESH_SITE_ADDRESS` / `MESH_DOCS_SITE_ADDRESS` to bare hostnames (no `http://`), align `WEB_ORIGIN` / `BETTER_AUTH_URL` / `MESH_PUBLIC_*` to `https://…`, and ensure ports 80/443 are reachable.
+**HTTPS:** set `JACKLINE_SITE_ADDRESS` / `JACKLINE_DOCS_SITE_ADDRESS` to bare hostnames (no `http://`), align `WEB_ORIGIN` / `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_*` to `https://…`, and ensure ports 80/443 are reachable.
 
 **Other topologies** (see `apps/docs/pages/self-hosting.mdx`):
 
@@ -126,17 +128,17 @@ docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
 Build a single target:
 
 ```bash
-docker build -f deploy/Dockerfile --target api -t mesh-api .
-docker build -f deploy/Dockerfile --target gateway -t mesh-gateway .
-docker build -f deploy/Dockerfile --target web -t mesh-web .
-docker build -f deploy/Dockerfile --target docs -t mesh-docs .
+docker build -f deploy/Dockerfile --target api -t jackline-api .
+docker build -f deploy/Dockerfile --target gateway -t jackline-gateway .
+docker build -f deploy/Dockerfile --target web -t jackline-web .
+docker build -f deploy/Dockerfile --target docs -t jackline-docs .
 ```
 
 Migrate and start:
 
 ```bash
 pnpm db:migrate
-pnpm --filter @mesh/api dev
+pnpm --filter @jackline/api dev
 # or all apps: pnpm dev
 ```
 
@@ -145,7 +147,7 @@ API listens on `http://127.0.0.1:8080` by default.
 - Health: `GET /health`
 - OpenAPI JSON: `GET /docs`
 - Better Auth: `/api/auth/*`
-- Mesh v1: `/api/v1/*`
+- Jackline v1: `/api/v1/*`
 - OAuth2 token (client_credentials): `POST /api/v1/oauth/token`
 - Docs site (Zudoku): `pnpm docs:dev` → http://127.0.0.1:3000 (exports OpenAPI via `pnpm openapi:export`)
 
@@ -154,7 +156,7 @@ API listens on `http://127.0.0.1:8080` by default.
 ### Create organization (first org in `single` mode)
 
 ```bash
-curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signup \
+curl -sS -c /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signup \
   -H 'content-type: application/json' \
   -d '{
     "email": "you@example.com",
@@ -166,12 +168,12 @@ curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signup \
 
 Expect `201` with `user`, `tenant`, `membership`, and session cookies.
 
-In **`MESH_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
+In **`JACKLINE_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
 
 ### Sign in (if an org already exists)
 
 ```bash
-curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/auth/sign-in/email \
+curl -sS -c /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/auth/sign-in/email \
   -H 'content-type: application/json' \
   -d '{
     "email": "you@example.com",
@@ -182,7 +184,7 @@ curl -sS -c /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/auth/sign-in
 ### Current user + memberships
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt http://127.0.0.1:8080/api/v1/me | jq .
+curl -sS -b /tmp/jackline-cookies.txt http://127.0.0.1:8080/api/v1/me | jq .
 ```
 
 Expect `200` with:
@@ -207,15 +209,15 @@ Without cookies, `/me` returns `401` `UNAUTHORIZED`.
 
 ### Servers (tenant-scoped)
 
-Use a membership `tenant.id` from `/me` as `X-Mesh-Tenant-Id`. Mutations require `full_admin`.
+Use a membership `tenant.id` from `/me` as `X-Jackline-Tenant-Id`. Mutations require `full_admin`.
 
 ```bash
 TENANT_ID='…' # from /me → data.memberships[0].tenant.id
 
 # Create
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/servers \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/servers \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{
     "name": "Example MCP",
     "baseUrl": "https://mcp.example.com",
@@ -224,13 +226,13 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/servers \
   }' | jq .
 
 # List (cursor page; default limit 50, max 100)
-curl -sS -b /tmp/mesh-cookies.txt 'http://127.0.0.1:8080/api/v1/servers?limit=50' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+curl -sS -b /tmp/jackline-cookies.txt 'http://127.0.0.1:8080/api/v1/servers?limit=50' \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" | jq .
 
 # Next page (when data.nextCursor is non-null)
-curl -sS -b /tmp/mesh-cookies.txt \
+curl -sS -b /tmp/jackline-cookies.txt \
   "http://127.0.0.1:8080/api/v1/servers?limit=50&cursor=$NEXT_CURSOR" \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" | jq .
 
 # Get / patch / delete
 # GET    /api/v1/servers/:id
@@ -248,18 +250,18 @@ Tools belong to a server. Mutations require `full_admin`. Names are unique per `
 
 ```bash
 # Create (default status: needs_review)
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/tools \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/tools \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{
     "name": "search",
     "serverId": "'"$SERVER_ID"'"
   }' | jq .
 
 # List (optional serverId filter)
-curl -sS -b /tmp/mesh-cookies.txt \
+curl -sS -b /tmp/jackline-cookies.txt \
   "http://127.0.0.1:8080/api/v1/tools?limit=50&serverId=$SERVER_ID" \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" | jq .
 
 # PATCH /api/v1/tools/:id  e.g. {"status":"active"}
 # GET|DELETE /api/v1/tools/:id
@@ -271,9 +273,9 @@ Roles are `grant` or `deny` and bind tools via `role_tools`. Names unique per te
 
 ```bash
 # Create
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/roles \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/roles \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{"name":"readers","type":"grant"}' | jq .
 
 # Attach / replace / detach tools
@@ -291,9 +293,9 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/roles \
 List members of the active tenant. Create **service** users (non-interactive subjects for Connections) as `full_admin`. Humans still come from `/signup`. Service users get a `member` membership; optional email, otherwise a synthetic unique address is assigned.
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/users \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/users \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{"kind":"service","name":"ci-bot"}' | jq .
 
 # GET /api/v1/users?kind=service
@@ -302,12 +304,12 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/users \
 
 ### Clients (tenant-scoped)
 
-Mesh front-door registrations: `interactive` (human harnesses) or `service` (machine / public Admin API). Names unique per tenant.
+Jackline front-door registrations: `interactive` (human harnesses) or `service` (machine / public Admin API). Names unique per tenant.
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{"name":"cursor","kind":"interactive"}' | jq .
 
 # GET /api/v1/clients?kind=interactive
@@ -316,20 +318,20 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
 
 #### Public Admin API (OAuth2 client_credentials)
 
-`service` clients can mint OAuth2 credentials. Access tokens authenticate the same `/api/v1` routes as session cookies (no `X-Mesh-Tenant-Id` required; tenant comes from the token).
+`service` clients can mint OAuth2 credentials. Access tokens authenticate the same `/api/v1` routes as session cookies (no `X-Jackline-Tenant-Id` required; tenant comes from the token).
 
 ```bash
 # Create a service client + mint credentials (client_secret shown once)
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/clients \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{"name":"ci-bot","kind":"service"}' | jq .
 
 CLIENT_ID='…'
-curl -sS -b /tmp/mesh-cookies.txt -X POST \
+curl -sS -b /tmp/jackline-cookies.txt -X POST \
   "http://127.0.0.1:8080/api/v1/clients/$CLIENT_ID/credentials" \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{}' | jq .
 # → data.clientId, data.clientSecret, data.tokenUrl
 
@@ -353,9 +355,9 @@ curl -sS http://127.0.0.1:8080/api/v1/servers \
 Policy target `(client, user)`. User must be a tenant member. Detail includes `roleIds` and `toolOverrides`.
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connections \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connections \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{"clientId":"'"$CLIENT_ID"'","userId":"'"$USER_ID"'"}' | jq .
 
 # Roles: POST|PUT /connections/:id/roles  DELETE /connections/:id/roles/:roleId
@@ -366,14 +368,14 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/connectio
 # GET /connections  |  GET|PATCH|DELETE /connections/:id
 ```
 
-Mint returns `token` (`msh_<secretId>.<secret>`) and an `mcp` snippet for Cursor/Claude:
+Mint returns `token` (`jkl_<secretId>.<secret>`) and an `mcp` snippet for Cursor/Claude:
 
 ```json
 {
   "mcpServers": {
-    "mesh": {
+    "jackline": {
       "url": "http://127.0.0.1:8081/mcp",
-      "headers": { "Authorization": "Bearer msh_….…" }
+      "headers": { "Authorization": "Bearer jkl_….…" }
     }
   }
 }
@@ -386,14 +388,14 @@ Gateway MCP (`GATEWAY_PORT`, default 8081) — Streamable HTTP at `/mcp`. Auth v
 ```bash
 # Initialize (example JSON-RPC)
 curl -sS http://127.0.0.1:8081/mcp \
-  -H "Authorization: Bearer $MESH_GATEWAY_TOKEN" \
+  -H "Authorization: Bearer $JACKLINE_GATEWAY_TOKEN" \
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' | jq .
 
 # tools/list
 curl -sS http://127.0.0.1:8081/mcp \
-  -H "Authorization: Bearer $MESH_GATEWAY_TOKEN" \
+  -H "Authorization: Bearer $JACKLINE_GATEWAY_TOKEN" \
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq .
@@ -401,7 +403,7 @@ curl -sS http://127.0.0.1:8081/mcp \
 
 ### Secrets (tenant-scoped)
 
-Encrypted credentials via `@mesh/crypto` (local AES-GCM). List/get return **metadata only**. Reveal is admin-only.
+Encrypted credentials via `@jackline/crypto` (local AES-GCM). List/get return **metadata only**. Reveal is admin-only.
 
 Bindings (exactly one):
 - server-level: `serverId`
@@ -409,9 +411,9 @@ Bindings (exactly one):
 - gateway token: `connectionId`
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/secrets \
+curl -sS -b /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/secrets \
   -H 'content-type: application/json' \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" \
   -d '{
     "kind": "api_key",
     "name": "example",
@@ -428,8 +430,8 @@ curl -sS -b /tmp/mesh-cookies.txt -X POST http://127.0.0.1:8080/api/v1/secrets \
 Gateway writes one row per `tools/call` (`allow` | `deny` | `allow_upstream_error`). No args/response payloads. Membership can list/get; no mutations.
 
 ```bash
-curl -sS -b /tmp/mesh-cookies.txt "http://127.0.0.1:8080/api/v1/audit-events?limit=20" \
-  -H "X-Mesh-Tenant-Id: $TENANT_ID" | jq .
+curl -sS -b /tmp/jackline-cookies.txt "http://127.0.0.1:8080/api/v1/audit-events?limit=20" \
+  -H "X-Jackline-Tenant-Id: $TENANT_ID" | jq .
 
 # Filters: connectionId, clientId, userId, toolId, serverId, outcome
 # GET /api/v1/audit-events/:id
@@ -441,8 +443,8 @@ curl -sS -b /tmp/mesh-cookies.txt "http://127.0.0.1:8080/api/v1/audit-events?lim
 - Error: `{ "success": false, "error": { "code", "message", "details?" } }`
 - List endpoints return cursor pages: `{ items, nextCursor }` (`limit` + optional `cursor` query)
 - `/me` returns **all** memberships for the session user (client chooses active tenant later)
-- Signup creates Better Auth user + Mesh tenant + `full_admin` membership
-- Tenant-scoped routes run `tenantContextMiddleware` (`X-Mesh-Tenant-Id` + membership)
+- Signup creates Better Auth user + Jackline tenant + `full_admin` membership
+- Tenant-scoped routes run `tenantContextMiddleware` (`X-Jackline-Tenant-Id` + membership)
 - Admin-only routes also declare `middleware: [requireFullAdmin]` on the route (Express-style)
 
 ## Observability
@@ -466,7 +468,7 @@ No built-in pager. Typical setup:
 
 1. Alert on `level=error` or `errorCode` + 5xx rate from log shipper
 2. Probe `GET /health` for liveness
-3. Example Loki/LogQL-style filter: `{app="mesh-api"} \| json \| status >= 500`
+3. Example Loki/LogQL-style filter: `{app="jackline-api"} \| json \| status >= 500`
 
 Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendly so export is additive.
 
@@ -475,11 +477,11 @@ Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendl
 Local MCP policy gateway (no control-plane required):
 
 ```bash
-npm install -g @mesh/cli   # when published; or pnpm --filter @mesh/cli build && node apps/cli/dist/index.js
-mesh init && mesh catalog && mesh serve
+npm install -g @jackline/cli   # when published; or pnpm --filter @jackline/cli build && node apps/cli/dist/index.js
+jackline init && jackline catalog && jackline serve
 ```
 
-`/mcp` requires a long-lived local bearer (`msh_…`) printed by `mesh init` / `mesh serve` / `mesh auth show`. See [`apps/cli/README.md`](apps/cli/README.md).
+`/mcp` requires a long-lived local bearer (`jkl_…`) printed by `jackline init` / `jackline serve` / `jackline auth show`. See [`apps/cli/README.md`](apps/cli/README.md).
 
 ## Repo layout
 
@@ -488,7 +490,7 @@ apps/
   api/       # control-plane (Hono)
   web/       # Vite/React admin UI (Steel Lattice + shadcn)
   gateway/   # MCP gateway (Streamable HTTP)
-  cli/       # personal Mesh CLI (@mesh/cli)
+  cli/       # personal Jackline CLI (@jackline/cli)
 packages/
   shared/    # env, errors, tenancy, public DTOs, connector catalog
   db/        # Drizzle schema + migrations

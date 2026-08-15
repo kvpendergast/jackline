@@ -1,6 +1,6 @@
 import type { Context } from "hono";
-import { BadRequestError, UnauthorizedError } from "@mesh/shared";
-import type { MeshEnv } from "../../lib/http/env.js";
+import { BadRequestError, UnauthorizedError } from "@jackline/shared";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { Client } from "../clients/resource.js";
 
 function parseBasicAuth(
@@ -27,7 +27,7 @@ function parseBasicAuth(
  * Accepts application/x-www-form-urlencoded or JSON.
  * Client auth: body client_id/client_secret or HTTP Basic.
  */
-export async function oauthTokenHandler(c: Context<MeshEnv>) {
+export async function oauthTokenHandler(c: Context<JacklineEnv>) {
   const log = c.get("requestContext").log;
   const contentType = c.req.header("content-type") ?? "";
 

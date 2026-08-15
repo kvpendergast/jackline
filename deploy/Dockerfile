@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-target production image for Mesh.
-#   docker build -f deploy/Dockerfile --target api -t mesh-api .
-#   docker build -f deploy/Dockerfile --target gateway -t mesh-gateway .
-#   docker build -f deploy/Dockerfile --target web -t mesh-web .
-#   docker build -f deploy/Dockerfile --target docs -t mesh-docs .
-#   docker build -f deploy/Dockerfile --target migrate -t mesh-migrate .
+# Multi-target production image for Jackline.
+#   docker build -f deploy/Dockerfile --target api -t jackline-api .
+#   docker build -f deploy/Dockerfile --target gateway -t jackline-gateway .
+#   docker build -f deploy/Dockerfile --target web -t jackline-web .
+#   docker build -f deploy/Dockerfile --target docs -t jackline-docs .
+#   docker build -f deploy/Dockerfile --target migrate -t jackline-migrate .
 
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
@@ -28,7 +28,7 @@ ENV API_HOST=0.0.0.0
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
   CMD curl -fsS "http://127.0.0.1:${API_PORT:-8080}/health" || exit 1
-CMD ["pnpm", "--filter", "@mesh/api", "start"]
+CMD ["pnpm", "--filter", "@jackline/api", "start"]
 
 # --- Runtime: Gateway ---
 FROM deps AS gateway
@@ -37,7 +37,7 @@ ENV GATEWAY_HOST=0.0.0.0
 EXPOSE 8081
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
   CMD curl -fsS "http://127.0.0.1:${GATEWAY_PORT:-8081}/health" || exit 1
-CMD ["pnpm", "--filter", "@mesh/gateway", "start"]
+CMD ["pnpm", "--filter", "@jackline/gateway", "start"]
 
 # --- One-shot: DB migrate ---
 FROM deps AS migrate
@@ -46,7 +46,7 @@ CMD ["pnpm", "db:migrate"]
 
 # --- Build: Admin UI ---
 FROM deps AS web-build
-RUN pnpm --filter @mesh/web build
+RUN pnpm --filter @jackline/web build
 
 FROM nginx:1.27-alpine AS web
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
@@ -57,7 +57,7 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
 
 # --- Build: Docs (uses committed apps/docs/apis/openapi.json) ---
 FROM deps AS docs-build
-RUN pnpm --filter @mesh/docs build
+RUN pnpm --filter @jackline/docs build
 
 FROM nginx:1.27-alpine AS docs
 COPY deploy/nginx/docs.conf /etc/nginx/conf.d/default.conf

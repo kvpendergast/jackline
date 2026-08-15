@@ -5,14 +5,14 @@ import {
   cursorMcpSettingsSnippet,
   ensureGatewayToken,
 } from "../lib/gatewayAuth.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 import { createApp } from "../server/app.js";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "serve",
-    description: "Start the personal Mesh MCP gateway",
+    description: "Start the personal Jackline MCP gateway",
   },
   args: {
     port: {
@@ -23,12 +23,12 @@ export default defineMeshCommand({
     },
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
 
     let configPort = 8081;
     try {
@@ -63,7 +63,7 @@ export default defineMeshCommand({
     const app = createApp(paths);
 
     serve({ fetch: app.fetch, hostname: host, port }, () => {
-      consola.success(`mesh listening on http://${host}:${port}`);
+      consola.success(`jackline listening on http://${host}:${port}`);
       consola.info(`MCP endpoint: http://${host}:${port}/mcp`);
       consola.info(
         "Tool enable/disable is watched live (notifications/tools/list_changed).",
@@ -73,7 +73,7 @@ export default defineMeshCommand({
         "Add to Cursor MCP settings (Authorization required):\n" +
           cursorMcpSettingsSnippet(host, port, token),
       );
-      consola.info("Re-print the token anytime with: mesh auth show");
+      consola.info("Re-print the token anytime with: jackline auth show");
     });
   },
 });

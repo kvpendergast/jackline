@@ -4,9 +4,9 @@ import z from "zod";
 import { BadRequestError } from "../errors/index.js";
 
 export const GATEWAY_TOKEN_KIND = "gateway_token" as const;
-export const GATEWAY_TOKEN_PREFIX = "msh_" as const;
+export const GATEWAY_TOKEN_PREFIX = "jkl_" as const;
 
-/** Presented once at mint: `msh_<secretId>.<secret>`. */
+/** Presented once at mint: `jkl_<secretId>.<secret>`. */
 export function formatGatewayToken(secretId: string, secret: string): string {
   return `${GATEWAY_TOKEN_PREFIX}${secretId}.${secret}`;
 }
@@ -16,7 +16,7 @@ export type ParsedGatewayToken = {
   secret: string;
 };
 
-/** Parse `msh_<secretId>.<secret>` from a bearer credential. */
+/** Parse `jkl_<secretId>.<secret>` from a bearer credential. */
 export function parseGatewayToken(
   token: string,
 ): Result<ParsedGatewayToken, BadRequestError> {

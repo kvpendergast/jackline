@@ -1,18 +1,18 @@
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, roleTools, roles, tools, type Role } from "@mesh/db";
+import { db, roleTools, roles, tools, type Role } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type CursorPage,
   type PublicRole,
   type PublicRoleDetail,
   type RoleType,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -61,7 +61,7 @@ async function loadToolIds(
 async function getRoleRow(
   tenantId: string,
   roleId: string,
-): Promise<Result<Role, MeshError>> {
+): Promise<Result<Role, JacklineError>> {
   const [row] = await db
     .select()
     .from(roles)
@@ -79,7 +79,7 @@ async function create(
   log: Logger,
   tenantId: string,
   input: CreateRoleInput,
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   try {
     const [row] = await db
       .insert(roles)
@@ -106,7 +106,7 @@ async function list(
   log: Logger,
   tenantId: string,
   query: PaginationQuery,
-): Promise<Result<CursorPage<PublicRole>, MeshError>> {
+): Promise<Result<CursorPage<PublicRole>, JacklineError>> {
   const conditions = [eq(roles.tenantId, tenantId)];
 
   if (query.cursor) {
@@ -158,7 +158,7 @@ async function get(
   log: Logger,
   tenantId: string,
   roleId: string,
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   const roleResult = await getRoleRow(tenantId, roleId);
   if (roleResult.isErr()) {
     return err(roleResult.error);
@@ -174,7 +174,7 @@ async function update(
   tenantId: string,
   roleId: string,
   input: UpdateRoleInput,
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   const existing = await getRoleRow(tenantId, roleId);
   if (existing.isErr()) {
     return err(existing.error);
@@ -219,7 +219,7 @@ async function remove(
   log: Logger,
   tenantId: string,
   roleId: string,
-): Promise<Result<PublicRole, MeshError>> {
+): Promise<Result<PublicRole, JacklineError>> {
   const existing = await getRoleRow(tenantId, roleId);
   if (existing.isErr()) {
     return err(existing.error);
@@ -247,7 +247,7 @@ async function attachTool(
   tenantId: string,
   roleId: string,
   toolId: string,
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   const roleResult = await getRoleRow(tenantId, roleId);
   if (roleResult.isErr()) {
     return err(roleResult.error);
@@ -281,7 +281,7 @@ async function detachTool(
   tenantId: string,
   roleId: string,
   toolId: string,
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   const roleResult = await getRoleRow(tenantId, roleId);
   if (roleResult.isErr()) {
     return err(roleResult.error);
@@ -312,7 +312,7 @@ async function setTools(
   tenantId: string,
   roleId: string,
   toolIds: string[],
-): Promise<Result<PublicRoleDetail, MeshError>> {
+): Promise<Result<PublicRoleDetail, JacklineError>> {
   const roleResult = await getRoleRow(tenantId, roleId);
   if (roleResult.isErr()) {
     return err(roleResult.error);

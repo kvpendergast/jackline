@@ -1,10 +1,10 @@
 import { consola } from "consola";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { loadConfig } from "../lib/config.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 import { loadSecretsFile } from "../lib/secrets.js";
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "list",
     description: "List configured upstream MCP servers and their settings",
@@ -12,7 +12,7 @@ export default defineMeshCommand({
   args: {
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
     json: {
@@ -22,7 +22,7 @@ export default defineMeshCommand({
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     const config = await loadConfig(paths);
     const secrets = await loadSecretsFile(paths);
 
@@ -64,7 +64,7 @@ export default defineMeshCommand({
     consola.log("");
 
     if (rows.length === 0) {
-      consola.info("No servers configured. Try `mesh add linear --token …`.");
+      consola.info("No servers configured. Try `jackline add linear --token …`.");
       return;
     }
 

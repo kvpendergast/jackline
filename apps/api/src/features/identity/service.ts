@@ -8,12 +8,12 @@ import {
   reloadAuth,
   ssoProviderId,
   ssoSecretAad,
-} from "@mesh/auth";
-import { db, invites, memberships, ssoConfigs, tenants, user } from "@mesh/db";
+} from "@jackline/auth";
+import { db, invites, memberships, ssoConfigs, tenants, user } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   getConfig,
@@ -23,7 +23,7 @@ import {
   type PublicSsoConfig,
   type RotateScimTokenResult,
   type UpdateSsoConfigBody,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { getSecretBox } from "../../lib/secrets/secretBox.js";
 
 function toPublicSso(row: typeof ssoConfigs.$inferSelect): PublicSsoConfig {
@@ -77,7 +77,7 @@ async function ensureSsoRow(tenantId: string) {
 async function getSso(
   log: Logger,
   tenantId: string,
-): Promise<Result<PublicSsoConfig, MeshError>> {
+): Promise<Result<PublicSsoConfig, JacklineError>> {
   const row = await ensureSsoRow(tenantId);
   log.debug({ tenantId }, "getSso");
   return ok(toPublicSso(row));
@@ -87,7 +87,7 @@ async function updateSso(
   log: Logger,
   tenantId: string,
   input: UpdateSsoConfigBody,
-): Promise<Result<PublicSsoConfig, MeshError>> {
+): Promise<Result<PublicSsoConfig, JacklineError>> {
   const existing = await ensureSsoRow(tenantId);
   const patch: Partial<typeof ssoConfigs.$inferInsert> & { updatedAt: Date } = {
     updatedAt: new Date(),
@@ -152,7 +152,7 @@ async function updateSso(
 async function rotateScimToken(
   log: Logger,
   tenantId: string,
-): Promise<Result<RotateScimTokenResult, MeshError>> {
+): Promise<Result<RotateScimTokenResult, JacklineError>> {
   const existing = await ensureSsoRow(tenantId);
   const token = generateScimToken();
   const [row] = await db
@@ -182,7 +182,7 @@ async function listInvites(
   tenantId: string,
   actorRole: MembershipRole,
   actorTeam: string | null,
-): Promise<Result<PublicInvite[], MeshError>> {
+): Promise<Result<PublicInvite[], JacklineError>> {
   const conditions = [
     eq(invites.tenantId, tenantId),
     isNull(invites.acceptedAt),
@@ -213,7 +213,7 @@ async function createInvite(
   actorRole: MembershipRole,
   actorTeam: string | null,
   input: CreateInviteBody,
-): Promise<Result<{ invite: PublicInvite; token: string }, MeshError>> {
+): Promise<Result<{ invite: PublicInvite; token: string }, JacklineError>> {
   if (actorRole === "delegated_admin") {
     if (input.role === "full_admin") {
       return err(new ForbiddenError("delegated_admin cannot invite full_admin"));
@@ -267,7 +267,7 @@ async function acceptInvite(
   userId: string,
   userEmail: string,
   token: string,
-): Promise<Result<PublicInvite, MeshError>> {
+): Promise<Result<PublicInvite, JacklineError>> {
   const tokenHash = hashToken(token);
   const [invite] = await db
     .select()
@@ -332,7 +332,7 @@ async function listAdmins(
       role: string;
       team: string | null;
     }>,
-    MeshError
+    JacklineError
   >
 > {
   const conditions = [eq(memberships.tenantId, tenantId)];
@@ -374,11 +374,11 @@ async function listAdmins(
 async function listLoginProviders(
   log: Logger,
 ): Promise<
-  Result<Array<{ providerId: string; label: string }>, MeshError>
+  Result<Array<{ providerId: string; label: string }>, JacklineError>
 > {
   const items: Array<{ providerId: string; label: string }> = [];
   const config = getConfig();
-  if (config.isOk() && config.value.MESH_OIDC_ISSUER) {
+  if (config.isOk() && config.value.JACKLINE_OIDC_ISSUER) {
     items.push({ providerId: "oidc-env", label: "Organization SSO" });
   }
 

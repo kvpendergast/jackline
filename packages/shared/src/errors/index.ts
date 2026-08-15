@@ -12,66 +12,66 @@ export const ErrorCode = {
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /** Domain error — no HTTP status. Map to HTTP at the API edge. */
-export class MeshError extends Error {
+export class JacklineError extends Error {
   readonly code: ErrorCode;
 
   constructor(code: ErrorCode, message: string) {
     super(message);
-    this.name = "MeshError";
+    this.name = "JacklineError";
     this.code = code;
   }
 }
 
-export class UnauthorizedError extends MeshError {
+export class UnauthorizedError extends JacklineError {
   constructor(message = "Unauthorized") {
     super(ErrorCode.UNAUTHORIZED, message);
     this.name = "UnauthorizedError";
   }
 }
 
-export class ForbiddenError extends MeshError {
+export class ForbiddenError extends JacklineError {
   constructor(message = "Forbidden") {
     super(ErrorCode.FORBIDDEN, message);
     this.name = "ForbiddenError";
   }
 }
 
-export class NotFoundError extends MeshError {
+export class NotFoundError extends JacklineError {
   constructor(message = "Not Found") {
     super(ErrorCode.NOT_FOUND, message);
     this.name = "NotFoundError";
   }
 }
 
-export class BadRequestError extends MeshError {
+export class BadRequestError extends JacklineError {
   constructor(message = "Bad Request") {
     super(ErrorCode.BAD_REQUEST, message);
     this.name = "BadRequestError";
   }
 }
 
-export class TenantLimitReachedError extends MeshError {
+export class TenantLimitReachedError extends JacklineError {
   constructor(message = "Single-tenant mode allows only one organization") {
     super(ErrorCode.TENANT_LIMIT_REACHED, message);
     this.name = "TenantLimitReachedError";
   }
 }
 
-export class SetupError extends MeshError {
+export class SetupError extends JacklineError {
   constructor(message = "Setup failed") {
     super(ErrorCode.INTERNAL, message);
     this.name = "SetupError";
   }
 }
 
-export class NotImplementedError extends MeshError {
+export class NotImplementedError extends JacklineError {
   constructor(message = "Not Implemented") {
     super(ErrorCode.NOT_IMPLEMENTED, message);
     this.name = "NotImplementedError";
   }
 }
 
-export class EncryptionError extends MeshError {
+export class EncryptionError extends JacklineError {
   constructor(message: string) {
     super(ErrorCode.INTERNAL, message);
     this.name = "EncryptionError";

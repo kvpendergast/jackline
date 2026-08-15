@@ -2,9 +2,9 @@ import { err, ok, type Result } from "neverthrow";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   type ToolHttpMethod,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import type { Logger } from "pino";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import {
@@ -13,7 +13,7 @@ import {
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
-function joinUrl(baseUrl: string, pathTemplate: string): Result<URL, MeshError> {
+function joinUrl(baseUrl: string, pathTemplate: string): Result<URL, JacklineError> {
   try {
     const base = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
     const path = pathTemplate.startsWith("/")
@@ -32,7 +32,7 @@ function joinUrl(baseUrl: string, pathTemplate: string): Result<URL, MeshError> 
 function applyPathParams(
   pathTemplate: string,
   args: Record<string, unknown>,
-): Result<{ path: string; used: Set<string> }, MeshError> {
+): Result<{ path: string; used: Set<string> }, JacklineError> {
   const used = new Set<string>();
   try {
     const path = pathTemplate.replace(/\{([^}]+)\}/g, (_match, name: string) => {
@@ -45,7 +45,7 @@ function applyPathParams(
     });
     return ok({ path, used });
   } catch (cause) {
-    if (cause instanceof MeshError) return err(cause);
+    if (cause instanceof JacklineError) return err(cause);
     return err(new BadRequestError("Failed to expand path template"));
   }
 }
@@ -62,7 +62,7 @@ function remainingArgs(
 }
 
 /**
- * Proxy a Mesh tool invocation to a custom HTTP API using the tool's binding.
+ * Proxy a Jackline tool invocation to a custom HTTP API using the tool's binding.
  */
 export async function proxyHttpToolCall(
   ctx: GatewayConnectionContext,
@@ -74,7 +74,7 @@ export async function proxyHttpToolCall(
     pathTemplate: string;
   },
   args: Record<string, unknown>,
-): Promise<Result<CallToolResult, MeshError>> {
+): Promise<Result<CallToolResult, JacklineError>> {
   const { tenantId, connection, log } = ctx;
 
   const headersResult = await resolveUpstreamAuthHeaders(
@@ -149,7 +149,7 @@ export async function proxyHttpToolCall(
         "proxyHttpToolCall upstream error status",
       );
       return err(
-        new MeshError(
+        new JacklineError(
           "INTERNAL",
           `Upstream HTTP ${method} ${expanded.value.path} → ${res.status}: ${text.slice(0, 500)}`,
         ),
@@ -187,7 +187,7 @@ export function assertHttpBinding(
     pathTemplate: string | null;
     toolName: string;
   },
-): Result<{ httpMethod: ToolHttpMethod; pathTemplate: string }, MeshError> {
+): Result<{ httpMethod: ToolHttpMethod; pathTemplate: string }, JacklineError> {
   if (!row.httpMethod || !row.pathTemplate) {
     log.warn({ toolName: row.toolName }, "API tool missing HTTP binding");
     return err(

@@ -1,14 +1,14 @@
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { consola } from "consola";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { cursorMcpSettingsSnippet, mintGatewayToken } from "../lib/gatewayAuth.js";
 import {
   clearStoredMasterKey,
   masterKeyExists,
   storeMasterKey,
 } from "../lib/masterKey.js";
-import { defaultConfigYaml, getMeshPaths } from "../lib/paths.js";
+import { defaultConfigYaml, getJacklinePaths } from "../lib/paths.js";
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
@@ -19,10 +19,10 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "init",
-    description: "Initialize personal Mesh config under ~/.mesh",
+    description: "Initialize personal Jackline config under ~/.jackline",
   },
   args: {
     force: {
@@ -33,18 +33,18 @@ export default defineMeshCommand({
     },
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
     fileKey: {
       type: "boolean",
       description:
-        "Store the master key as ~/.mesh/master.key instead of the OS keychain (less secure)",
+        "Store the master key as ~/.jackline/master.key instead of the OS keychain (less secure)",
       default: false,
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     const already =
       (await pathExists(paths.config)) || (await masterKeyExists(paths));
 
@@ -93,10 +93,10 @@ export default defineMeshCommand({
 
     const token = await mintGatewayToken(paths);
 
-    consola.success(`Mesh initialized at ${paths.root}`);
+    consola.success(`Jackline initialized at ${paths.root}`);
     consola.info(`Config:     ${paths.config}`);
     if (keyStorage === "keychain") {
-      consola.info("Master key: OS keychain (mesh-cli)");
+      consola.info("Master key: OS keychain (jackline-cli)");
     } else {
       consola.info(`Master key: ${paths.masterKey}`);
     }

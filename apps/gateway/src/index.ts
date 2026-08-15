@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadConfig } from "@mesh/shared";
+import { loadConfig } from "@jackline/shared";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const envPath = path.join(root, ".env");

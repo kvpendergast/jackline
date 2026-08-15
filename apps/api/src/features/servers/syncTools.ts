@@ -4,10 +4,10 @@ import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { db, secrets, servers, tools, type Tool } from "@mesh/db";
+import { db, secrets, servers, tools, type Tool } from "@jackline/db";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   NotImplementedError,
   resolveOAuthAccessToken,
@@ -15,7 +15,7 @@ import {
   type PublicTool,
   type SyncToolsResult,
   type ToolHttpMethod,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 import { importToolsFromOpenApi } from "./importOpenApi.js";
 
@@ -48,7 +48,7 @@ function asObjectSchema(
 async function resolveUpstreamBearer(
   authMethod: "api_key" | "oauth" | "mtls",
   plaintext: string,
-): Promise<Result<string, MeshError>> {
+): Promise<Result<string, JacklineError>> {
   if (authMethod === "api_key") {
     return ok(plaintext);
   }
@@ -60,38 +60,9 @@ async function resolveUpstreamBearer(
   return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
 }
 
-async function loadServerLevelSecret(
-  tenantId: string,
-  serverId: string,
-  authMethod: "api_key" | "oauth" | "mtls",
-): Promise<Result<{ plaintext: string }, MeshError>> {
-  if (authMethod === "mtls") {
-    return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
-  }
-
-  const kind = upstreamSecretKind(authMethod);
-  const [secretRow] = await db
-    .select()
-    .from(secrets)
-    .where(
-      and(
-        eq(secrets.tenantId, tenantId),
-        eq(secrets.serverId, serverId),
-        eq(secrets.kind, kind),
-        isNull(secrets.userId),
-        isNull(secrets.connectionId),
-      ),
-    )
-    .limit(1);
-
-  if (!secretRow) {
-    return err(
-      new BadRequestError(
-        `Add a server-level ${kind} secret before syncing tools from this upstream`,
-      ),
-    );
-  }
-
+async function decryptSecretRow(
+  secretRow: typeof secrets.$inferSelect,
+): Promise<Result<{ plaintext: string }, JacklineError>> {
   const boxResult = getSecretBox();
   if (boxResult.isErr()) return err(boxResult.error);
 
@@ -116,6 +87,60 @@ async function loadServerLevelSecret(
   return ok({ plaintext: new TextDecoder().decode(decrypted.value) });
 }
 
+/**
+ * Tool catalog sync uses the acting admin's personal credential when present
+ * (subject_required / My Access Connect). Falls back to the org shared secret.
+ */
+async function loadSyncSecret(
+  tenantId: string,
+  serverId: string,
+  userId: string,
+  authMethod: "api_key" | "oauth" | "mtls",
+): Promise<Result<{ plaintext: string }, JacklineError>> {
+  if (authMethod === "mtls") {
+    return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
+  }
+
+  const kind = upstreamSecretKind(authMethod);
+  const [personal] = await db
+    .select()
+    .from(secrets)
+    .where(
+      and(
+        eq(secrets.tenantId, tenantId),
+        eq(secrets.serverId, serverId),
+        eq(secrets.kind, kind),
+        eq(secrets.userId, userId),
+        isNull(secrets.connectionId),
+      ),
+    )
+    .limit(1);
+
+  if (personal) return decryptSecretRow(personal);
+
+  const [shared] = await db
+    .select()
+    .from(secrets)
+    .where(
+      and(
+        eq(secrets.tenantId, tenantId),
+        eq(secrets.serverId, serverId),
+        eq(secrets.kind, kind),
+        isNull(secrets.userId),
+        isNull(secrets.connectionId),
+      ),
+    )
+    .limit(1);
+
+  if (shared) return decryptSecretRow(shared);
+
+  return err(
+    new BadRequestError(
+      "Connect this server in My Access (or add a shared credential), then sync tools",
+    ),
+  );
+}
+
 async function upsertImportedTools(
   log: Logger,
   tenantId: string,
@@ -127,7 +152,7 @@ async function upsertImportedTools(
     httpMethod?: ToolHttpMethod | null;
     pathTemplate?: string | null;
   }>,
-): Promise<Result<SyncToolsResult, MeshError>> {
+): Promise<Result<SyncToolsResult, JacklineError>> {
   const existing = await db
     .select()
     .from(tools)
@@ -205,11 +230,13 @@ async function upsertImportedTools(
 async function syncMcpTools(
   log: Logger,
   tenantId: string,
+  userId: string,
   server: typeof servers.$inferSelect,
-): Promise<Result<SyncToolsResult, MeshError>> {
-  const secret = await loadServerLevelSecret(
+): Promise<Result<SyncToolsResult, JacklineError>> {
+  const secret = await loadSyncSecret(
     tenantId,
     server.id,
+    userId,
     server.authMethod,
   );
   if (secret.isErr()) return err(secret.error);
@@ -232,7 +259,7 @@ async function syncMcpTools(
       headers: { Authorization: `Bearer ${bearer.value}` },
     },
   });
-  const client = new Client({ name: "mesh-api-sync", version: "0.0.0" });
+  const client = new Client({ name: "jackline-api-sync", version: "0.0.0" });
 
   let listed: Awaited<ReturnType<Client["listTools"]>>;
   try {
@@ -246,7 +273,7 @@ async function syncMcpTools(
       .update(servers)
       .set({ health: "unhealthy", updatedAt: new Date() })
       .where(eq(servers.id, server.id));
-    return err(new MeshError("INTERNAL", `Upstream tools/list failed: ${detail}`));
+    return err(new JacklineError("INTERNAL", `Upstream tools/list failed: ${detail}`));
   } finally {
     await client.close().catch(() => undefined);
     await transport.close().catch(() => undefined);
@@ -270,7 +297,7 @@ async function syncOpenApiTools(
   log: Logger,
   tenantId: string,
   server: typeof servers.$inferSelect,
-): Promise<Result<SyncToolsResult, MeshError>> {
+): Promise<Result<SyncToolsResult, JacklineError>> {
   if (!server.docsUrl) {
     return err(
       new BadRequestError(
@@ -291,7 +318,7 @@ async function syncOpenApiTools(
       .set({ health: "unhealthy", updatedAt: new Date() })
       .where(eq(servers.id, server.id));
     return err(
-      new MeshError("INTERNAL", `Failed to fetch OpenAPI docs: ${detail}`),
+      new JacklineError("INTERNAL", `Failed to fetch OpenAPI docs: ${detail}`),
     );
   }
 
@@ -302,7 +329,7 @@ async function syncOpenApiTools(
       .set({ health: "unhealthy", updatedAt: new Date() })
       .where(eq(servers.id, server.id));
     return err(
-      new MeshError(
+      new JacklineError(
         "INTERNAL",
         `OpenAPI docs fetch → ${res.status}: ${text.slice(0, 200)}`,
       ),
@@ -331,13 +358,14 @@ async function syncOpenApiTools(
 
 /**
  * Discover tools from an upstream MCP server or OpenAPI document and upsert
- * into the Mesh catalog. New tools land as `needs_review`.
+ * into the Jackline catalog. New tools land as `needs_review`.
  */
 export async function syncToolsFromUpstream(
   log: Logger,
   tenantId: string,
+  userId: string,
   serverId: string,
-): Promise<Result<SyncToolsResult, MeshError>> {
+): Promise<Result<SyncToolsResult, JacklineError>> {
   const [server] = await db
     .select()
     .from(servers)
@@ -349,7 +377,7 @@ export async function syncToolsFromUpstream(
   }
 
   if (server.kind === "mcp") {
-    return syncMcpTools(log, tenantId, server);
+    return syncMcpTools(log, tenantId, userId, server);
   }
 
   if (server.kind === "api") {

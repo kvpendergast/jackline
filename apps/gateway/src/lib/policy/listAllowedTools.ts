@@ -1,8 +1,8 @@
-import { formatMcpToolName } from "@mesh/shared";
+import { formatMcpToolName } from "@jackline/shared";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { getAllowedTools } from "@mesh/policy";
-import type { MeshError } from "@mesh/shared";
+import { getAllowedTools } from "@jackline/policy";
+import type { JacklineError } from "@jackline/shared";
 import {
   loadConnectionToolPermissions,
   type ConnectionToolRecord,
@@ -22,7 +22,7 @@ export type AllowedMcpTool = {
   name: string;
   description: string;
   inputSchema: z.ZodType;
-  /** Internal Mesh tool id for later tools/call. */
+  /** Internal Jackline tool id for later tools/call. */
   toolId: string;
   serverId: string;
 };
@@ -57,7 +57,7 @@ export async function listAllowedMcpTools(
   tenantId: string,
   connectionId: string,
   userId: string,
-): Promise<Result<AllowedMcpTool[], MeshError>> {
+): Promise<Result<AllowedMcpTool[], JacklineError>> {
   const loaded = await loadConnectionToolPermissions(
     log,
     tenantId,

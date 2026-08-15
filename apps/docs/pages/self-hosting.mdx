@@ -4,12 +4,12 @@ title: Self-hosting
 
 # Self-hosting
 
-Mesh ships as separate containers (**api**, **gateway**, **web**, **docs**, plus Postgres). How you put an edge in front of them is up to you.
+Jackline ships as separate containers (**api**, **gateway**, **web**, **docs**, plus Postgres). How you put an edge in front of them is up to you.
 
 **Default:** one origin via Caddy (admin UI + API + MCP together — simplest cookies/CORS).  
 **Optional:** split the gateway for scale/exposure, or skip Caddy and use your own proxy.
 
-Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `MESH_PUBLIC_API_URL`, and `MESH_PUBLIC_MCP_URL` to whatever browsers and MCP clients actually call. Cursor should use `MESH_PUBLIC_MCP_URL`.
+Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `JACKLINE_PUBLIC_API_URL`, and `JACKLINE_PUBLIC_MCP_URL` to whatever browsers and MCP clients actually call. Cursor should use `JACKLINE_PUBLIC_MCP_URL`.
 
 ## Production (recommended default)
 
@@ -17,7 +17,7 @@ Same-origin edge with Caddy:
 
 ```bash
 cp deploy/.env.prod.example .env.prod
-# set MESH_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
+# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
 
 docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 ```
@@ -37,14 +37,14 @@ Clone + build is intentional for open source — no registry pull required.
 2. In `.env.prod`, use **bare hostnames** for Caddy site addresses (no `http://`) so Caddy enables HTTPS:
 
 ```bash
-MESH_SITE_ADDRESS=mesh.example.com
-MESH_DOCS_SITE_ADDRESS=docs.mesh.example.com
-MESH_CADDY_GLOBAL_OPTIONS=email you@example.com
+JACKLINE_SITE_ADDRESS=jackline.example.com
+JACKLINE_DOCS_SITE_ADDRESS=docs.jackline.example.com
+JACKLINE_CADDY_GLOBAL_OPTIONS=email you@example.com
 
-WEB_ORIGIN=https://mesh.example.com
-BETTER_AUTH_URL=https://mesh.example.com
-MESH_PUBLIC_API_URL=https://mesh.example.com
-MESH_PUBLIC_MCP_URL=https://mesh.example.com/mcp
+WEB_ORIGIN=https://jackline.example.com
+BETTER_AUTH_URL=https://jackline.example.com
+JACKLINE_PUBLIC_API_URL=https://jackline.example.com
+JACKLINE_PUBLIC_MCP_URL=https://jackline.example.com/mcp
 ```
 
 3. Recreate: `docker compose -f deploy/compose.prod.yml --env-file .env.prod up -d`
@@ -62,11 +62,11 @@ docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
   --env-file .env.prod up --build -d
 ```
 
-Set `MESH_PUBLIC_MCP_URL` to the gateway URL clients should use (e.g. `https://mcp.example.com/mcp` behind your TLS terminator, or `http://127.0.0.1:8081/mcp` locally). `MESH_GATEWAY_PUBLISH_PORT` defaults to `8081`.
+Set `JACKLINE_PUBLIC_MCP_URL` to the gateway URL clients should use (e.g. `https://mcp.example.com/mcp` behind your TLS terminator, or `http://127.0.0.1:8081/mcp` locally). `JACKLINE_GATEWAY_PUBLISH_PORT` defaults to `8081`.
 
 ### Bring your own edge
 
-No Mesh-managed proxy — ports published for your nginx / Traefik / cloud LB:
+No Jackline-managed proxy — ports published for your nginx / Traefik / cloud LB:
 
 ```bash
 docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
@@ -75,12 +75,12 @@ docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
 
 | Publish port env | Default | Container |
 | --- | --- | --- |
-| `MESH_API_PUBLISH_PORT` | 8080 | api |
-| `MESH_GATEWAY_PUBLISH_PORT` | 8081 | gateway |
-| `MESH_WEB_PUBLISH_PORT` | 8088 | web |
-| `MESH_DOCS_PUBLISH_PORT` | 8089 | docs |
+| `JACKLINE_API_PUBLISH_PORT` | 8080 | api |
+| `JACKLINE_GATEWAY_PUBLISH_PORT` | 8081 | gateway |
+| `JACKLINE_WEB_PUBLISH_PORT` | 8088 | web |
+| `JACKLINE_DOCS_PUBLISH_PORT` | 8089 | docs |
 
-Route externally however you like. Same-origin UI+API remains the easiest for session cookies; if the UI and API are on different hosts, set `WEB_ORIGIN` to the UI origin and `BETTER_AUTH_URL` / `MESH_PUBLIC_API_URL` to the API origin. Use `MESH_ADDITIONAL_ORIGINS` (comma-separated) for any extra browser origins.
+Route externally however you like. Same-origin UI+API remains the easiest for session cookies; if the UI and API are on different hosts, set `WEB_ORIGIN` to the UI origin and `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_API_URL` to the API origin. Use `JACKLINE_ADDITIONAL_ORIGINS` (comma-separated) for any extra browser origins.
 
 Suggested long-term shape: **gateway** on its own host when you care about scale/exposure; **UI + API** as the control plane (together by default).
 

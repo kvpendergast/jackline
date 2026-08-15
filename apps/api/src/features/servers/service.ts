@@ -1,9 +1,9 @@
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, secrets, servers, type Server } from "@mesh/db";
+import { db, secrets, servers, type Server } from "@jackline/db";
 import {
-  MeshError,
+  JacklineError,
   NotFoundError,
   OAUTH_CLIENT_SECRET_KIND,
   SetupError,
@@ -14,7 +14,7 @@ import {
   type ServerKind,
   type ServerSource,
   type ServerStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -112,7 +112,7 @@ async function create(
   log: Logger,
   tenantId: string,
   input: CreateServerInput,
-): Promise<Result<PublicServer, MeshError>> {
+): Promise<Result<PublicServer, JacklineError>> {
   try {
     const [row] = await db
       .insert(servers)
@@ -150,7 +150,7 @@ async function list(
   log: Logger,
   tenantId: string,
   query: PaginationQuery,
-): Promise<Result<CursorPage<PublicServer>, MeshError>> {
+): Promise<Result<CursorPage<PublicServer>, JacklineError>> {
   const conditions = [eq(servers.tenantId, tenantId)];
 
   if (query.cursor) {
@@ -209,7 +209,7 @@ async function get(
   log: Logger,
   tenantId: string,
   serverId: string,
-): Promise<Result<PublicServer, MeshError>> {
+): Promise<Result<PublicServer, JacklineError>> {
   const [row] = await db
     .select()
     .from(servers)
@@ -230,7 +230,7 @@ async function update(
   tenantId: string,
   serverId: string,
   input: UpdateServerInput,
-): Promise<Result<PublicServer, MeshError>> {
+): Promise<Result<PublicServer, JacklineError>> {
   const patch: Partial<typeof servers.$inferInsert> & { updatedAt: Date } = {
     updatedAt: new Date(),
   };
@@ -285,7 +285,7 @@ async function remove(
   log: Logger,
   tenantId: string,
   serverId: string,
-): Promise<Result<PublicServer, MeshError>> {
+): Promise<Result<PublicServer, JacklineError>> {
   const [row] = await db
     .delete(servers)
     .where(and(eq(servers.id, serverId), eq(servers.tenantId, tenantId)))

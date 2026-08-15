@@ -1,5 +1,5 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { accessRequestRoutes } from "./route.js";
 import {
@@ -7,7 +7,7 @@ import {
   notificationServices,
 } from "./service.js";
 
-function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
+function actorFrom(auth: JacklineEnv["Variables"]["tenantContext"]["auth"]) {
   return {
     userId: auth.userId,
     role: auth.membership.role,
@@ -15,7 +15,7 @@ function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
   };
 }
 
-const list: RouteHandler<typeof accessRequestRoutes.list, MeshEnv> = async (
+const list: RouteHandler<typeof accessRequestRoutes.list, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -30,7 +30,7 @@ const list: RouteHandler<typeof accessRequestRoutes.list, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
-const create: RouteHandler<typeof accessRequestRoutes.create, MeshEnv> = async (
+const create: RouteHandler<typeof accessRequestRoutes.create, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -47,7 +47,7 @@ const create: RouteHandler<typeof accessRequestRoutes.create, MeshEnv> = async (
 
 const attachAuto: RouteHandler<
   typeof accessRequestRoutes.attachAuto,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
@@ -64,7 +64,7 @@ const attachAuto: RouteHandler<
 
 const approve: RouteHandler<
   typeof accessRequestRoutes.approve,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -80,7 +80,7 @@ const approve: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-const deny: RouteHandler<typeof accessRequestRoutes.deny, MeshEnv> = async (
+const deny: RouteHandler<typeof accessRequestRoutes.deny, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -97,7 +97,7 @@ const deny: RouteHandler<typeof accessRequestRoutes.deny, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
-const cancel: RouteHandler<typeof accessRequestRoutes.cancel, MeshEnv> = async (
+const cancel: RouteHandler<typeof accessRequestRoutes.cancel, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -114,7 +114,7 @@ const cancel: RouteHandler<typeof accessRequestRoutes.cancel, MeshEnv> = async (
 
 const listNotifications: RouteHandler<
   typeof accessRequestRoutes.listNotifications,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await notificationServices.list(
@@ -128,7 +128,7 @@ const listNotifications: RouteHandler<
 
 const markNotificationRead: RouteHandler<
   typeof accessRequestRoutes.markNotificationRead,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -144,7 +144,7 @@ const markNotificationRead: RouteHandler<
 
 const markAllNotificationsRead: RouteHandler<
   typeof accessRequestRoutes.markAllNotificationsRead,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await notificationServices.markAllRead(

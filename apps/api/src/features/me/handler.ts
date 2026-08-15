@@ -1,10 +1,10 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { requireSession } from "../../lib/request/index.js";
 import { Me } from "./resource.js";
 
-const get: RouteHandler<typeof Me.routes.get, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof Me.routes.get, JacklineEnv> = async (c) => {
   const sessionResult = await requireSession(c);
   if (sessionResult.isErr()) {
     throw sessionResult.error;

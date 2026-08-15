@@ -3,10 +3,10 @@ import type { Env } from "../env/schema.js";
 
 export { assertCanCreateTenant } from "./assertCanCreateTenant.js";
 
-export function isSingleTenancy(meshTenancy: Env['MESH_TENANCY']): Result<boolean, never> {
-    return ok(meshTenancy === "single");
+export function isSingleTenancy(jacklineTenancy: Env['JACKLINE_TENANCY']): Result<boolean, never> {
+    return ok(jacklineTenancy === "single");
 }
 
-export function isMultiTenancy(meshTenancy: Env['MESH_TENANCY']): Result<boolean, never> {
-    return ok(meshTenancy === "multi");
+export function isMultiTenancy(jacklineTenancy: Env['JACKLINE_TENANCY']): Result<boolean, never> {
+    return ok(jacklineTenancy === "multi");
 }

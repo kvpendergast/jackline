@@ -2,16 +2,16 @@ import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { platform } from "node:os";
 import { promisify } from "node:util";
-import type { MeshPaths } from "./paths.js";
+import type { JacklinePaths } from "./paths.js";
 
 const execFileAsync = promisify(execFile);
 
 /** Stable service name in OS credential stores. */
-export const MESH_KEYCHAIN_SERVICE = "mesh-cli";
+export const JACKLINE_KEYCHAIN_SERVICE = "jackline-cli";
 
 export type KeyStorage = "keychain" | "file";
 
-export function masterKeyAccount(paths: MeshPaths): string {
+export function masterKeyAccount(paths: JacklinePaths): string {
   const id = createHash("sha256").update(paths.root).digest("hex").slice(0, 16);
   return `master-key:${id}`;
 }
@@ -66,7 +66,7 @@ async function darwinSet(account: string, secret: string): Promise<void> {
     "-a",
     account,
     "-s",
-    MESH_KEYCHAIN_SERVICE,
+    JACKLINE_KEYCHAIN_SERVICE,
     "-w",
     secret,
     "-U",
@@ -80,7 +80,7 @@ async function darwinGet(account: string): Promise<string | null> {
       "-a",
       account,
       "-s",
-      MESH_KEYCHAIN_SERVICE,
+      JACKLINE_KEYCHAIN_SERVICE,
       "-w",
     ]);
     const value = stdout.trim();
@@ -97,7 +97,7 @@ async function darwinDelete(account: string): Promise<void> {
       "-a",
       account,
       "-s",
-      MESH_KEYCHAIN_SERVICE,
+      JACKLINE_KEYCHAIN_SERVICE,
     ]);
   } catch {
     // Already missing is fine.
@@ -111,9 +111,9 @@ async function linuxSet(account: string, secret: string): Promise<void> {
       [
         "store",
         "--label",
-        "Mesh CLI master key",
+        "Jackline CLI master key",
         "service",
-        MESH_KEYCHAIN_SERVICE,
+        JACKLINE_KEYCHAIN_SERVICE,
         "account",
         account,
       ],
@@ -143,7 +143,7 @@ async function linuxGet(account: string): Promise<string | null> {
     const { stdout } = await execFileAsync("secret-tool", [
       "lookup",
       "service",
-      MESH_KEYCHAIN_SERVICE,
+      JACKLINE_KEYCHAIN_SERVICE,
       "account",
       account,
     ]);
@@ -159,7 +159,7 @@ async function linuxDelete(account: string): Promise<void> {
     await execFileAsync("secret-tool", [
       "clear",
       "service",
-      MESH_KEYCHAIN_SERVICE,
+      JACKLINE_KEYCHAIN_SERVICE,
       "account",
       account,
     ]);
@@ -169,7 +169,7 @@ async function linuxDelete(account: string): Promise<void> {
 }
 
 function windowsTarget(account: string): string {
-  return `${MESH_KEYCHAIN_SERVICE}/${account}`;
+  return `${JACKLINE_KEYCHAIN_SERVICE}/${account}`;
 }
 
 async function windowsRun(
@@ -183,7 +183,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
-public class MeshCredNative {
+public class JacklineCredNative {
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
   public struct CREDENTIAL {
     public uint Flags;
@@ -209,23 +209,23 @@ public class MeshCredNative {
   public static extern bool CredDelete(string target, uint type, uint flags);
 }
 "@
-$op = $env:MESH_KC_OP
-$target = $env:MESH_KC_TARGET
-$user = $env:MESH_KC_USER
+$op = $env:JACKLINE_KC_OP
+$target = $env:JACKLINE_KC_TARGET
+$user = $env:JACKLINE_KC_USER
 if ($op -eq 'set') {
-  $secret = $env:MESH_KC_SECRET
+  $secret = $env:JACKLINE_KC_SECRET
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($secret)
   $ptr = [Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
   try {
     [Runtime.InteropServices.Marshal]::Copy($bytes, 0, $ptr, $bytes.Length)
-    $cred = New-Object MeshCredNative+CREDENTIAL
+    $cred = New-Object JacklineCredNative+CREDENTIAL
     $cred.Type = 1
     $cred.TargetName = $target
     $cred.UserName = $user
     $cred.CredentialBlobSize = [uint32]$bytes.Length
     $cred.CredentialBlob = $ptr
     $cred.Persist = 2
-    if (-not [MeshCredNative]::CredWrite([ref]$cred, 0)) {
+    if (-not [JacklineCredNative]::CredWrite([ref]$cred, 0)) {
       throw "CredWrite failed: $([ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()).Message)"
     }
   } finally {
@@ -233,28 +233,28 @@ if ($op -eq 'set') {
   }
 } elseif ($op -eq 'get') {
   $ptr = [IntPtr]::Zero
-  if (-not [MeshCredNative]::CredRead($target, 1, 0, [ref]$ptr)) {
+  if (-not [JacklineCredNative]::CredRead($target, 1, 0, [ref]$ptr)) {
     exit 2
   }
   try {
-    $cred = [Runtime.InteropServices.Marshal]::PtrToStructure($ptr, [type][MeshCredNative+CREDENTIAL])
+    $cred = [Runtime.InteropServices.Marshal]::PtrToStructure($ptr, [type][JacklineCredNative+CREDENTIAL])
     $bytes = New-Object byte[] $cred.CredentialBlobSize
     [Runtime.InteropServices.Marshal]::Copy($cred.CredentialBlob, $bytes, 0, $cred.CredentialBlobSize)
     [Console]::Out.Write([System.Text.Encoding]::UTF8.GetString($bytes))
   } finally {
-    [MeshCredNative]::CredFree($ptr) | Out-Null
+    [JacklineCredNative]::CredFree($ptr) | Out-Null
   }
 } elseif ($op -eq 'delete') {
-  [MeshCredNative]::CredDelete($target, 1, 0) | Out-Null
+  [JacklineCredNative]::CredDelete($target, 1, 0) | Out-Null
 }
 `;
 
   const env = {
     ...process.env,
-    MESH_KC_OP: operation,
-    MESH_KC_TARGET: target,
-    MESH_KC_USER: account,
-    ...(secret !== undefined ? { MESH_KC_SECRET: secret } : {}),
+    JACKLINE_KC_OP: operation,
+    JACKLINE_KC_TARGET: target,
+    JACKLINE_KC_USER: account,
+    ...(secret !== undefined ? { JACKLINE_KC_SECRET: secret } : {}),
   };
 
   try {
@@ -285,7 +285,7 @@ export async function isKeychainAvailable(): Promise<boolean> {
 }
 
 export async function keychainSet(
-  paths: MeshPaths,
+  paths: JacklinePaths,
   secret: string,
 ): Promise<void> {
   const account = masterKeyAccount(paths);
@@ -316,7 +316,7 @@ export async function keychainSet(
   );
 }
 
-export async function keychainGet(paths: MeshPaths): Promise<string | null> {
+export async function keychainGet(paths: JacklinePaths): Promise<string | null> {
   const account = masterKeyAccount(paths);
   const os = platform();
   try {
@@ -339,7 +339,7 @@ export async function keychainGet(paths: MeshPaths): Promise<string | null> {
   );
 }
 
-export async function keychainDelete(paths: MeshPaths): Promise<void> {
+export async function keychainDelete(paths: JacklinePaths): Promise<void> {
   const account = masterKeyAccount(paths);
   const os = platform();
   try {
@@ -366,8 +366,8 @@ export async function keychainDelete(paths: MeshPaths): Promise<void> {
 
 export function fileKeyOptOutWarning(masterKeyPath: string): string {
   return (
-    `Storing the Mesh master key as a plaintext file at ${masterKeyPath}. ` +
-    "Anyone who can read that file can decrypt your Mesh secrets " +
+    `Storing the Jackline master key as a plaintext file at ${masterKeyPath}. ` +
+    "Anyone who can read that file can decrypt your Jackline secrets " +
     "(API keys, OAuth tokens, gateway bearer). " +
     "Prefer the default OS keychain storage unless you have a specific reason to opt out."
   );

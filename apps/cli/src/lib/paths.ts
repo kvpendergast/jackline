@@ -1,15 +1,15 @@
 import path from "node:path";
 import { homedir } from "node:os";
 
-export type MeshPaths = {
+export type JacklinePaths = {
   root: string;
   config: string;
   masterKey: string;
   secrets: string;
 };
 
-export function getMeshPaths(rootDir?: string): MeshPaths {
-  const root = rootDir ?? path.join(homedir(), ".mesh");
+export function getJacklinePaths(rootDir?: string): JacklinePaths {
+  const root = rootDir ?? path.join(homedir(), ".jackline");
   return {
     root,
     config: path.join(root, "config.yaml"),
@@ -21,46 +21,46 @@ export function getMeshPaths(rootDir?: string): MeshPaths {
 export const DEFAULT_CONFIG = {
   version: 1 as const,
   port: 8081,
-  servers: [] as MeshConfigServer[],
+  servers: [] as JacklineConfigServer[],
 };
 
-export type MeshConfigServer = {
+export type JacklineConfigServer = {
   id: string;
   name: string;
   baseUrl: string;
   authMethod: "api_key" | "oauth" | "mtls";
   secretId: string;
   connectorKey: string | null;
-  /** Upstream tool names hidden from the Mesh gateway (opt-out; default all on). */
+  /** Upstream tool names hidden from the Jackline gateway (opt-out; default all on). */
   disabledTools?: string[] | undefined;
 };
 
-export type MeshConfig = {
+export type JacklineConfig = {
   version: 1;
   port: number;
   /** Where the AES master key is kept. Default / preferred: OS keychain. */
   keyStorage?: "keychain" | "file" | undefined;
   /** Secret id for the long-lived local MCP gateway bearer token. */
   gatewayTokenSecretId?: string | undefined;
-  servers: MeshConfigServer[];
+  servers: JacklineConfigServer[];
 };
 
 export const DEFAULT_CONFIG_YAML = `\
-# Personal Mesh configuration
+# Personal Jackline configuration
 version: 1
 port: 8081
 keyStorage: keychain
 servers: []
-# gatewayTokenSecretId is set by mesh init / first mesh serve
+# gatewayTokenSecretId is set by jackline init / first jackline serve
 `;
 
 export function defaultConfigYaml(keyStorage: "keychain" | "file"): string {
   return `\
-# Personal Mesh configuration
+# Personal Jackline configuration
 version: 1
 port: 8081
 keyStorage: ${keyStorage}
 servers: []
-# gatewayTokenSecretId is set by mesh init / first mesh serve
+# gatewayTokenSecretId is set by jackline init / first jackline serve
 `;
 }

@@ -1,10 +1,10 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, secrets, servers } from "@mesh/db";
+import { db, secrets, servers } from "@jackline/db";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   OAUTH_CLIENT_SECRET_KIND,
   SetupError,
@@ -12,7 +12,7 @@ import {
   type MyAccessServer,
   type PublicSecret,
   type UpstreamCredentialStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 
@@ -37,7 +37,7 @@ async function listMyServers(
   log: Logger,
   tenantId: string,
   userId: string,
-): Promise<Result<{ items: MyAccessServer[] }, MeshError>> {
+): Promise<Result<{ items: MyAccessServer[] }, JacklineError>> {
   const serverRows = await db
     .select()
     .from(servers)
@@ -115,7 +115,7 @@ async function upsertMyCredential(
   userId: string,
   serverId: string,
   input: { name?: string | undefined; value: string },
-): Promise<Result<PublicSecret, MeshError>> {
+): Promise<Result<PublicSecret, JacklineError>> {
   const [server] = await db
     .select()
     .from(servers)
@@ -258,7 +258,7 @@ async function deleteMyCredential(
   tenantId: string,
   userId: string,
   serverId: string,
-): Promise<Result<{ deleted: true }, MeshError>> {
+): Promise<Result<{ deleted: true }, JacklineError>> {
   const [server] = await db
     .select()
     .from(servers)
@@ -298,7 +298,7 @@ async function listUpstreamCredentialsForSubject(
   log: Logger,
   tenantId: string,
   subjectUserId: string,
-): Promise<Result<{ items: UpstreamCredentialStatus[] }, MeshError>> {
+): Promise<Result<{ items: UpstreamCredentialStatus[] }, JacklineError>> {
   const serverRows = await db
     .select()
     .from(servers)

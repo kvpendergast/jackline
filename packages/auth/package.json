@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/auth",
+  "name": "@jackline/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.23",
-    "@mesh/crypto": "workspace:*",
-    "@mesh/db": "workspace:*",
-    "@mesh/shared": "workspace:*",
+    "@jackline/crypto": "workspace:*",
+    "@jackline/db": "workspace:*",
+    "@jackline/shared": "workspace:*",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2"
   }

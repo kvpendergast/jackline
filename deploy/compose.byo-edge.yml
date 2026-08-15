@@ -1,4 +1,4 @@
-# Overlay: no Mesh-managed edge proxy. Publish api / gateway / web / docs ports
+# Overlay: no Jackline-managed edge proxy. Publish api / gateway / web / docs ports
 # and put your own reverse proxy (nginx, Traefik, cloud LB, etc.) in front.
 #
 # Usage (from repo root):
@@ -8,31 +8,31 @@
 # Caddy is disabled via a Compose profile that is not enabled by default.
 #
 # Set public URLs to whatever your edge exposes, for example:
-#   WEB_ORIGIN=https://mesh.example.com
-#   BETTER_AUTH_URL=https://mesh.example.com
-#   MESH_PUBLIC_API_URL=https://mesh.example.com
-#   MESH_PUBLIC_MCP_URL=https://mcp.example.com/mcp
+#   WEB_ORIGIN=https://jackline.example.com
+#   BETTER_AUTH_URL=https://jackline.example.com
+#   JACKLINE_PUBLIC_API_URL=https://jackline.example.com
+#   JACKLINE_PUBLIC_MCP_URL=https://mcp.example.com/mcp
 #
 # Split UI and API hosts: set WEB_ORIGIN to the UI origin and
-# MESH_ADDITIONAL_ORIGINS if you need extras; BETTER_AUTH_URL /
-# MESH_PUBLIC_API_URL to the API origin.
+# JACKLINE_ADDITIONAL_ORIGINS if you need extras; BETTER_AUTH_URL /
+# JACKLINE_PUBLIC_API_URL to the API origin.
 
 services:
   api:
     ports:
-      - "${MESH_API_PUBLISH_PORT:-8080}:8080"
+      - "${JACKLINE_API_PUBLISH_PORT:-8080}:8080"
 
   gateway:
     ports:
-      - "${MESH_GATEWAY_PUBLISH_PORT:-8081}:8081"
+      - "${JACKLINE_GATEWAY_PUBLISH_PORT:-8081}:8081"
 
   web:
     ports:
-      - "${MESH_WEB_PUBLISH_PORT:-8088}:80"
+      - "${JACKLINE_WEB_PUBLISH_PORT:-8088}:80"
 
   docs:
     ports:
-      - "${MESH_DOCS_PUBLISH_PORT:-8089}:80"
+      - "${JACKLINE_DOCS_PUBLISH_PORT:-8089}:80"
 
   caddy:
     # Merged service only starts when --profile caddy-edge is passed.

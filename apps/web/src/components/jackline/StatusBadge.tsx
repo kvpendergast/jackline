@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { AuditOutcome, ConnectionStatus } from "@mesh/shared";
+import type { AuditOutcome, ConnectionStatus } from "@jackline/shared";
 
 export function StatusBadge({ status }: { status: ConnectionStatus }) {
   if (status === "active") {

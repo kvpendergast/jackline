@@ -1,9 +1,9 @@
 import { consola } from "consola";
 import { defineCommand } from "citty";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { loadConfig, saveConfig } from "../lib/config.js";
 import { listUpstreamTools } from "../lib/listUpstreamTools.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 import { findServer } from "../lib/resolveServer.js";
 import {
   applyDisabledTools,
@@ -15,7 +15,7 @@ import {
 const sharedDirArg = {
   dir: {
     type: "string" as const,
-    description: "Config directory (default: ~/.mesh)",
+    description: "Config directory (default: ~/.jackline)",
     valueHint: "path",
   },
 };
@@ -29,7 +29,7 @@ function formatUpstreamError(cause: unknown): string {
   return `${raw.slice(0, 400)}…`;
 }
 
-const listCommand = defineMeshCommand({
+const listCommand = defineJacklineCommand({
   meta: {
     name: "list",
     description: "List tools for a connected server and their enabled state",
@@ -48,13 +48,13 @@ const listCommand = defineMeshCommand({
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     const config = await loadConfig(paths);
     const server = findServer(config, args.server);
 
     if (!server) {
       consola.error(
-        `No server matching "${args.server}". Run \`mesh list\` to see configured servers.`,
+        `No server matching "${args.server}". Run \`jackline list\` to see configured servers.`,
       );
       process.exit(1);
     }
@@ -111,20 +111,20 @@ const listCommand = defineMeshCommand({
     for (const tool of tools) {
       const status = tool.enabled ? "enabled" : "disabled";
       consola.log(
-        `${tool.upstreamName.padEnd(nameWidth)}  ${status.padEnd(8)}  ${tool.meshName}`,
+        `${tool.upstreamName.padEnd(nameWidth)}  ${status.padEnd(8)}  ${tool.jacklineName}`,
       );
     }
   },
 });
 
 function toggleToolsCommand(action: "enable" | "disable") {
-  return defineMeshCommand({
+  return defineJacklineCommand({
     meta: {
       name: action,
       description:
         action === "enable"
-          ? "Expose upstream tool(s) on the Mesh gateway"
-          : "Hide upstream tool(s) from the Mesh gateway",
+          ? "Expose upstream tool(s) on the Jackline gateway"
+          : "Hide upstream tool(s) from the Jackline gateway",
     },
     args: {
       server: {
@@ -140,13 +140,13 @@ function toggleToolsCommand(action: "enable" | "disable") {
       ...sharedDirArg,
     },
     async run({ args }) {
-      const paths = getMeshPaths(args.dir);
+      const paths = getJacklinePaths(args.dir);
       const config = await loadConfig(paths);
       const server = findServer(config, args.server);
 
       if (!server) {
         consola.error(
-          `No server matching "${args.server}". Run \`mesh list\` to see configured servers.`,
+          `No server matching "${args.server}". Run \`jackline list\` to see configured servers.`,
         );
         process.exit(1);
       }
@@ -171,7 +171,7 @@ function toggleToolsCommand(action: "enable" | "disable") {
         consola.error(
           `Unknown tool(s) for "${server.name}": ${unknown.join(", ")}`,
         );
-        consola.info(`Run \`mesh tools list ${args.server}\` to see valid names.`);
+        consola.info(`Run \`jackline tools list ${args.server}\` to see valid names.`);
         process.exit(1);
       }
 
@@ -191,7 +191,7 @@ function toggleToolsCommand(action: "enable" | "disable") {
         );
       }
       consola.info(
-        "If mesh serve is running, it will push tools/list_changed to connected clients.",
+        "If jackline serve is running, it will push tools/list_changed to connected clients.",
       );
     },
   });

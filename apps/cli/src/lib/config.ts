@@ -1,9 +1,9 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
-import { getMeshPaths, type MeshConfig, type MeshPaths } from "./paths.js";
+import { getJacklinePaths, type JacklineConfig, type JacklinePaths } from "./paths.js";
 
-const MeshConfigSchema = z.object({
+const JacklineConfigSchema = z.object({
   version: z.literal(1),
   port: z.number().int().min(1).max(65535),
   keyStorage: z.enum(["keychain", "file"]).optional(),
@@ -30,15 +30,15 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-export async function loadConfig(paths?: MeshPaths): Promise<MeshConfig> {
-  const p = paths ?? getMeshPaths();
+export async function loadConfig(paths?: JacklinePaths): Promise<JacklineConfig> {
+  const p = paths ?? getJacklinePaths();
   if (!(await pathExists(p.config))) {
     throw new Error(
-      `No Mesh config at ${p.config}. Run \`mesh init\` first.`,
+      `No Jackline config at ${p.config}. Run \`jackline init\` first.`,
     );
   }
   const raw = await readFile(p.config, "utf8");
-  const parsed = MeshConfigSchema.safeParse(parseYaml(raw));
+  const parsed = JacklineConfigSchema.safeParse(parseYaml(raw));
   if (!parsed.success) {
     throw new Error(`Invalid config at ${p.config}: ${parsed.error.message}`);
   }
@@ -46,10 +46,10 @@ export async function loadConfig(paths?: MeshPaths): Promise<MeshConfig> {
 }
 
 export async function saveConfig(
-  config: MeshConfig,
-  paths?: MeshPaths,
+  config: JacklineConfig,
+  paths?: JacklinePaths,
 ): Promise<void> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const body = stringifyYaml(config);
   await writeFile(p.config, body.endsWith("\n") ? body : `${body}\n`, {
     encoding: "utf8",

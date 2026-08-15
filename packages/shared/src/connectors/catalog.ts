@@ -51,7 +51,7 @@ const GOOGLE_OAUTH = {
 
 /**
  * Curated remote MCP hosts for one-click server create (enterprise web)
- * and `mesh add <key>` / `--connect` (personal CLI).
+ * and `jackline add <key>` / `--connect` (personal CLI).
  */
 export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
   {
@@ -285,7 +285,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     baseUrl: "https://mcp.sentry.dev/mcp",
     docsUrl: null,
     authHint:
-      "Paste a Sentry user auth token (Bearer). Hosted MCP OAuth at mcp.sentry.dev is client-driven; classic BYO OAuth is not required for personal mesh add.",
+      "Paste a Sentry user auth token (Bearer). Hosted MCP OAuth at mcp.sentry.dev is client-driven; classic BYO OAuth is not required for personal jackline add.",
     learnMoreUrl: "https://docs.sentry.io/product/sentry-mcp/",
   },
 ] as const;

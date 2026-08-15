@@ -1,13 +1,13 @@
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { auth } from "@mesh/auth";
+import { auth } from "@jackline/auth";
 import {
   db,
   oauthStates,
   secrets,
   servers,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   BadRequestError,
   buildOAuthAuthorizeUrl,
@@ -18,7 +18,7 @@ import {
   ForbiddenError,
   getConfig,
   getConnectorPreset,
-  MeshError,
+  JacklineError,
   NotFoundError,
   OAUTH_CLIENT_SECRET_KIND,
   oauthCallbackUrl,
@@ -27,7 +27,7 @@ import {
   UnauthorizedError,
   upstreamSecretKind,
   type StartOauthResult,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
@@ -35,7 +35,7 @@ const STATE_TTL_MS = 15 * 60 * 1000;
 async function loadOauthClientSecret(
   tenantId: string,
   serverId: string,
-): Promise<Result<string, MeshError>> {
+): Promise<Result<string, JacklineError>> {
   const [row] = await db
     .select()
     .from(secrets)
@@ -87,7 +87,7 @@ async function startConnect(
   tenantId: string,
   userId: string,
   serverId: string,
-): Promise<Result<StartOauthResult, MeshError>> {
+): Promise<Result<StartOauthResult, JacklineError>> {
   const config = getConfig();
   if (config.isErr()) return err(config.error);
 
@@ -169,7 +169,7 @@ async function startConnect(
 async function handleCallback(
   log: Logger,
   input: { code: string | undefined; state: string | undefined },
-): Promise<Result<{ redirectTo: string }, MeshError>> {
+): Promise<Result<{ redirectTo: string }, JacklineError>> {
   const config = getConfig();
   if (config.isErr()) return err(config.error);
 
@@ -327,7 +327,7 @@ async function handleCallback(
 /** Resolve session user for the public callback error pages (best-effort). */
 async function requireSessionUser(
   headers: Headers,
-): Promise<Result<{ userId: string }, MeshError>> {
+): Promise<Result<{ userId: string }, JacklineError>> {
   const session = await auth.api.getSession({ headers });
   if (!session) {
     return err(new UnauthorizedError("No session"));

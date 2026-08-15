@@ -4,9 +4,9 @@ import { genericOAuth } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
-import { createSecretBox } from "@mesh/crypto";
-import { db, schema, ssoConfigs } from "@mesh/db";
-import { getConfig, webTrustedOrigins } from "@mesh/shared";
+import { createSecretBox } from "@jackline/crypto";
+import { db, schema, ssoConfigs } from "@jackline/db";
+import { getConfig, webTrustedOrigins } from "@jackline/shared";
 
 function ssoSecretAad(tenantId: string): Uint8Array {
   return new TextEncoder().encode(`mesh:sso_client_secret:${tenantId}`);
@@ -28,14 +28,14 @@ export function generateScimToken(): string {
   return `scim_${randomBytes(32).toString("base64url")}`;
 }
 
-/** OAuth2 client_secret for Mesh Admin API client_credentials. */
+/** OAuth2 client_secret for Jackline Admin API client_credentials. */
 export function generateClientSecret(): string {
-  return `mesh_cs_${randomBytes(32).toString("base64url")}`;
+  return `jackline_cs_${randomBytes(32).toString("base64url")}`;
 }
 
-/** Opaque OAuth2 access token for Mesh Admin API. */
+/** Opaque OAuth2 access token for Jackline Admin API. */
 export function generateAccessToken(): string {
-  return `mesh_at_${randomBytes(32).toString("base64url")}`;
+  return `jackline_at_${randomBytes(32).toString("base64url")}`;
 }
 
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
@@ -45,16 +45,16 @@ async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
   const configs: GenericOAuthConfig[] = [];
 
   if (
-    env.MESH_OIDC_ISSUER &&
-    env.MESH_OIDC_CLIENT_ID &&
-    env.MESH_OIDC_CLIENT_SECRET
+    env.JACKLINE_OIDC_ISSUER &&
+    env.JACKLINE_OIDC_CLIENT_ID &&
+    env.JACKLINE_OIDC_CLIENT_SECRET
   ) {
-    const issuer = env.MESH_OIDC_ISSUER.replace(/\/$/, "");
+    const issuer = env.JACKLINE_OIDC_ISSUER.replace(/\/$/, "");
     configs.push({
       providerId: "oidc-env",
       discoveryUrl: `${issuer}/.well-known/openid-configuration`,
-      clientId: env.MESH_OIDC_CLIENT_ID,
-      clientSecret: env.MESH_OIDC_CLIENT_SECRET,
+      clientId: env.JACKLINE_OIDC_CLIENT_ID,
+      clientSecret: env.JACKLINE_OIDC_CLIENT_SECRET,
       scopes: ["openid", "profile", "email"],
       pkce: true,
     });
@@ -78,7 +78,7 @@ async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
 
     const box = createSecretBox({
       secretStorageLocation: "local",
-      base64MeshMasterKey: env.MESH_MASTER_KEY,
+      base64JacklineMasterKey: env.JACKLINE_MASTER_KEY,
       keyVersion: 1,
     });
     if (box.isErr()) continue;
@@ -139,12 +139,12 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
   });
 }
 
-export type MeshAuth = ReturnType<typeof buildAuth>;
+export type JacklineAuth = ReturnType<typeof buildAuth>;
 
-let _auth: MeshAuth | undefined;
+let _auth: JacklineAuth | undefined;
 
 /** Better Auth instance — call `initAuth()` before use. */
-export const auth = new Proxy({} as MeshAuth, {
+export const auth = new Proxy({} as JacklineAuth, {
   get(_target, prop, receiver) {
     if (!_auth) {
       throw new Error("Auth not initialized — call initAuth() first");
@@ -153,14 +153,14 @@ export const auth = new Proxy({} as MeshAuth, {
   },
 });
 
-export async function initAuth(): Promise<MeshAuth> {
+export async function initAuth(): Promise<JacklineAuth> {
   const oauthConfigs = await loadOAuthConfigs();
   _auth = buildAuth(oauthConfigs);
   return _auth;
 }
 
 /** Reload OAuth providers after SSO settings change (full_admin). */
-export async function reloadAuth(): Promise<MeshAuth> {
+export async function reloadAuth(): Promise<JacklineAuth> {
   return initAuth();
 }
 

@@ -6,7 +6,7 @@ import {
   generateAccessToken,
   generateClientSecret,
   hashToken,
-} from "@mesh/auth";
+} from "@jackline/auth";
 import {
   db,
   clients,
@@ -14,12 +14,12 @@ import {
   oauthAccessTokens,
   user,
   type Client as ClientRow,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
   getConfig,
-  MeshError,
+  JacklineError,
   MembershipRoleSchema,
   NotFoundError,
   oauthTokenUrl,
@@ -31,8 +31,8 @@ import {
   type MembershipRole,
   type MintedClientCredentials,
   type PublicClient,
-  MESH_ACCESS_TOKEN_TTL_SECONDS,
-} from "@mesh/shared";
+  JACKLINE_ACCESS_TOKEN_TTL_SECONDS,
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -93,7 +93,7 @@ function toPublicClient(row: ClientRow): PublicClient {
 }
 
 function defaultServiceEmail(userId: string): string {
-  return `oauth-client+${userId.replace(/-/g, "")}@users.mesh.local`;
+  return `oauth-client+${userId.replace(/-/g, "")}@users.jackline.local`;
 }
 
 async function ensureServiceActor(
@@ -101,7 +101,7 @@ async function ensureServiceActor(
   client: ClientRow,
   apiRole: MembershipRole,
   apiTeam: string | null,
-): Promise<Result<{ userId: string; membershipId: string }, MeshError>> {
+): Promise<Result<{ userId: string; membershipId: string }, JacklineError>> {
   if (client.serviceUserId) {
     const [membership] = await db
       .select()
@@ -196,7 +196,7 @@ async function create(
   tenantId: string,
   actor: { userId: string; role: string },
   input: CreateClientInput,
-): Promise<Result<PublicClient, MeshError>> {
+): Promise<Result<PublicClient, JacklineError>> {
   const isAdmin = actor.role === "full_admin" || actor.role === "delegated_admin";
   const isFull = actor.role === "full_admin";
 
@@ -241,7 +241,7 @@ async function list(
   tenantId: string,
   actor: { userId: string; role: string },
   query: ListClientsQuery,
-): Promise<Result<CursorPage<PublicClient>, MeshError>> {
+): Promise<Result<CursorPage<PublicClient>, JacklineError>> {
   const conditions = [eq(clients.tenantId, tenantId)];
   const isAdmin = actor.role === "full_admin" || actor.role === "delegated_admin";
 
@@ -306,7 +306,7 @@ async function assertCanManageClient(
   tenantId: string,
   actor: { userId: string; role: string },
   clientId: string,
-): Promise<Result<ClientRow, MeshError>> {
+): Promise<Result<ClientRow, JacklineError>> {
   const [row] = await db
     .select()
     .from(clients)
@@ -333,7 +333,7 @@ async function get(
   tenantId: string,
   actor: { userId: string; role: string },
   clientId: string,
-): Promise<Result<PublicClient, MeshError>> {
+): Promise<Result<PublicClient, JacklineError>> {
   const [row] = await db
     .select()
     .from(clients)
@@ -364,7 +364,7 @@ async function update(
   actor: { userId: string; role: string },
   clientId: string,
   input: UpdateClientInput,
-): Promise<Result<PublicClient, MeshError>> {
+): Promise<Result<PublicClient, JacklineError>> {
   const existing = await assertCanManageClient(tenantId, actor, clientId);
   if (existing.isErr()) return err(existing.error);
 
@@ -429,7 +429,7 @@ async function remove(
   tenantId: string,
   actor: { userId: string; role: string },
   clientId: string,
-): Promise<Result<PublicClient, MeshError>> {
+): Promise<Result<PublicClient, JacklineError>> {
   const existing = await assertCanManageClient(tenantId, actor, clientId);
   if (existing.isErr()) return err(existing.error);
 
@@ -455,7 +455,7 @@ async function rotateCredentials(
   tenantId: string,
   clientId: string,
   input: RotateClientCredentialsInput = {},
-): Promise<Result<MintedClientCredentials, MeshError>> {
+): Promise<Result<MintedClientCredentials, JacklineError>> {
   const [client] = await db
     .select()
     .from(clients)
@@ -534,7 +534,7 @@ async function revokeCredentials(
   log: Logger,
   tenantId: string,
   clientId: string,
-): Promise<Result<PublicClient, MeshError>> {
+): Promise<Result<PublicClient, JacklineError>> {
   const [client] = await db
     .select()
     .from(clients)
@@ -591,7 +591,7 @@ async function issueClientCredentialsToken(
   log: Logger,
   clientId: string,
   clientSecret: string,
-): Promise<Result<IssueAccessTokenResult, MeshError>> {
+): Promise<Result<IssueAccessTokenResult, JacklineError>> {
   const [client] = await db
     .select()
     .from(clients)
@@ -634,7 +634,7 @@ async function issueClientCredentialsToken(
   }
 
   const accessToken = generateAccessToken();
-  const expiresIn = MESH_ACCESS_TOKEN_TTL_SECONDS;
+  const expiresIn = JACKLINE_ACCESS_TOKEN_TTL_SECONDS;
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
   const [row] = await db

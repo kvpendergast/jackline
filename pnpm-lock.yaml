@@ -23,19 +23,19 @@ importers:
       '@hono/zod-openapi':
         specifier: ^1.5.1
         version: 1.5.1(hono@4.12.30)(zod@4.4.3)
-      '@mesh/auth':
+      '@jackline/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@mesh/crypto':
+      '@jackline/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@mesh/db':
+      '@jackline/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mesh/policy':
+      '@jackline/policy':
         specifier: workspace:*
         version: link:../../packages/policy
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@modelcontextprotocol/sdk':
@@ -91,10 +91,10 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@mesh/crypto':
+      '@jackline/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       tsup:
@@ -134,16 +134,16 @@ importers:
       '@hono/node-server':
         specifier: ^2.0.10
         version: 2.0.10(hono@4.12.30)
-      '@mesh/crypto':
+      '@jackline/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@mesh/db':
+      '@jackline/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mesh/policy':
+      '@jackline/policy':
         specifier: workspace:*
         version: link:../../packages/policy
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@modelcontextprotocol/sdk':
@@ -180,7 +180,7 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.2.7
         version: 5.3.0
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       better-auth:
@@ -247,13 +247,13 @@ importers:
       '@better-auth/drizzle-adapter':
         specifier: ^1.6.23
         version: 1.6.23(@better-auth/core@1.6.23(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.4)(kysely@0.29.3)(nanostores@1.4.0))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.3)(pg@8.22.0))
-      '@mesh/crypto':
+      '@jackline/crypto':
         specifier: workspace:*
         version: link:../crypto
-      '@mesh/db':
+      '@jackline/db':
         specifier: workspace:*
         version: link:../db
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../shared
       better-auth:
@@ -265,7 +265,7 @@ importers:
 
   packages/crypto:
     dependencies:
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../shared
       neverthrow:
@@ -274,7 +274,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../shared
       drizzle-orm:
@@ -296,7 +296,7 @@ importers:
 
   packages/policy:
     dependencies:
-      '@mesh/shared':
+      '@jackline/shared':
         specifier: workspace:*
         version: link:../shared
       neverthrow:

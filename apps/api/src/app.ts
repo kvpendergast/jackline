@@ -1,7 +1,7 @@
 import { cors } from "hono/cors";
-import { auth } from "@mesh/auth";
-import { getConfig, webTrustedOrigins } from "@mesh/shared";
-import { createMeshApp } from "./lib/http/createApp.js";
+import { auth } from "@jackline/auth";
+import { getConfig, webTrustedOrigins } from "@jackline/shared";
+import { createJacklineApp } from "./lib/http/createApp.js";
 import {
   requestMiddleware,
   tenantContextMiddleware,
@@ -21,7 +21,7 @@ if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 const trustedWebOrigins = webTrustedOrigins(config);
 
-export const app = createMeshApp();
+export const app = createJacklineApp();
 
 app.use(
   "*",
@@ -45,7 +45,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 
 app.route("/scim/v2", scimApp);
 
-const v1 = createMeshApp();
+const v1 = createJacklineApp();
 
 /** Browser OAuth redirect — must stay outside tenant middleware. */
 v1.get("/oauth/callback", oauthCallbackHandler);
@@ -64,7 +64,7 @@ for (const feature of publicV1Features) {
   }
 }
 
-const tenantV1 = createMeshApp();
+const tenantV1 = createJacklineApp();
 tenantV1.use("*", tenantContextMiddleware);
 for (const feature of tenantV1Features) {
   for (const { route, handler } of feature.routes) {
@@ -94,9 +94,9 @@ app.doc("/docs", {
   openapi: "3.0.0",
   info: {
     version: "1.0.0",
-    title: "Mesh API",
+    title: "Jackline API",
     description:
-      "Mesh control-plane API. Authenticate with a browser session cookie (admin UI) or an OAuth2 client_credentials access token (public/machine API).",
+      "Jackline control-plane API. Authenticate with a browser session cookie (admin UI) or an OAuth2 client_credentials access token (public/machine API).",
   },
   servers: [
     {

@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 type ShellView = "personal" | "admin";
 
-const SHELL_VIEW_KEY = "mesh.shellView";
+const SHELL_VIEW_KEY = "jackline.shellView";
 
 const personalNav = [
   { to: "/my-access", label: "My Access", icon: UserRound },
@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
           <LatticeMark className="text-primary" />
           <div className="leading-none">
-            <div className="text-sm font-medium tracking-[-0.02em]">Mesh</div>
+            <div className="text-sm font-medium tracking-[-0.02em]">Jackline</div>
             <div className="section-label mt-1">
               {isAdmin && view === "admin" ? "Control plane" : "My Access"}
             </div>

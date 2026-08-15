@@ -1,10 +1,10 @@
 import type { MiddlewareHandler } from "hono";
-import { MeshError } from "@mesh/shared";
+import { JacklineError } from "@jackline/shared";
 import { logger } from "../logger.js";
 import { resolveConnectionFromAuthorization } from "./resolveConnection.js";
 import type { GatewayEnv } from "./types.js";
 
-function errorStatus(error: MeshError): number {
+function errorStatus(error: JacklineError): number {
   switch (error.code) {
     case "UNAUTHORIZED":
       return 401;

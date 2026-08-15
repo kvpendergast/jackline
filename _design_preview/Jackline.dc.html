@@ -17,10 +17,10 @@
     a:hover { color: var(--color-accent-800); }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
-    .table th { padding: var(--mesh-th-pad-v, 10px) var(--space-2) var(--mesh-th-pad-v, 10px); }
-    .table td { padding: var(--mesh-td-pad-v, 14px) var(--space-2); }
+    .table th { padding: var(--jackline-th-pad-v, 10px) var(--space-2) var(--jackline-th-pad-v, 10px); }
+    .table td { padding: var(--jackline-td-pad-v, 14px) var(--space-2); }
     .table tbody tr:last-child td { border-bottom: none; }
-    .card { padding: var(--mesh-card-pad, var(--space-4)); }
+    .card { padding: var(--jackline-card-pad, var(--space-4)); }
   </style>
 </helmet>
 
@@ -32,8 +32,8 @@
         <div style="width:44px;height:44px;border-radius:999px;background:var(--color-accent);display:flex;align-items:center;justify-content:center;color:var(--color-bg);font-family:var(--font-heading);font-size:18px;margin:0 auto 12px">M</div>
 
         <sc-if value="{{login.isSignin}}" hint-placeholder-val="{{true}}">
-          <div style="font-family:var(--font-heading);font-size:22px;margin-bottom:4px">Sign in to Mesh</div>
-          <p class="text-muted" style="margin:0 0 20px">Your company's tool security mesh — access is managed by IT &amp; Security.</p>
+          <div style="font-family:var(--font-heading);font-size:22px;margin-bottom:4px">Sign in to Jackline</div>
+          <p class="text-muted" style="margin:0 0 20px">Your company's tool security jackline — access is managed by IT &amp; Security.</p>
           <button class="btn btn-primary btn-block" onClick="{{onSsoLogin}}">Continue with Company SSO</button>
           <button class="btn btn-secondary btn-block" style="margin-top:8px" onClick="{{onSsoLogin}}">Continue with Google</button>
           <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><div style="flex:1;height:1px;background:var(--color-divider)"></div><span class="text-muted" style="font-size:12px">or</span><div style="flex:1;height:1px;background:var(--color-divider)"></div></div>
@@ -84,7 +84,7 @@
   <div style="display:flex;align-items:center;gap:20px;padding:14px 32px;border-bottom:1px solid var(--color-divider);position:sticky;top:0;background:var(--color-bg);z-index:20">
     <div style="display:flex;align-items:center;gap:10px">
       <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent);display:flex;align-items:center;justify-content:center;color:var(--color-bg);font-family:var(--font-heading);font-size:15px;flex:none">M</div>
-      <div style="font-family:var(--font-heading);font-size:19px">Mesh</div>
+      <div style="font-family:var(--font-heading);font-size:19px">Jackline</div>
     </div>
 
     <sc-if value="{{isAdmin}}" hint-placeholder-val="{{true}}">
@@ -217,7 +217,7 @@
 
       <sc-if value="{{isTabDashboard}}" hint-placeholder-val="{{true}}">
         <h1 style="margin-bottom:4px">Dashboard</h1>
-        <p style="opacity:0.7;margin:0 0 20px">What's happening across the mesh right now.</p>
+        <p style="opacity:0.7;margin:0 0 20px">What's happening across the jackline right now.</p>
 
         <sc-if value="{{setupChecklist.visible}}" hint-placeholder-val="{{false}}">
           <div class="card elev-sm" style="margin-bottom:16px">
@@ -339,7 +339,7 @@
 
       <sc-if value="{{isTabConnections}}" hint-placeholder-val="{{false}}">
         <h1 style="margin-bottom:4px">Connections</h1>
-        <p style="opacity:0.7;margin:0 0 20px">Every credentialed client calling through the mesh — an interactive tool like Cursor or Claude Code acting as a person, or a service integration acting on its own. Disable, quarantine, or manage fine-grained tool access.</p>
+        <p style="opacity:0.7;margin:0 0 20px">Every credentialed client calling through the jackline — an interactive tool like Cursor or Claude Code acting as a person, or a service integration acting on its own. Disable, quarantine, or manage fine-grained tool access.</p>
 
         <div class="card elev-sm" style="margin-bottom:14px">
           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
@@ -467,7 +467,7 @@
 
       <sc-if value="{{isTabTools}}" hint-placeholder-val="{{false}}">
         <h1 style="margin-bottom:4px">Tools &amp; Servers</h1>
-        <p style="opacity:0.7;margin:0 0 20px">Connect internal and third-party MCP servers, then control exactly which tools are exposed through the mesh.</p>
+        <p style="opacity:0.7;margin:0 0 20px">Connect internal and third-party MCP servers, then control exactly which tools are exposed through the jackline.</p>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div class="card-kicker">Connected &amp; available servers</div>
@@ -578,7 +578,7 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px">
           <div>
             <h1 style="margin-bottom:4px">Audit Log</h1>
-            <p style="opacity:0.7;margin:0">Every tool call the mesh has seen, with the policy outcome.</p>
+            <p style="opacity:0.7;margin:0">Every tool call the jackline has seen, with the policy outcome.</p>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="tag" style="background:{{otel.statusBg}};color:{{otel.statusColor}}">{{otel.statusLabel}}</span>
@@ -752,7 +752,7 @@
           <div class="dialog-title">Invite admin</div>
           <button class="btn btn-icon btn-ghost" onClick="{{onCloseInvite}}">✕</button>
         </div>
-        <div class="dialog-body">Invite another IT/security teammate to manage Mesh. Regular employees never need an invite — they appear automatically via SSO.</div>
+        <div class="dialog-body">Invite another IT/security teammate to manage Jackline. Regular employees never need an invite — they appear automatically via SSO.</div>
         <div class="field">
           <label>Name</label>
           <input class="input" placeholder="Jordan Lee" value="{{invite.name}}" onChange="{{invite.onName}}"/>
@@ -896,7 +896,7 @@
           <div class="dialog-title">Configure OTEL export</div>
           <button class="btn btn-icon btn-ghost" onClick="{{onCloseOtel}}">✕</button>
         </div>
-        <div class="dialog-body">Stream mesh audit events to your observability stack as OTLP logs — SIEM, Datadog, Honeycomb, an internal collector, anything that speaks OTLP.</div>
+        <div class="dialog-body">Stream jackline audit events to your observability stack as OTLP logs — SIEM, Datadog, Honeycomb, an internal collector, anything that speaks OTLP.</div>
 
         <div class="field">
           <label>OTLP endpoint</label>
@@ -1106,7 +1106,7 @@
         </div>
 
         <sc-if value="{{connect.step0}}" hint-placeholder-val="{{true}}">
-          <div class="dialog-body">Choose a server to connect through the mesh.</div>
+          <div class="dialog-body">Choose a server to connect through the jackline.</div>
           <sc-for list="{{connect.choices}}" as="c" hint-placeholder-count="3">
             <div onClick="{{c.onSelect}}" style="cursor:pointer;padding:12px 14px;border-radius:var(--radius-md);background:var(--color-surface);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
               <div>
@@ -1151,7 +1151,7 @@
             <sc-if value="{{connect.authIsOauth}}" hint-placeholder-val="{{false}}">
               <div class="field">
                 <label>Client ID</label>
-                <input class="input" placeholder="mesh-internal-billing" value="{{connect.oauthClientId}}" onChange="{{connect.onOauthClientId}}"/>
+                <input class="input" placeholder="jackline-internal-billing" value="{{connect.oauthClientId}}" onChange="{{connect.onOauthClientId}}"/>
               </div>
               <div class="field">
                 <label>Client secret</label>
@@ -1175,7 +1175,7 @@
         </sc-if>
 
         <sc-if value="{{connect.step2}}" hint-placeholder-val="{{false}}">
-          <div class="dialog-body">{{connect.selectedName}} exposes these tools. Choose which ones the mesh should actually make available — you can allow-list a narrower set than what was authorized.</div>
+          <div class="dialog-body">{{connect.selectedName}} exposes these tools. Choose which ones the jackline should actually make available — you can allow-list a narrower set than what was authorized.</div>
           <sc-for list="{{connect.foundTools}}" as="t" hint-placeholder-count="3">
             <label style="display:flex;align-items:center;gap:10px;padding:6px 0">
               <input type="checkbox" checked="{{t.checked}}" onChange="{{t.onToggle}}"/>
@@ -1554,18 +1554,18 @@ class Component extends DCLogic {
     const ds = entry.deliveryStatus || (ok ? 'success' : null);
     let responseSummary;
     if (!ok) {
-      responseSummary = 'HTTP 403 · blocked by mesh policy before reaching ' + (tool ? tool.name.split(' ')[0] : 'the tool');
+      responseSummary = 'HTTP 403 · blocked by jackline policy before reaching ' + (tool ? tool.name.split(' ')[0] : 'the tool');
     } else if (ds === 'upstream_error') {
-      responseSummary = 'HTTP 503 · ' + (tool ? tool.name.split(' ')[0] : 'the upstream server') + ' returned a server error. Mesh permitted the call; the failure happened downstream.';
+      responseSummary = 'HTTP 503 · ' + (tool ? tool.name.split(' ')[0] : 'the upstream server') + ' returned a server error. Jackline permitted the call; the failure happened downstream.';
     } else if (ds === 'timeout') {
-      responseSummary = 'Timed out waiting on the upstream server (10s). Mesh permitted the call; no response was returned.';
+      responseSummary = 'Timed out waiting on the upstream server (10s). Jackline permitted the call; no response was returned.';
     } else if (ds === 'rate_limited') {
-      responseSummary = 'HTTP 429 · rate-limited by the upstream server. Mesh permitted the call; retry backed off by the client.';
+      responseSummary = 'HTTP 429 · rate-limited by the upstream server. Jackline permitted the call; retry backed off by the client.';
     } else {
       responseSummary = tool && tool.risk === 'write' ? 'HTTP 200 · operation completed' : 'HTTP 200 · ' + (2 + (entry.id % 8)) + ' record(s) returned';
     }
     const decisionTrail = ok
-      ? 'Allowed by mesh policy — granted by an assigned role, no denying guardrail matched.' + (ds && ds !== 'success' ? ' The policy decision was a pass; what failed was the downstream server itself, not the mesh.' : '')
+      ? 'Allowed by jackline policy — granted by an assigned role, no denying guardrail matched.' + (ds && ds !== 'success' ? ' The policy decision was a pass; what failed was the downstream server itself, not the jackline.' : '')
       : 'Denied — no active grant covered this tool, or an explicit deny guardrail matched. Blocked before the call reached the underlying server.';
     return {
       requestId: 'req_' + entry.id.toString(36) + Math.abs(entry.id * 7919).toString(36).slice(0,6),
@@ -1602,8 +1602,8 @@ class Component extends DCLogic {
     const showRisk = this.props.showRiskBadges ?? true;
     const compact = (this.props.density ?? 'comfortable') === 'compact';
     const rootVars = compact
-      ? '--mesh-th-pad-v: 7px; --mesh-td-pad-v: 8px; --mesh-card-pad: 13.2px;'
-      : '--mesh-th-pad-v: 12px; --mesh-td-pad-v: 16px; --mesh-card-pad: 22px;';
+      ? '--jackline-th-pad-v: 7px; --jackline-td-pad-v: 8px; --jackline-card-pad: 13.2px;'
+      : '--jackline-th-pad-v: 12px; --jackline-td-pad-v: 16px; --jackline-card-pad: 22px;';
 
     const tabBtnStyle = (active) => `font-family:var(--font-heading);font-size:13px;border:none;background:transparent;cursor:pointer;padding:8px 14px;border-radius:999px;color:${active ? 'var(--color-bg)' : 'var(--color-text)'};background:${active ? 'var(--color-accent)' : 'transparent'}`;
 
@@ -1678,7 +1678,7 @@ class Component extends DCLogic {
             const granted = allow.has(t.id);
             let stateLabel, stateBg, stateColor;
             if (!srv.connected) { stateLabel = 'Server not connected'; stateBg='var(--color-neutral-200)'; stateColor='var(--color-neutral-700)'; }
-            else if (!t.enabled) { stateLabel = 'Disabled mesh-wide'; stateBg='var(--color-neutral-200)'; stateColor='var(--color-neutral-700)'; }
+            else if (!t.enabled) { stateLabel = 'Disabled jackline-wide'; stateBg='var(--color-neutral-200)'; stateColor='var(--color-neutral-700)'; }
             else if (granted) { stateLabel = 'Allowed'; stateBg='var(--color-accent-2-100)'; stateColor='var(--color-accent-2-800)'; }
             else { stateLabel = 'Not granted'; stateBg='var(--color-neutral-100)'; stateColor='var(--color-neutral-600)'; }
             return {
@@ -2138,7 +2138,7 @@ class Component extends DCLogic {
           const emailOk = /\S+@\S+\.\S+/.test(s.loginEmail.trim());
           if (!emailOk) { this.setState({ loginError: 'Enter a valid work email.' }); return; }
           if (!s.loginPassword || s.loginPassword.length < 8) { this.setState({ loginError: 'Password must be at least 8 characters.' }); return; }
-          this.setState({ isAuthenticated: true, loginError: null, orgName: s.loginOrgName.trim(), toast: 'Organization created — welcome to Mesh.' });
+          this.setState({ isAuthenticated: true, loginError: null, orgName: s.loginOrgName.trim(), toast: 'Organization created — welcome to Jackline.' });
         },
       },
 
@@ -2266,7 +2266,7 @@ class Component extends DCLogic {
       oauthClientSecret: s.connectOauthClientSecret, onOauthClientSecret: (e) => this.setState({ connectOauthClientSecret: e.target.value }),
       mtlsCert: s.connectMtlsCert, onMtlsCert: (e) => this.setState({ connectMtlsCert: e.target.value }),
       openApiUrl: s.connectOpenApiUrl, onOpenApiUrl: (e) => this.setState({ connectOpenApiUrl: e.target.value }),
-      step1Copy: isApi ? 'Point the mesh at your API and how it authenticates. If you have an OpenAPI/Swagger spec, the mesh imports its endpoints as tools automatically.' : ('Connecting ' + selectedName + ' — you will approve access via OAuth.'),
+      step1Copy: isApi ? 'Point the jackline at your API and how it authenticates. If you have an OpenAPI/Swagger spec, the jackline imports its endpoints as tools automatically.' : ('Connecting ' + selectedName + ' — you will approve access via OAuth.'),
       onAuthorize: () => {
         const found = (s.connectSelected === 'srv-github'
           ? [{ id: 'github-read', name: 'Read repository contents', risk: 'read' }, { id: 'github-pr-create', name: 'Open pull request', risk: 'write' }, { id: 'github-pr-merge', name: 'Merge pull request', risk: 'write' }]
@@ -2319,7 +2319,7 @@ class Component extends DCLogic {
           this.setState(st2 => ({
             servers: st2.servers.map(srv => srv.id === sel ? { ...srv, connected: true } : srv),
             tools: st2.tools.map(t => t.serverId === sel ? { ...t, enabled: chosen.some(c => c.id === t.id) } : t),
-            connectModalOpen: false, toast: (this.server(sel) ? this.server(sel).name : 'Server') + ' connected — ' + chosen.length + ' tool(s) exposed through the mesh.',
+            connectModalOpen: false, toast: (this.server(sel) ? this.server(sel).name : 'Server') + ' connected — ' + chosen.length + ' tool(s) exposed through the jackline.',
           }));
         }
       },

@@ -6,7 +6,7 @@ import {
   PublicSsoConfigSchema,
   RotateScimTokenResultSchema,
   UpdateSsoConfigBodySchema,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import { tenantScopedErrors } from "../../lib/http/errorResponses.js";
 import { requireAdmin } from "../../lib/request/requireAdmin.js";

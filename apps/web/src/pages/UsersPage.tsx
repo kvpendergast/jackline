@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Field } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,8 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
-import type { PublicUser } from "@mesh/shared";
+import { jacklineApi } from "@/lib/jackline-api";
+import type { PublicUser } from "@jackline/shared";
 
 export function UsersPage() {
   const { tenantId } = useAuth();
@@ -34,7 +34,7 @@ export function UsersPage() {
 
   async function load() {
     if (!tenantId) return;
-    const page = await meshApi.listUsers(tenantId);
+    const page = await jacklineApi.listUsers(tenantId);
     setItems(page.items);
   }
 
@@ -150,7 +150,7 @@ function CreateServiceUserForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.createServiceUser(tenantId, {
+      await jacklineApi.createServiceUser(tenantId, {
         kind: "service",
         name,
         ...(email.trim() ? { email: email.trim() } : {}),

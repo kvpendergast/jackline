@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { db } from "@mesh/db";
+import { db } from "@jackline/db";
 import { requireConnection } from "./lib/auth/requireConnection.js";
 import type { GatewayEnv } from "./lib/auth/types.js";
-import { createMeshMcpServer } from "./lib/mcp/createMeshMcpServer.js";
+import { createJacklineMcpServer } from "./lib/mcp/createJacklineMcpServer.js";
 
 export const app = new Hono<GatewayEnv>();
 
@@ -19,7 +19,7 @@ app.get("/health", async (c) => {
 
 app.all("/mcp", requireConnection, async (c) => {
   const gatewayContext = c.get("gatewayContext");
-  const serverResult = await createMeshMcpServer(gatewayContext);
+  const serverResult = await createJacklineMcpServer(gatewayContext);
   const transport = new WebStandardStreamableHTTPServerTransport({
     enableJsonResponse: true,
   });

@@ -1,9 +1,9 @@
 import { err, ok, type Result } from "neverthrow";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   type ToolHttpMethod,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 export type OpenApiImportedTool = {
   name: string;
@@ -91,12 +91,12 @@ function paramSchema(
 }
 
 /**
- * Parse an OpenAPI 3.x JSON document into Mesh HTTP tool bindings.
+ * Parse an OpenAPI 3.x JSON document into Jackline HTTP tool bindings.
  * Supports path/query params and JSON request bodies. Skips unsupported ops.
  */
 export function importToolsFromOpenApi(
   document: unknown,
-): Result<OpenApiImportedTool[], MeshError> {
+): Result<OpenApiImportedTool[], JacklineError> {
   if (!isRecord(document)) {
     return err(new BadRequestError("OpenAPI document must be a JSON object"));
   }

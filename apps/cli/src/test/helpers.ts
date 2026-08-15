@@ -4,15 +4,15 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { mintGatewayToken } from "../lib/gatewayAuth.js";
 import { storeMasterKey } from "../lib/masterKey.js";
-import { defaultConfigYaml, getMeshPaths, type MeshPaths } from "../lib/paths.js";
+import { defaultConfigYaml, getJacklinePaths, type JacklinePaths } from "../lib/paths.js";
 
-/** Isolated ~/.mesh-style tree using file-backed master key (no OS keychain). */
-export async function createTempMeshHome(): Promise<{
-  paths: MeshPaths;
+/** Isolated ~/.jackline-style tree using file-backed master key (no OS keychain). */
+export async function createTempJacklineHome(): Promise<{
+  paths: JacklinePaths;
   masterKey: string;
 }> {
-  const root = await mkdtemp(path.join(tmpdir(), "mesh-cli-test-"));
-  const paths = getMeshPaths(root);
+  const root = await mkdtemp(path.join(tmpdir(), "jackline-cli-test-"));
+  const paths = getJacklinePaths(root);
   const masterKey = randomBytes(32).toString("base64");
 
   await writeFile(
@@ -32,11 +32,11 @@ export async function createTempMeshHome(): Promise<{
   return { paths, masterKey };
 }
 
-export async function createTempMeshHomeWithGatewayToken(): Promise<{
-  paths: MeshPaths;
+export async function createTempJacklineHomeWithGatewayToken(): Promise<{
+  paths: JacklinePaths;
   token: string;
 }> {
-  const { paths } = await createTempMeshHome();
+  const { paths } = await createTempJacklineHome();
   const token = await mintGatewayToken(paths);
   return { paths, token };
 }

@@ -11,6 +11,6 @@ export default defineConfig({
   splitting: false,
   dts: false,
   // Workspace packages export .ts source; bundle them into dist so the
-  // published package does not depend on private `@mesh/*` workspace pkgs.
-  noExternal: [/^@mesh\//],
+  // published package does not depend on private `@jackline/*` workspace pkgs.
+  noExternal: [/^@jackline\//],
 });

@@ -1,19 +1,19 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MembershipRole } from "@mesh/shared";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { MembershipRole } from "@jackline/shared";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { requireSession } from "../../lib/request/requireSession.js";
 import { identityServices } from "./service.js";
 import { identityRoutes } from "./route.js";
 
-const getSso: RouteHandler<typeof identityRoutes.getSso, MeshEnv> = async (c) => {
+const getSso: RouteHandler<typeof identityRoutes.getSso, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await identityServices.getSso(log, auth.tenantId);
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
 };
 
-const updateSso: RouteHandler<typeof identityRoutes.updateSso, MeshEnv> = async (
+const updateSso: RouteHandler<typeof identityRoutes.updateSso, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -25,7 +25,7 @@ const updateSso: RouteHandler<typeof identityRoutes.updateSso, MeshEnv> = async 
 
 const rotateScim: RouteHandler<
   typeof identityRoutes.rotateScim,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await identityServices.rotateScimToken(log, auth.tenantId);
@@ -35,7 +35,7 @@ const rotateScim: RouteHandler<
 
 const listInvites: RouteHandler<
   typeof identityRoutes.listInvites,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await identityServices.listInvites(
@@ -50,7 +50,7 @@ const listInvites: RouteHandler<
 
 const createInvite: RouteHandler<
   typeof identityRoutes.createInvite,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
@@ -68,7 +68,7 @@ const createInvite: RouteHandler<
 
 const listAdmins: RouteHandler<
   typeof identityRoutes.listAdmins,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await identityServices.listAdmins(
@@ -83,7 +83,7 @@ const listAdmins: RouteHandler<
 
 const acceptInvite: RouteHandler<
   typeof identityRoutes.acceptInvite,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const sessionResult = await requireSession(c);
   if (sessionResult.isErr()) throw sessionResult.error;
@@ -101,7 +101,7 @@ const acceptInvite: RouteHandler<
 
 const listLoginProviders: RouteHandler<
   typeof identityRoutes.listLoginProviders,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const log = c.get("requestContext").log;
   const result = await identityServices.listLoginProviders(log);

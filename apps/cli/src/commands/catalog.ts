@@ -3,17 +3,17 @@ import {
   CONNECTOR_CATEGORIES,
   CONNECTOR_PRESETS,
   type ConnectorPreset,
-} from "@mesh/shared";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+} from "@jackline/shared";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 
 function supportsConnect(preset: ConnectorPreset): boolean {
   return Boolean(preset.oauthAuthorizeUrl && preset.oauthTokenUrl);
 }
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "catalog",
-    description: "List built-in connector presets you can add with mesh add",
+    description: "List built-in connector presets you can add with jackline add",
   },
   args: {
     json: {
@@ -43,7 +43,7 @@ export default defineMeshCommand({
     }
 
     consola.log(`Catalog: ${rows.length} connectors`);
-    consola.log("Add with: mesh add <key> --connect --client-id … --client-secret …");
+    consola.log("Add with: jackline add <key> --connect --client-id … --client-secret …");
     consola.log("");
 
     for (const category of CONNECTOR_CATEGORIES) {
@@ -58,7 +58,7 @@ export default defineMeshCommand({
         consola.log(
           `    connect:  ${
             row.connect
-              ? "yes (mesh add " + row.key + " --connect …)"
+              ? "yes (jackline add " + row.key + " --connect …)"
               : "no (paste a token / API key)"
           }`,
         );

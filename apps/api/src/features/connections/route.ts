@@ -9,7 +9,7 @@ import {
   PublicEffectiveToolSchema,
   PublicGatewayCredentialSchema,
   UpstreamCredentialStatusSchema,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
   notFoundError,

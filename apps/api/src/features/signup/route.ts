@@ -3,7 +3,7 @@ import {
   ErrorEnvelopeSchema,
   successEnvelopeSchema,
 } from "../../lib/http/envelope.js";
-import { PublicMembershipSchema, PublicTenantSchema, PublicUserSchema } from "@mesh/shared";
+import { PublicMembershipSchema, PublicTenantSchema, PublicUserSchema } from "@jackline/shared";
 
 const SignupBodySchema = z
   .strictObject({

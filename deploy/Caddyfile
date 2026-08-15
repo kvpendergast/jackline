@@ -1,17 +1,17 @@
-# Mesh edge proxy — default all-in-one topology (UI + API + MCP on one site).
+# Jackline edge proxy — default all-in-one topology (UI + API + MCP on one site).
 #
-# MESH_SITE_ADDRESS controls HTTP vs HTTPS:
+# JACKLINE_SITE_ADDRESS controls HTTP vs HTTPS:
 #   Local:        http://localhost
-#   Let's Encrypt: mesh.example.com   (no scheme — Caddy enables HTTPS)
+#   Let's Encrypt: jackline.example.com   (no scheme — Caddy enables HTTPS)
 #
 # Docs site is separate (subdomain or alternate host):
 #   Local:        http://docs.localhost
-#   Production:   docs.mesh.example.com
+#   Production:   docs.jackline.example.com
 {
-	{$MESH_CADDY_GLOBAL_OPTIONS}
+	{$JACKLINE_CADDY_GLOBAL_OPTIONS}
 }
 
-{$MESH_SITE_ADDRESS} {
+{$JACKLINE_SITE_ADDRESS} {
 	encode gzip
 
 	handle /mcp* {
@@ -40,7 +40,7 @@
 	}
 }
 
-{$MESH_DOCS_SITE_ADDRESS} {
+{$JACKLINE_DOCS_SITE_ADDRESS} {
 	encode gzip
 	reverse_proxy docs:80
 }

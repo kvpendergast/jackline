@@ -7,12 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { MeData, PublicMembershipContext, PublicUser } from "@mesh/shared";
+import type { MeData, PublicMembershipContext, PublicUser } from "@jackline/shared";
 import { ApiError } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
-const TENANT_KEY = "mesh-tenant-id";
+const TENANT_KEY = "jackline-tenant-id";
 
 type AuthContextValue = {
   loading: boolean;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await meshApi.me();
+      const data = await jacklineApi.me();
       setMe(data);
       setTenantIdState((current) => {
         const ids = data.memberships.map((m) => m.tenant.id);

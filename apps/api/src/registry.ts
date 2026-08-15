@@ -27,7 +27,7 @@ export const publicV1Features: AppSlice[] = [
   identityPublicFeature,
 ];
 
-/** Tenant-scoped `/api/v1` routes (`X-Mesh-Tenant-Id` + membership). */
+/** Tenant-scoped `/api/v1` routes (`X-Jackline-Tenant-Id` + membership). */
 export const tenantV1Features: AppSlice[] = [
   usersFeature,
   serversFeature,

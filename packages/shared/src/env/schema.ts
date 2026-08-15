@@ -4,9 +4,9 @@ export const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-  MESH_TENANCY: z.enum(["single", "multi"]).default("single"),
-  MESH_MASTER_KEY: z.string().min(1),
-  MESH_SECRET_STORAGE_LOCATION: z.enum(["local", "aws_kms", "gcp_kms"]).default("local"),
+  JACKLINE_TENANCY: z.enum(["single", "multi"]).default("single"),
+  JACKLINE_MASTER_KEY: z.string().min(1),
+  JACKLINE_SECRET_STORAGE_LOCATION: z.enum(["local", "aws_kms", "gcp_kms"]).default("local"),
   DATABASE_URL: z.string().min(1), // or z.url() if you want stricter
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().positive().default(8080),
@@ -25,39 +25,39 @@ export const EnvSchema = z.object({
    * Local OAuth testing: set this to your ngrok URL while leaving
    * BETTER_AUTH_URL on localhost.
    */
-  MESH_PUBLIC_API_URL: z.string().url().optional(),
+  JACKLINE_PUBLIC_API_URL: z.string().url().optional(),
   /**
    * Public MCP gateway URL embedded in minted connection credentials.
    * Defaults to http://127.0.0.1:${GATEWAY_PORT}/mcp.
-   * Same-origin Compose: http://localhost/mcp or https://mesh.example.com/mcp
+   * Same-origin Compose: http://localhost/mcp or https://jackline.example.com/mcp
    * Gateway-split: https://mcp.example.com/mcp (or host:port when BYO TLS)
    */
-  MESH_PUBLIC_MCP_URL: z.string().url().optional(),
+  JACKLINE_PUBLIC_MCP_URL: z.string().url().optional(),
   /**
    * Extra browser origins allowed for CORS + Better Auth (comma-separated).
    * Use when the admin UI is on a different host than WEB_ORIGIN alone covers,
    * or when you need additional preview/staging origins.
    */
-  MESH_ADDITIONAL_ORIGINS: z.string().optional(),
+  JACKLINE_ADDITIONAL_ORIGINS: z.string().optional(),
   /** Optional global OIDC (discovery via issuer/.well-known/openid-configuration). */
-  MESH_OIDC_ISSUER: z.string().url().optional(),
-  MESH_OIDC_CLIENT_ID: z.string().min(1).optional(),
-  MESH_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
+  JACKLINE_OIDC_ISSUER: z.string().url().optional(),
+  JACKLINE_OIDC_CLIENT_ID: z.string().min(1).optional(),
+  JACKLINE_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
 }).strict()
   .superRefine((env, ctx) => {
     const any =
-      env.MESH_OIDC_ISSUER != null ||
-      env.MESH_OIDC_CLIENT_ID != null ||
-      env.MESH_OIDC_CLIENT_SECRET != null;
+      env.JACKLINE_OIDC_ISSUER != null ||
+      env.JACKLINE_OIDC_CLIENT_ID != null ||
+      env.JACKLINE_OIDC_CLIENT_SECRET != null;
     const all =
-      env.MESH_OIDC_ISSUER != null &&
-      env.MESH_OIDC_CLIENT_ID != null &&
-      env.MESH_OIDC_CLIENT_SECRET != null;
+      env.JACKLINE_OIDC_ISSUER != null &&
+      env.JACKLINE_OIDC_CLIENT_ID != null &&
+      env.JACKLINE_OIDC_CLIENT_SECRET != null;
     if (any && !all) {
       ctx.addIssue({
         code: "custom",
         message:
-          "MESH_OIDC_ISSUER, MESH_OIDC_CLIENT_ID, and MESH_OIDC_CLIENT_SECRET must be set together",
+          "JACKLINE_OIDC_ISSUER, JACKLINE_OIDC_CLIENT_ID, and JACKLINE_OIDC_CLIENT_SECRET must be set together",
       });
     }
   });

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "neverthrow";
-import { ForbiddenError, type MeshError } from "@mesh/shared";
+import { ForbiddenError, type JacklineError } from "@jackline/shared";
 
 /** Caller membership used for team-scoped and ownership authz. */
 export type ActorAuthz = {
@@ -19,7 +19,7 @@ export function isAdminRole(role: string): boolean {
  */
 export function resolveTeamFilter(
   actor: ActorAuthz,
-): Result<string | null, MeshError> {
+): Result<string | null, JacklineError> {
   if (actor.role === "full_admin") {
     return ok(null);
   }

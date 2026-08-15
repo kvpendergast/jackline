@@ -3,7 +3,7 @@ import type {
   RequestContext,
 } from "../request/types.js";
 
-export type MeshEnv = {
+export type JacklineEnv = {
   Variables: {
     requestContext: AnonymousRequestContext;
     tenantContext: RequestContext;

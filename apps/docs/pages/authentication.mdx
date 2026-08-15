@@ -4,11 +4,11 @@ title: Authentication
 
 # Authentication
 
-The Mesh Admin API (`/api/v1`) supports two auth modes on the **same routes**:
+The Jackline Admin API (`/api/v1`) supports two auth modes on the **same routes**:
 
 | Caller | Auth |
 | --- | --- |
-| Admin UI / browsers | Better Auth **session cookie** + `X-Mesh-Tenant-Id` |
+| Admin UI / browsers | Better Auth **session cookie** + `X-Jackline-Tenant-Id` |
 | Machines / SDKs / CI | OAuth2 **client_credentials** → Bearer access token |
 
 ## OAuth2 client credentials
@@ -27,7 +27,7 @@ Response:
 
 ```json
 {
-  "access_token": "mesh_at_…",
+  "access_token": "jackline_at_…",
   "token_type": "Bearer",
   "expires_in": 3600
 }
@@ -40,7 +40,7 @@ curl -sS http://127.0.0.1:8080/api/v1/servers \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-Tenant is taken from the token. If you also send `X-Mesh-Tenant-Id`, it must match.
+Tenant is taken from the token. If you also send `X-Jackline-Tenant-Id`, it must match.
 
 ### Rotate / revoke
 
@@ -49,8 +49,8 @@ Tenant is taken from the token. If you also send `X-Mesh-Tenant-Id`, it must mat
 
 ## Session cookies
 
-Used by the admin UI. Sign up / sign in via Better Auth (`/api/auth/*`), then send `X-Mesh-Tenant-Id` on tenant-scoped routes.
+Used by the admin UI. Sign up / sign in via Better Auth (`/api/auth/*`), then send `X-Jackline-Tenant-Id` on tenant-scoped routes.
 
 ## Gateway MCP tokens
 
-Connection credentials (`msh_…`) authenticate the **MCP gateway**, not the Admin API. Do not reuse them for `/api/v1`.
+Connection credentials (`jkl_…`) authenticate the **MCP gateway**, not the Admin API. Do not reuse them for `/api/v1`.

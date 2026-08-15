@@ -2,9 +2,9 @@ import type { MiddlewareHandler } from "hono";
 import { logger } from "../logger.js";
 import { parseTraceId } from "./traceparent.js";
 import type { AnonymousRequestContext } from "./types.js";
-import type { MeshEnv } from "../http/env.js";
+import type { JacklineEnv } from "../http/env.js";
 
-export const requestMiddleware: MiddlewareHandler<MeshEnv> = async (c, next) => {
+export const requestMiddleware: MiddlewareHandler<JacklineEnv> = async (c, next) => {
   const started = Date.now();
   const inboundId = c.req.header("X-Request-Id")?.trim();
   const requestId =

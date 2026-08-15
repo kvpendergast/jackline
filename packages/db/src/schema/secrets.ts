@@ -18,7 +18,7 @@ import { connections } from "./connections.js";
  * Encrypted credentials:
  * - Upstream server-level: serverId set, userId null, connectionId null
  * - Upstream per-user: serverId + userId, connectionId null
- * - Mesh gateway token: connectionId set, serverId null
+ * - Jackline gateway token: connectionId set, serverId null
  */
 export const secrets = pgTable(
   "secrets",

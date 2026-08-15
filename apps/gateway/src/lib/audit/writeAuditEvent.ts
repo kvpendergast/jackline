@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import { db, auditEvents, type AuditOutcome } from "@mesh/db";
+import { db, auditEvents, type AuditOutcome } from "@jackline/db";
 
 const MAX_JSON_CHARS = 32_000;
 

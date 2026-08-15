@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/auth-provider";
 import { authClient } from "@/lib/auth-client";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
 export function LoginPage() {
   const { user, loading, refresh } = useAuth();
@@ -20,7 +20,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void meshApi
+    void jacklineApi
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
@@ -41,7 +41,7 @@ export function LoginPage() {
         return;
       }
       if (inviteToken.trim()) {
-        await meshApi.acceptInvite(inviteToken.trim());
+        await jacklineApi.acceptInvite(inviteToken.trim());
       }
       await refresh();
       navigate("/dashboard", { replace: true });
@@ -69,7 +69,7 @@ export function LoginPage() {
   return (
     <AuthScreen
       title="Sign in"
-      subtitle="Access your Mesh control plane."
+      subtitle="Access your Jackline control plane."
       footer={
         <>
           No organization yet?{" "}
@@ -153,7 +153,7 @@ export function SignupPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await meshApi.signup({ name, email, password, organizationName });
+      await jacklineApi.signup({ name, email, password, organizationName });
       await refresh();
       navigate("/dashboard", { replace: true });
     } catch (err) {
@@ -238,7 +238,7 @@ function AuthScreen({
     <div className="lattice-bg flex min-h-svh items-center justify-center p-6">
       <div className="w-full max-w-md border border-border bg-card p-6 shadow-none">
         <div className="mb-6 space-y-1">
-          <p className="section-label">Mesh</p>
+          <p className="section-label">Jackline</p>
           <h1 className="text-2xl font-medium tracking-[-0.03em]">{title}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>

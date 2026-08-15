@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
-import { encodeOAuthSecretValue } from "@mesh/shared";
+import { encodeOAuthSecretValue } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
-import type { PublicSecret, PublicServer, PublicUser } from "@mesh/shared";
+import { jacklineApi } from "@/lib/jackline-api";
+import type { PublicSecret, PublicServer, PublicUser } from "@jackline/shared";
 
 export function SecretsPage() {
   const { tenantId } = useAuth();
@@ -43,9 +43,9 @@ export function SecretsPage() {
   async function load() {
     if (!tenantId) return;
     const [secretPage, serverPage, userPage] = await Promise.all([
-      meshApi.listSecrets(tenantId),
-      meshApi.listServers(tenantId),
-      meshApi.listUsers(tenantId),
+      jacklineApi.listSecrets(tenantId),
+      jacklineApi.listServers(tenantId),
+      jacklineApi.listUsers(tenantId),
     ]);
     setItems(secretPage.items);
     setServers(serverPage.items);
@@ -59,7 +59,7 @@ export function SecretsPage() {
     }
     setError(null);
     try {
-      await meshApi.deleteSecret(tenantId, id);
+      await jacklineApi.deleteSecret(tenantId, id);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Delete failed");
@@ -236,7 +236,7 @@ function CreateSecretForm({
         secretValue = encoded.value;
       }
 
-      await meshApi.createSecret(tenantId, {
+      await jacklineApi.createSecret(tenantId, {
         kind,
         name,
         value: secretValue,

@@ -8,7 +8,7 @@ import {
   createOAuthState,
   createPkcePair,
   exchangeAuthorizationCode,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 const execFileAsync = promisify(execFile);
 

@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { hashToken } from "@mesh/auth";
-import { db, memberships, ssoConfigs, user } from "@mesh/db";
+import { hashToken } from "@jackline/auth";
+import { db, memberships, ssoConfigs, user } from "@jackline/db";
 import { logger } from "../../lib/logger.js";
 
 type ScimEnv = {
@@ -166,12 +166,12 @@ scimApp.post("/Users", async (c) => {
     .limit(1);
 
   if (!existingUser) {
-    logger.warn({ tenantId, email }, "scim create: user must exist in Mesh first");
+    logger.warn({ tenantId, email }, "scim create: user must exist in Jackline first");
     return c.json(
       {
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail:
-          "User must already exist in Mesh (SSO or password). Create via SSO login first.",
+          "User must already exist in Jackline (SSO or password). Create via SSO login first.",
         status: "400",
       },
       400,

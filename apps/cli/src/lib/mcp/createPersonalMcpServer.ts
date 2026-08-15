@@ -1,21 +1,21 @@
 import { McpServer, type RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { formatMcpToolName } from "@mesh/shared";
+import { formatMcpToolName } from "@jackline/shared";
 import consola from "consola";
-import type { MeshConfigServer, MeshPaths } from "../paths.js";
+import type { JacklineConfigServer, JacklinePaths } from "../paths.js";
 import { isToolEnabled } from "../toolPolicy.js";
 import { jsonSchemaToZod } from "./jsonSchemaToZod.js";
 import { connectUpstream } from "./upstream.js";
 
 type ToolTarget = {
-  server: MeshConfigServer;
+  server: JacklineConfigServer;
   upstreamToolName: string;
 };
 
 export type PersonalMcpHandle = {
   server: McpServer;
   /** Re-apply server list / tool policy. Emits tools/list_changed when connected. */
-  applyServers: (servers: MeshConfigServer[]) => Promise<void>;
+  applyServers: (servers: JacklineConfigServer[]) => Promise<void>;
 };
 
 function toolResultErrorText(result: CallToolResult): string {
@@ -27,7 +27,7 @@ function toolResultErrorText(result: CallToolResult): string {
   return "upstream tool returned isError without text content";
 }
 
-function topologyKey(servers: MeshConfigServer[]): string {
+function topologyKey(servers: JacklineConfigServer[]): string {
   return servers
     .map((s) => `${s.id}\t${s.name}\t${s.baseUrl}\t${s.authMethod}`)
     .sort()
@@ -35,27 +35,27 @@ function topologyKey(servers: MeshConfigServer[]): string {
 }
 
 /**
- * Build a personal Mesh MCP server from ~/.mesh config servers.
+ * Build a personal Jackline MCP server from ~/.jackline config servers.
  * Registers every upstream tool and uses enabled/disabled for policy so
  * `sendToolListChanged` can fire without rediscovering schemas.
  */
 export async function createPersonalMcpServer(
-  servers: MeshConfigServer[],
-  paths?: MeshPaths,
+  servers: JacklineConfigServer[],
+  paths?: JacklinePaths,
 ): Promise<PersonalMcpHandle> {
-  const server = new McpServer({ name: "mesh", version: "0.0.0" });
+  const server = new McpServer({ name: "jackline", version: "0.0.0" });
   const targets = new Map<string, ToolTarget>();
   const registered = new Map<string, RegisteredTool>();
   let lastTopology = "";
 
   const callTool = async (
-    meshName: string,
+    jacklineName: string,
     args: Record<string, unknown>,
   ): Promise<CallToolResult> => {
-    const target = targets.get(meshName);
+    const target = targets.get(jacklineName);
     if (!target) {
       return {
-        content: [{ type: "text" as const, text: `Unknown tool: ${meshName}` }],
+        content: [{ type: "text" as const, text: `Unknown tool: ${jacklineName}` }],
         isError: true,
       };
     }
@@ -107,40 +107,40 @@ export async function createPersonalMcpServer(
   };
 
   const registerOne = (
-    upstream: MeshConfigServer,
+    upstream: JacklineConfigServer,
     tool: {
       name: string;
       description?: string | undefined;
       inputSchema?: unknown;
     },
   ): string | undefined => {
-    const meshName = formatMcpToolName(upstream.name, tool.name);
-    if (targets.has(meshName) || registered.has(meshName)) {
-      consola.warn(`Duplicate tool name "${meshName}"; keeping first`);
+    const jacklineName = formatMcpToolName(upstream.name, tool.name);
+    if (targets.has(jacklineName) || registered.has(jacklineName)) {
+      consola.warn(`Duplicate tool name "${jacklineName}"; keeping first`);
       return undefined;
     }
-    targets.set(meshName, {
+    targets.set(jacklineName, {
       server: upstream,
       upstreamToolName: tool.name,
     });
     const handle = server.registerTool(
-      meshName,
+      jacklineName,
       {
-        title: meshName,
+        title: jacklineName,
         description:
           tool.description ?? `${tool.name} from ${upstream.name}`,
         inputSchema: jsonSchemaToZod(tool.inputSchema),
       },
-      async (args) => callTool(meshName, args as Record<string, unknown>),
+      async (args) => callTool(jacklineName, args as Record<string, unknown>),
     );
-    registered.set(meshName, handle);
+    registered.set(jacklineName, handle);
     if (!isToolEnabled(upstream, tool.name)) {
       handle.disable();
     }
-    return meshName;
+    return jacklineName;
   };
 
-  const discover = async (upstreams: MeshConfigServer[]): Promise<void> => {
+  const discover = async (upstreams: JacklineConfigServer[]): Promise<void> => {
     for (const upstream of upstreams) {
       if (upstream.authMethod === "mtls") {
         consola.warn(`Skipping "${upstream.name}": mTLS is not supported yet`);
@@ -155,7 +155,7 @@ export async function createPersonalMcpServer(
         consola.warn(`Skipping "${upstream.name}": ${detail}`);
         if (/invalid_token|invalid access token/i.test(detail)) {
           consola.warn(
-            `Re-connect with: mesh connect ${upstream.connectorKey ?? upstream.name}`,
+            `Re-connect with: jackline connect ${upstream.connectorKey ?? upstream.name}`,
           );
         }
         continue;
@@ -175,13 +175,13 @@ export async function createPersonalMcpServer(
     }
   };
 
-  const applyPolicyOnly = (upstreams: MeshConfigServer[]): void => {
+  const applyPolicyOnly = (upstreams: JacklineConfigServer[]): void => {
     const byId = new Map(upstreams.map((s) => [s.id, s]));
-    for (const [meshName, target] of targets) {
+    for (const [jacklineName, target] of targets) {
       const latest = byId.get(target.server.id);
       if (!latest) continue;
       target.server = latest;
-      const handle = registered.get(meshName);
+      const handle = registered.get(jacklineName);
       if (!handle) continue;
       const shouldEnable = isToolEnabled(latest, target.upstreamToolName);
       if (handle.enabled && !shouldEnable) {
@@ -193,7 +193,7 @@ export async function createPersonalMcpServer(
   };
 
   const applyServers = async (
-    upstreams: MeshConfigServer[],
+    upstreams: JacklineConfigServer[],
   ): Promise<void> => {
     const nextTopology = topologyKey(upstreams);
     if (lastTopology && nextTopology === lastTopology) {

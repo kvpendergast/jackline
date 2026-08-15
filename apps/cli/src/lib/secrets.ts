@@ -1,8 +1,8 @@
 import { access, readFile, writeFile } from "node:fs/promises";
-import { createSecretBox } from "@mesh/crypto";
+import { createSecretBox } from "@jackline/crypto";
 import { z } from "zod";
 import { readMasterKey } from "./masterKey.js";
-import { getMeshPaths, type MeshPaths } from "./paths.js";
+import { getJacklinePaths, type JacklinePaths } from "./paths.js";
 
 const StoredSecretSchema = z.object({
   kind: z.enum(["api_key", "oauth", "gateway_token"]),
@@ -31,7 +31,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 function getBox(masterKey: string) {
   const box = createSecretBox({
     secretStorageLocation: "local",
-    base64MeshMasterKey: masterKey,
+    base64JacklineMasterKey: masterKey,
     keyVersion: 1,
   });
   if (box.isErr()) {
@@ -41,9 +41,9 @@ function getBox(masterKey: string) {
 }
 
 export async function loadSecretsFile(
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<SecretsFile> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   if (!(await pathExists(p.secrets))) {
     return { version: 1, secrets: {} };
   }
@@ -57,7 +57,7 @@ export async function loadSecretsFile(
 
 async function saveSecretsFile(
   file: SecretsFile,
-  paths: MeshPaths,
+  paths: JacklinePaths,
 ): Promise<void> {
   await writeFile(paths.secrets, `${JSON.stringify(file, null, 2)}\n`, {
     encoding: "utf8",
@@ -71,9 +71,9 @@ export async function putSecret(
     kind: "api_key" | "oauth" | "gateway_token";
     plaintext: string;
   },
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<void> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const masterKey = await readMasterKey(p);
   const box = getBox(masterKey);
   const aad = new TextEncoder().encode(`mesh:secret:${input.secretId}`);
@@ -94,9 +94,9 @@ export async function putSecret(
 
 export async function getSecretPlaintext(
   secretId: string,
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<{ kind: "api_key" | "oauth" | "gateway_token"; value: string }> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const file = await loadSecretsFile(p);
   const row = file.secrets[secretId];
   if (!row) {
@@ -124,9 +124,9 @@ export async function getSecretPlaintext(
 
 export async function deleteSecret(
   secretId: string,
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<void> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const file = await loadSecretsFile(p);
   if (!(secretId in file.secrets)) return;
   delete file.secrets[secretId];

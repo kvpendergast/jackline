@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
-import { db, servers, tools } from "@mesh/db";
+import { db, servers, tools } from "@jackline/db";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   NotFoundError,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import type { AllowedMcpTool } from "../policy/listAllowedTools.js";
@@ -48,7 +48,7 @@ async function proxyMcpToolCall(
   server: UpstreamServerRow,
   toolName: string,
   args: Record<string, unknown>,
-): Promise<Result<CallToolResult, MeshError>> {
+): Promise<Result<CallToolResult, JacklineError>> {
   const connected = await connectUpstream(
     ctx.log,
     ctx.tenantId,
@@ -74,7 +74,7 @@ async function proxyMcpToolCall(
         "proxyToolCall upstream isError",
       );
       return err(
-        new MeshError("INTERNAL", `Upstream tool returned error: ${detail}`),
+        new JacklineError("INTERNAL", `Upstream tool returned error: ${detail}`),
       );
     }
 
@@ -84,32 +84,32 @@ async function proxyMcpToolCall(
         toolId: tool.toolId,
         serverId: server.id,
         upstreamName: toolName,
-        meshName: tool.name,
+        jacklineName: tool.name,
       },
       "proxyToolCall ok",
     );
     return ok(result);
   } catch (cause) {
     await touchServerHealth(server.id, "unhealthy");
-    const meshErr = formatUpstreamError(cause, "call");
+    const jacklineErr = formatUpstreamError(cause, "call");
     ctx.log.warn(
       { err: cause, toolId: tool.toolId, serverId: server.id },
       "proxyToolCall failed",
     );
-    return err(meshErr);
+    return err(jacklineErr);
   } finally {
     await connected.value.close();
   }
 }
 
 /**
- * Proxy a Mesh tool invocation to the upstream MCP server or HTTP API.
+ * Proxy a Jackline tool invocation to the upstream MCP server or HTTP API.
  */
 export async function proxyToolCall(
   ctx: GatewayConnectionContext,
   tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
   args: Record<string, unknown>,
-): Promise<Result<CallToolResult, MeshError>> {
+): Promise<Result<CallToolResult, JacklineError>> {
   const { tenantId } = ctx;
 
   const [row] = await db

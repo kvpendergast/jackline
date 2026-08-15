@@ -1,7 +1,7 @@
-import type { MeshConfigServer } from "./paths.js";
+import type { JacklineConfigServer } from "./paths.js";
 
 export function isToolEnabled(
-  server: MeshConfigServer,
+  server: JacklineConfigServer,
   upstreamToolName: string,
 ): boolean {
   const disabled = server.disabledTools;
@@ -14,7 +14,7 @@ export function parseToolNames(raw: string): string[] {
 }
 
 export function disableTools(
-  server: MeshConfigServer,
+  server: JacklineConfigServer,
   toolNames: string[],
 ): string[] {
   const disabled = new Set(server.disabledTools ?? []);
@@ -25,7 +25,7 @@ export function disableTools(
 }
 
 export function enableTools(
-  server: MeshConfigServer,
+  server: JacklineConfigServer,
   toolNames: string[],
 ): string[] {
   const remove = new Set(toolNames);
@@ -34,7 +34,7 @@ export function enableTools(
 }
 
 export function applyDisabledTools(
-  server: MeshConfigServer,
+  server: JacklineConfigServer,
   disabledTools: string[],
 ): void {
   if (disabledTools.length === 0) {
@@ -45,7 +45,7 @@ export function applyDisabledTools(
 }
 
 /** Stable snapshot of which tools are exposed, for config-watch comparisons. */
-export function toolPolicyFingerprint(servers: MeshConfigServer[]): string {
+export function toolPolicyFingerprint(servers: JacklineConfigServer[]): string {
   return JSON.stringify(
     servers.map((server) => ({
       id: server.id,

@@ -1,15 +1,15 @@
 {
-  "name": "@mesh/docs",
+  "name": "@jackline/docs",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "predev": "pnpm --filter @mesh/api openapi:export",
+    "predev": "pnpm --filter @jackline/api openapi:export",
     "dev": "zudoku dev --port 3000",
     "build": "zudoku build",
     "preview": "zudoku preview --port 3000",
-    "openapi:export": "pnpm --filter @mesh/api openapi:export",
+    "openapi:export": "pnpm --filter @jackline/api openapi:export",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"lint later\""
   },

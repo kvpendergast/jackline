@@ -13,8 +13,8 @@ import {
 } from "./masterKey.js";
 import { getSecretPlaintext, putSecret } from "./secrets.js";
 import { loadConfig, saveConfig } from "./config.js";
-import { createTempMeshHome } from "../test/helpers.js";
-import { defaultConfigYaml, getMeshPaths } from "./paths.js";
+import { createTempJacklineHome } from "../test/helpers.js";
+import { defaultConfigYaml, getJacklinePaths } from "./paths.js";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -28,7 +28,7 @@ describe("file-key master key storage", () => {
   });
 
   it("stores and reads a file-backed master key", async () => {
-    const { paths, masterKey } = await createTempMeshHome();
+    const { paths, masterKey } = await createTempJacklineHome();
     await access(paths.masterKey);
     const loaded = await readMasterKey(paths);
     assert.equal(loaded, masterKey);
@@ -38,7 +38,7 @@ describe("file-key master key storage", () => {
   });
 
   it("encrypts secrets with the file-backed master key", async () => {
-    const { paths } = await createTempMeshHome();
+    const { paths } = await createTempJacklineHome();
     const secretId = "11111111-1111-4111-8111-111111111111";
     await putSecret(
       {
@@ -57,8 +57,8 @@ describe("file-key master key storage", () => {
   });
 
   it("uses a distinct keychain account per config directory", () => {
-    const a = masterKeyAccount(getMeshPaths("/tmp/mesh-a"));
-    const b = masterKeyAccount(getMeshPaths("/tmp/mesh-b"));
+    const a = masterKeyAccount(getJacklinePaths("/tmp/jackline-a"));
+    const b = masterKeyAccount(getJacklinePaths("/tmp/jackline-b"));
     assert.match(a, /^master-key:[0-9a-f]{16}$/);
     assert.notEqual(a, b);
   });
@@ -71,8 +71,8 @@ describe("legacy master.key migration", () => {
       return;
     }
 
-    const root = await mkdtemp(path.join(tmpdir(), "mesh-cli-migrate-"));
-    const paths = getMeshPaths(root);
+    const root = await mkdtemp(path.join(tmpdir(), "jackline-cli-migrate-"));
+    const paths = getJacklinePaths(root);
     const masterKey = randomBytes(32).toString("base64");
 
     // Legacy layout: master.key on disk, no keyStorage field.
@@ -103,7 +103,7 @@ describe("legacy master.key migration", () => {
   });
 
   it("keeps reading legacy file keys when keyStorage is file", async () => {
-    const { paths, masterKey } = await createTempMeshHome();
+    const { paths, masterKey } = await createTempJacklineHome();
     await saveConfig(
       {
         ...(await loadConfig(paths)),
@@ -123,8 +123,8 @@ describe("keychain store path", () => {
       return;
     }
 
-    const root = await mkdtemp(path.join(tmpdir(), "mesh-cli-kc-"));
-    const paths = getMeshPaths(root);
+    const root = await mkdtemp(path.join(tmpdir(), "jackline-cli-kc-"));
+    const paths = getJacklinePaths(root);
     const masterKey = randomBytes(32).toString("base64");
 
     await writeFile(

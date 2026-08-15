@@ -1,4 +1,4 @@
-# Publish @mesh/cli to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
+# Publish @jackline/cli to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
 # Configure the matching Trusted Publisher on npmjs.com before the first release:
 #   Organization/user: kvpendergast
 #   Repository:        mesh
@@ -55,21 +55,21 @@ jobs:
             echo "Tag cli-v${TAG} does not match apps/cli version ${PKG}"
             exit 1
           fi
-          echo "Publishing @mesh/cli@${PKG}"
+          echo "Publishing @jackline/cli@${PKG}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck CLI
-        run: pnpm --filter @mesh/cli typecheck
+        run: pnpm --filter @jackline/cli typecheck
 
       - name: Test CLI
-        run: pnpm --filter @mesh/cli test
+        run: pnpm --filter @jackline/cli test
 
       - name: Build CLI
-        run: pnpm --filter @mesh/cli build
+        run: pnpm --filter @jackline/cli build
 
-      - name: Publish @mesh/cli
+      - name: Publish @jackline/cli
         working-directory: apps/cli
         # Build already ran; skip prepublishOnly (pnpm build) under npm.
         # Auth is OIDC from id-token: write — do not set NODE_AUTH_TOKEN.

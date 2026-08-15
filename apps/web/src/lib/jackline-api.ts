@@ -22,7 +22,7 @@ import type {
   ToolStatus,
   ToolHttpMethod,
   UpstreamCredentialStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 export type SignupInput = {
   email: string;
@@ -37,7 +37,7 @@ export type SignupResult = {
   membership: { id: string; role: string; userId: string; tenantId: string };
 };
 
-export const meshApi = {
+export const jacklineApi = {
   signup: (body: SignupInput) =>
     api<SignupResult>("/api/v1/signup", { method: "POST", body }),
 
@@ -275,7 +275,7 @@ export const meshApi = {
     api<PublicConnectionDetail>(`/api/v1/connections/${id}`, { tenantId }),
 
   listEffectiveTools: (tenantId: string, connectionId: string) =>
-    api<{ items: import("@mesh/shared").PublicEffectiveTool[] }>(
+    api<{ items: import("@jackline/shared").PublicEffectiveTool[] }>(
       `/api/v1/connections/${connectionId}/effective-tools`,
       { tenantId },
     ),
@@ -339,7 +339,7 @@ export const meshApi = {
     ),
 
   listAccessRequests: (tenantId: string, status?: string) =>
-    api<{ items: import("@mesh/shared").PublicAccessRequest[] }>(
+    api<{ items: import("@jackline/shared").PublicAccessRequest[] }>(
       "/api/v1/access-requests",
       { tenantId, searchParams: { status } },
     ),
@@ -348,7 +348,7 @@ export const meshApi = {
     tenantId: string,
     body: { connectionId: string; serverId: string },
   ) =>
-    api<import("@mesh/shared").PublicAccessRequest>("/api/v1/access-requests", {
+    api<import("@jackline/shared").PublicAccessRequest>("/api/v1/access-requests", {
       tenantId,
       method: "POST",
       body,
@@ -369,7 +369,7 @@ export const meshApi = {
     id: string,
     body: { toolIds?: string[] | null; note?: string | null } = {},
   ) =>
-    api<import("@mesh/shared").PublicAccessRequest>(
+    api<import("@jackline/shared").PublicAccessRequest>(
       `/api/v1/access-requests/${id}/approve`,
       { tenantId, method: "POST", body },
     ),
@@ -379,25 +379,25 @@ export const meshApi = {
     id: string,
     body: { note?: string | null } = {},
   ) =>
-    api<import("@mesh/shared").PublicAccessRequest>(
+    api<import("@jackline/shared").PublicAccessRequest>(
       `/api/v1/access-requests/${id}/deny`,
       { tenantId, method: "POST", body },
     ),
 
   cancelAccessRequest: (tenantId: string, id: string) =>
-    api<import("@mesh/shared").PublicAccessRequest>(
+    api<import("@jackline/shared").PublicAccessRequest>(
       `/api/v1/access-requests/${id}/cancel`,
       { tenantId, method: "POST" },
     ),
 
   listNotifications: (tenantId: string) =>
     api<{
-      items: import("@mesh/shared").PublicNotification[];
+      items: import("@jackline/shared").PublicNotification[];
       unreadCount: number;
     }>("/api/v1/notifications", { tenantId }),
 
   markNotificationRead: (tenantId: string, id: string) =>
-    api<import("@mesh/shared").PublicNotification>(
+    api<import("@jackline/shared").PublicNotification>(
       `/api/v1/notifications/${id}/read`,
       { tenantId, method: "POST", body: {} },
     ),
@@ -429,37 +429,37 @@ export const meshApi = {
     }),
 
   getSsoConfig: (tenantId: string) =>
-    api<import("@mesh/shared").PublicSsoConfig>("/api/v1/settings/sso", {
+    api<import("@jackline/shared").PublicSsoConfig>("/api/v1/settings/sso", {
       tenantId,
     }),
 
   updateSsoConfig: (
     tenantId: string,
-    body: import("@mesh/shared").UpdateSsoConfigBody,
+    body: import("@jackline/shared").UpdateSsoConfigBody,
   ) =>
-    api<import("@mesh/shared").PublicSsoConfig>("/api/v1/settings/sso", {
+    api<import("@jackline/shared").PublicSsoConfig>("/api/v1/settings/sso", {
       tenantId,
       method: "PATCH",
       body,
     }),
 
   rotateScimToken: (tenantId: string) =>
-    api<import("@mesh/shared").RotateScimTokenResult>(
+    api<import("@jackline/shared").RotateScimTokenResult>(
       "/api/v1/settings/scim/token",
       { tenantId, method: "POST", body: {} },
     ),
 
   listInvites: (tenantId: string) =>
-    api<{ items: import("@mesh/shared").PublicInvite[] }>(
+    api<{ items: import("@jackline/shared").PublicInvite[] }>(
       "/api/v1/settings/invites",
       { tenantId },
     ),
 
   createInvite: (
     tenantId: string,
-    body: import("@mesh/shared").CreateInviteBody,
+    body: import("@jackline/shared").CreateInviteBody,
   ) =>
-    api<{ invite: import("@mesh/shared").PublicInvite; token: string }>(
+    api<{ invite: import("@jackline/shared").PublicInvite; token: string }>(
       "/api/v1/settings/invites",
       { tenantId, method: "POST", body },
     ),
@@ -477,7 +477,7 @@ export const meshApi = {
     }>("/api/v1/settings/admins", { tenantId }),
 
   acceptInvite: (token: string) =>
-    api<import("@mesh/shared").PublicInvite>("/api/v1/invites/accept", {
+    api<import("@jackline/shared").PublicInvite>("/api/v1/invites/accept", {
       method: "POST",
       body: { token },
     }),

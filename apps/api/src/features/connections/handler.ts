@@ -1,11 +1,11 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { myAccessServices } from "../myAccess/service.js";
 import { listEffectiveTools as listEffectiveToolsService } from "./effectiveTools.js";
 import { Connection } from "./resource.js";
 
-function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
+function actorFrom(auth: JacklineEnv["Variables"]["tenantContext"]["auth"]) {
   return {
     userId: auth.userId,
     role: auth.membership.role,
@@ -13,7 +13,7 @@ function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
   };
 }
 
-const list: RouteHandler<typeof Connection.routes.list, MeshEnv> = async (c) => {
+const list: RouteHandler<typeof Connection.routes.list, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
   const result = await Connection.services.list(
@@ -26,7 +26,7 @@ const list: RouteHandler<typeof Connection.routes.list, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 200);
 };
 
-const create: RouteHandler<typeof Connection.routes.create, MeshEnv> = async (
+const create: RouteHandler<typeof Connection.routes.create, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -41,7 +41,7 @@ const create: RouteHandler<typeof Connection.routes.create, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 201);
 };
 
-const get: RouteHandler<typeof Connection.routes.get, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof Connection.routes.get, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Connection.services.get(
@@ -56,7 +56,7 @@ const get: RouteHandler<typeof Connection.routes.get, MeshEnv> = async (c) => {
 
 const listEffectiveTools: RouteHandler<
   typeof Connection.routes.listEffectiveTools,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -67,7 +67,7 @@ const listEffectiveTools: RouteHandler<
 
 const listUpstreamCredentials: RouteHandler<
   typeof Connection.routes.listUpstreamCredentials,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -88,7 +88,7 @@ const listUpstreamCredentials: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-const update: RouteHandler<typeof Connection.routes.update, MeshEnv> = async (
+const update: RouteHandler<typeof Connection.routes.update, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -105,7 +105,7 @@ const update: RouteHandler<typeof Connection.routes.update, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
-const remove: RouteHandler<typeof Connection.routes.delete, MeshEnv> = async (
+const remove: RouteHandler<typeof Connection.routes.delete, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -122,7 +122,7 @@ const remove: RouteHandler<typeof Connection.routes.delete, MeshEnv> = async (
 
 const attachRole: RouteHandler<
   typeof Connection.routes.attachRole,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -140,7 +140,7 @@ const attachRole: RouteHandler<
 
 const setRoles: RouteHandler<
   typeof Connection.routes.setRoles,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -158,7 +158,7 @@ const setRoles: RouteHandler<
 
 const detachRole: RouteHandler<
   typeof Connection.routes.detachRole,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id, roleId } = c.req.valid("param");
@@ -175,7 +175,7 @@ const detachRole: RouteHandler<
 
 const attachToolOverride: RouteHandler<
   typeof Connection.routes.attachToolOverride,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -193,7 +193,7 @@ const attachToolOverride: RouteHandler<
 
 const setToolOverrides: RouteHandler<
   typeof Connection.routes.setToolOverrides,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -211,7 +211,7 @@ const setToolOverrides: RouteHandler<
 
 const detachToolOverride: RouteHandler<
   typeof Connection.routes.detachToolOverride,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id, toolId } = c.req.valid("param");
@@ -228,7 +228,7 @@ const detachToolOverride: RouteHandler<
 
 const mintCredential: RouteHandler<
   typeof Connection.routes.mintCredential,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -246,7 +246,7 @@ const mintCredential: RouteHandler<
 
 const listCredentials: RouteHandler<
   typeof Connection.routes.listCredentials,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
@@ -262,7 +262,7 @@ const listCredentials: RouteHandler<
 
 const revokeCredential: RouteHandler<
   typeof Connection.routes.revokeCredential,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id, secretId } = c.req.valid("param");
@@ -279,7 +279,7 @@ const revokeCredential: RouteHandler<
 
 const setMemberToolEnabled: RouteHandler<
   typeof Connection.routes.setMemberToolEnabled,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id, toolId } = c.req.valid("param");

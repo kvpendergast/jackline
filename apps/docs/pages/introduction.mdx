@@ -2,23 +2,25 @@
 title: Introduction
 ---
 
-# Mesh
+# Jackline
 
-Mesh is an open-source, self-hostable **MCP policy gateway** with a control-plane API and admin UI.
+The open-source MCP control plane. Clip in, then go build.
 
-Clients (Cursor, Claude Code, agents) connect to Mesh as an MCP server. Mesh authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
+Jackline is a self-hostable **MCP policy gateway** with a control-plane API and admin UI.
+
+Clients (Cursor, Claude Code, agents) connect to Jackline as an MCP server. Jackline authenticates the caller, evaluates policy, proxies allowed tool calls, and records an audit trail.
 
 ## What's in these docs
 
 - **Guides** — authentication for the public Admin API and self-hosting with Docker Compose
-- **[API Reference](/api)** — generated automatically from Mesh's OpenAPI schema (`GET /docs` on the API)
+- **[API Reference](/api)** — generated automatically from Jackline's OpenAPI schema (`GET /docs` on the API)
 
 ## Quick start
 
 ```bash
 pnpm install
 cp .env.example .env
-# set MESH_MASTER_KEY and BETTER_AUTH_SECRET
+# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET
 
 pnpm db:migrate
 pnpm dev

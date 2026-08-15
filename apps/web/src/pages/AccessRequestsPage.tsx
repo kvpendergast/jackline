@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { PublicAccessRequest, PublicServer, PublicTool } from "@mesh/shared";
+import type { PublicAccessRequest, PublicServer, PublicTool } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
 export function AccessRequestsPage() {
   const { tenantId, membership, user } = useAuth();
@@ -27,9 +27,9 @@ export function AccessRequestsPage() {
     setError(null);
     try {
       const [req, serverPage, toolPage] = await Promise.all([
-        meshApi.listAccessRequests(tenantId),
-        meshApi.listServers(tenantId),
-        meshApi.listTools(tenantId),
+        jacklineApi.listAccessRequests(tenantId),
+        jacklineApi.listServers(tenantId),
+        jacklineApi.listTools(tenantId),
       ]);
       setItems(req.items);
       setServers(serverPage.items);
@@ -51,7 +51,7 @@ export function AccessRequestsPage() {
     if (!tenantId) return;
     setBusyId(id);
     try {
-      await meshApi.approveAccessRequest(tenantId, id, {});
+      await jacklineApi.approveAccessRequest(tenantId, id, {});
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Approve failed");
@@ -67,7 +67,7 @@ export function AccessRequestsPage() {
       .map((t) => t.id);
     setBusyId(id);
     try {
-      await meshApi.approveAccessRequest(tenantId, id, { toolIds });
+      await jacklineApi.approveAccessRequest(tenantId, id, { toolIds });
       setPartialFor(null);
       await load();
     } catch (e) {
@@ -81,7 +81,7 @@ export function AccessRequestsPage() {
     if (!tenantId) return;
     setBusyId(id);
     try {
-      await meshApi.denyAccessRequest(tenantId, id, {});
+      await jacklineApi.denyAccessRequest(tenantId, id, {});
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Deny failed");
@@ -94,7 +94,7 @@ export function AccessRequestsPage() {
     if (!tenantId) return;
     setBusyId(id);
     try {
-      await meshApi.cancelAccessRequest(tenantId, id);
+      await jacklineApi.cancelAccessRequest(tenantId, id);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Cancel failed");

@@ -9,7 +9,7 @@ import {
   keychainSet,
   type KeyStorage,
 } from "./keychain.js";
-import { getMeshPaths, type MeshPaths } from "./paths.js";
+import { getJacklinePaths, type JacklinePaths } from "./paths.js";
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
@@ -20,10 +20,10 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readFileMasterKey(paths: MeshPaths): Promise<string> {
+async function readFileMasterKey(paths: JacklinePaths): Promise<string> {
   if (!(await pathExists(paths.masterKey))) {
     throw new Error(
-      `No master key at ${paths.masterKey}. Run \`mesh init\` first.`,
+      `No master key at ${paths.masterKey}. Run \`jackline init\` first.`,
     );
   }
   const key = (await readFile(paths.masterKey, "utf8")).trim();
@@ -34,7 +34,7 @@ async function readFileMasterKey(paths: MeshPaths): Promise<string> {
 }
 
 async function writeFileMasterKey(
-  paths: MeshPaths,
+  paths: JacklinePaths,
   masterKey: string,
 ): Promise<void> {
   await writeFile(paths.masterKey, `${masterKey}\n`, {
@@ -43,7 +43,7 @@ async function writeFileMasterKey(
   });
 }
 
-async function resolveKeyStorage(paths: MeshPaths): Promise<KeyStorage> {
+async function resolveKeyStorage(paths: JacklinePaths): Promise<KeyStorage> {
   try {
     const config = await loadConfig(paths);
     if (config.keyStorage === "file" || config.keyStorage === "keychain") {
@@ -59,11 +59,11 @@ async function resolveKeyStorage(paths: MeshPaths): Promise<KeyStorage> {
 
 /**
  * Persist a newly minted master key. Default is OS keychain.
- * `--file-key` / keyStorage file writes ~/.mesh/master.key (with warning).
+ * `--file-key` / keyStorage file writes ~/.jackline/master.key (with warning).
  */
 export async function storeMasterKey(
   masterKey: string,
-  paths: MeshPaths,
+  paths: JacklinePaths,
   options: { keyStorage: KeyStorage; warnOnFile?: boolean },
 ): Promise<KeyStorage> {
   if (options.keyStorage === "file") {
@@ -97,8 +97,8 @@ export async function storeMasterKey(
  * Load the master key, migrating legacy plaintext files into the keychain
  * when keyStorage is keychain (or unset and keychain is available).
  */
-export async function readMasterKey(paths?: MeshPaths): Promise<string> {
-  const p = paths ?? getMeshPaths();
+export async function readMasterKey(paths?: JacklinePaths): Promise<string> {
+  const p = paths ?? getJacklinePaths();
   const storage = await resolveKeyStorage(p);
 
   if (storage === "file") {
@@ -127,13 +127,13 @@ export async function readMasterKey(paths?: MeshPaths): Promise<string> {
         `Migrated master key from ${p.masterKey} into the OS keychain.`,
       );
       consola.info(
-        `Plaintext copy kept at ${p.masterKey}.migrated — delete it after confirming Mesh works.`,
+        `Plaintext copy kept at ${p.masterKey}.migrated — delete it after confirming Jackline works.`,
       );
       return legacy;
     }
 
     throw new Error(
-      `No master key in the OS keychain for ${p.root}. Run \`mesh init\` first.`,
+      `No master key in the OS keychain for ${p.root}. Run \`jackline init\` first.`,
     );
   }
 
@@ -148,11 +148,11 @@ export async function readMasterKey(paths?: MeshPaths): Promise<string> {
 
   throw new Error(
     "OS keychain is unavailable and no master.key file was found. " +
-      "Run `mesh init` (or `mesh init --file-key` on systems without a keychain).",
+      "Run `jackline init` (or `jackline init --file-key` on systems without a keychain).",
   );
 }
 
-export async function masterKeyExists(paths: MeshPaths): Promise<boolean> {
+export async function masterKeyExists(paths: JacklinePaths): Promise<boolean> {
   if (await pathExists(paths.masterKey)) return true;
   if (!(await isKeychainAvailable())) return false;
   try {
@@ -162,7 +162,7 @@ export async function masterKeyExists(paths: MeshPaths): Promise<boolean> {
   }
 }
 
-export async function clearStoredMasterKey(paths: MeshPaths): Promise<void> {
+export async function clearStoredMasterKey(paths: JacklinePaths): Promise<void> {
   if (await isKeychainAvailable()) {
     try {
       await keychainDelete(paths);

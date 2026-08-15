@@ -1,18 +1,18 @@
-import { formatMcpToolName } from "@mesh/shared";
-import type { MeshConfigServer, MeshPaths } from "./paths.js";
+import { formatMcpToolName } from "@jackline/shared";
+import type { JacklineConfigServer, JacklinePaths } from "./paths.js";
 import { connectUpstream } from "./mcp/upstream.js";
 import { isToolEnabled } from "./toolPolicy.js";
 
 export type UpstreamToolRow = {
   upstreamName: string;
-  meshName: string;
+  jacklineName: string;
   description: string | null;
   enabled: boolean;
 };
 
 export async function listUpstreamTools(
-  server: MeshConfigServer,
-  paths?: MeshPaths,
+  server: JacklineConfigServer,
+  paths?: JacklinePaths,
 ): Promise<UpstreamToolRow[]> {
   if (server.authMethod === "mtls") {
     throw new Error(`Server "${server.name}" uses mTLS, which is not supported yet`);
@@ -24,7 +24,7 @@ export async function listUpstreamTools(
     return listed.tools
       .map((tool) => ({
         upstreamName: tool.name,
-        meshName: formatMcpToolName(server.name, tool.name),
+        jacklineName: formatMcpToolName(server.name, tool.name),
         description: tool.description ?? null,
         enabled: isToolEnabled(server, tool.name),
       }))

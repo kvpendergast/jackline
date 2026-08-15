@@ -1,12 +1,12 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { myAccessRoutes } from "./route.js";
 import { myAccessServices } from "./service.js";
 
 const listMyServers: RouteHandler<
   typeof myAccessRoutes.listMyServers,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const result = await myAccessServices.listMyServers(
@@ -20,7 +20,7 @@ const listMyServers: RouteHandler<
 
 const upsertMyCredential: RouteHandler<
   typeof myAccessRoutes.upsertMyCredential,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { serverId } = c.req.valid("param");
@@ -38,7 +38,7 @@ const upsertMyCredential: RouteHandler<
 
 const deleteMyCredential: RouteHandler<
   typeof myAccessRoutes.deleteMyCredential,
-  MeshEnv
+  JacklineEnv
 > = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { serverId } = c.req.valid("param");

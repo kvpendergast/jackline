@@ -1,15 +1,15 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import {
   cursorMcpSettingsSnippet,
   ensureGatewayToken,
   loadGatewayToken,
 } from "../lib/gatewayAuth.js";
 import { loadConfig } from "../lib/config.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 
-const showCommand = defineMeshCommand({
+const showCommand = defineJacklineCommand({
   meta: {
     name: "show",
     description: "Print the local MCP gateway bearer token and client snippet",
@@ -17,7 +17,7 @@ const showCommand = defineMeshCommand({
   args: {
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
     json: {
@@ -32,7 +32,7 @@ const showCommand = defineMeshCommand({
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     let token: string;
     try {
       token = args.ensure

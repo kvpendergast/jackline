@@ -2,14 +2,14 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { connections, db, secrets, type Connection } from "@mesh/db";
+import { connections, db, secrets, type Connection } from "@jackline/db";
 import {
   ForbiddenError,
   GATEWAY_TOKEN_KIND,
-  MeshError,
+  JacklineError,
   parseGatewayToken,
   UnauthorizedError,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
 
 export type ResolvedGatewayAuth = {
@@ -42,7 +42,7 @@ function extractBearer(authorization: string | undefined): string | null {
 export async function resolveConnectionFromAuthorization(
   authorization: string | undefined,
   log: Logger,
-): Promise<Result<ResolvedGatewayAuth, MeshError>> {
+): Promise<Result<ResolvedGatewayAuth, JacklineError>> {
   const bearer = extractBearer(authorization);
   if (!bearer) {
     return err(new UnauthorizedError("Missing bearer token"));

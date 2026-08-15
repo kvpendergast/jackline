@@ -4,18 +4,18 @@ import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { db, secrets, servers, type Secret as SecretRow } from "@mesh/db";
+import { db, secrets, servers, type Secret as SecretRow } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
   formatUpstreamCredentialFailure,
   getConfig,
-  MeshError,
+  JacklineError,
   NotFoundError,
   NotImplementedError,
   resolveOAuthAccessToken,
   upstreamSecretKind,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
 
 export type UpstreamServerRow = {
@@ -66,7 +66,7 @@ async function loadUpstreamSecret(
   tenantId: string,
   server: UpstreamServerRow,
   userId: string,
-): Promise<Result<SecretRow, MeshError>> {
+): Promise<Result<SecretRow, JacklineError>> {
   const { id: serverId, authMethod, credentialMode } = server;
 
   if (authMethod === "mtls") {
@@ -142,7 +142,7 @@ async function loadUpstreamSecret(
   return ok(serverSecret);
 }
 
-function decryptSecret(row: SecretRow): Result<string, MeshError> {
+function decryptSecret(row: SecretRow): Result<string, JacklineError> {
   const boxResult = getSecretBox();
   if (boxResult.isErr()) return err(boxResult.error);
 
@@ -171,7 +171,7 @@ async function bearerFromPlaintext(
   server: UpstreamServerRow,
   secretRow: SecretRow,
   plaintext: string,
-): Promise<Result<string, MeshError>> {
+): Promise<Result<string, JacklineError>> {
   if (server.authMethod === "api_key") {
     return ok(plaintext);
   }
@@ -204,7 +204,7 @@ export async function resolveUpstreamAuthHeaders(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
-): Promise<Result<Record<string, string>, MeshError>> {
+): Promise<Result<Record<string, string>, JacklineError>> {
   if (server.status !== "active") {
     return err(new BadRequestError(`Server is ${server.status}`));
   }
@@ -228,7 +228,7 @@ export async function resolveUpstreamAuthHeaders(
 export function formatUpstreamError(
   cause: unknown,
   phase: "connect" | "list" | "call",
-): MeshError {
+): JacklineError {
   const detail =
     cause instanceof Error
       ? cause.message
@@ -243,7 +243,7 @@ export function formatUpstreamError(
         ? "Upstream tools/list failed"
         : "Upstream tool call failed";
 
-  return new MeshError("INTERNAL", `${prefix}: ${detail}`);
+  return new JacklineError("INTERNAL", `${prefix}: ${detail}`);
 }
 
 export type ConnectedUpstream = {
@@ -260,7 +260,7 @@ export async function connectUpstream(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
-): Promise<Result<ConnectedUpstream, MeshError>> {
+): Promise<Result<ConnectedUpstream, JacklineError>> {
   if (server.kind !== "mcp") {
     return err(
       new NotImplementedError(
@@ -282,7 +282,7 @@ export async function connectUpstream(
   const transport = new StreamableHTTPClientTransport(baseUrl, {
     requestInit: { headers: headers.value },
   });
-  const client = new Client({ name: "mesh-gateway", version: "0.0.0" });
+  const client = new Client({ name: "jackline-gateway", version: "0.0.0" });
 
   try {
     await client.connect(transport as unknown as Transport);
@@ -305,7 +305,7 @@ export async function connectUpstream(
 export async function loadUpstreamServer(
   tenantId: string,
   serverId: string,
-): Promise<Result<UpstreamServerRow, MeshError>> {
+): Promise<Result<UpstreamServerRow, JacklineError>> {
   const [row] = await db
     .select({
       id: servers.id,

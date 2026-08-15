@@ -16,7 +16,7 @@ import {
   user,
   type Connection as ConnectionRow,
   type Secret as SecretRow,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
@@ -24,7 +24,7 @@ import {
   GATEWAY_TOKEN_KIND,
   getConfig,
   publicMcpUrl,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type ConnectionStatus,
@@ -35,7 +35,7 @@ import {
   type PublicConnectionDetail,
   type PublicConnectionToolOverride,
   type PublicGatewayCredential,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import {
   resolveTeamFilter,
   isAdminRole,
@@ -132,7 +132,7 @@ async function toDetail(
 async function getConnectionRow(
   tenantId: string,
   connectionId: string,
-): Promise<Result<ConnectionRow, MeshError>> {
+): Promise<Result<ConnectionRow, JacklineError>> {
   const [row] = await db
     .select()
     .from(connections)
@@ -152,7 +152,7 @@ async function assertUserInTenant(
   tenantId: string,
   userId: string,
   teamFilter: string | null = null,
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   const [existingUser] = await db
     .select({ id: user.id })
     .from(user)
@@ -191,7 +191,7 @@ async function assertConnectionInTeamScope(
   tenantId: string,
   connectionId: string,
   teamFilter: string | null,
-): Promise<Result<ConnectionRow, MeshError>> {
+): Promise<Result<ConnectionRow, JacklineError>> {
   const rowResult = await getConnectionRow(tenantId, connectionId);
   if (rowResult.isErr()) return err(rowResult.error);
   if (!teamFilter) return ok(rowResult.value);
@@ -208,7 +208,7 @@ async function assertConnectionInTeamScope(
 async function assertRolesInTenant(
   tenantId: string,
   roleIds: string[],
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   if (roleIds.length === 0) return ok(undefined);
 
   const found = await db
@@ -230,7 +230,7 @@ async function assertRolesInTenant(
 async function assertToolsInTenant(
   tenantId: string,
   toolIds: string[],
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   if (toolIds.length === 0) return ok(undefined);
 
   const found = await db
@@ -254,7 +254,7 @@ async function create(
   tenantId: string,
   actor: ActorAuthz,
   input: CreateConnectionInput,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const userId = isAdminRole(actor.role) ? input.userId : actor.userId;
   if (!isAdminRole(actor.role) && input.userId !== actor.userId) {
     return err(new ForbiddenError("Members can only create connections for themselves"));
@@ -301,7 +301,7 @@ async function list(
   tenantId: string,
   actor: ActorAuthz,
   query: ListConnectionsQuery,
-): Promise<Result<CursorPage<PublicConnection>, MeshError>> {
+): Promise<Result<CursorPage<PublicConnection>, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
   const teamFilter = teamResult.value;
@@ -385,7 +385,7 @@ async function get(
   tenantId: string,
   actor: ActorAuthz,
   connectionId: string,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
 
@@ -406,7 +406,7 @@ async function update(
   actor: ActorAuthz,
   connectionId: string,
   input: UpdateConnectionInput,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
 
@@ -445,7 +445,7 @@ async function remove(
   tenantId: string,
   actor: ActorAuthz,
   connectionId: string,
-): Promise<Result<PublicConnection, MeshError>> {
+): Promise<Result<PublicConnection, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
 
@@ -475,7 +475,7 @@ async function requireScopedConnection(
   tenantId: string,
   actor: ActorAuthz,
   connectionId: string,
-): Promise<Result<ConnectionRow, MeshError>> {
+): Promise<Result<ConnectionRow, JacklineError>> {
   const rowResult = await getConnectionRow(tenantId, connectionId);
   if (rowResult.isErr()) return err(rowResult.error);
   const row = rowResult.value;
@@ -497,7 +497,7 @@ async function assertActorCanUseClient(
   tenantId: string,
   actor: ActorAuthz,
   clientId: string,
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   const [client] = await db
     .select({
       id: clients.id,
@@ -535,7 +535,7 @@ async function attachRole(
   actor: ActorAuthz,
   connectionId: string,
   roleId: string,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -569,7 +569,7 @@ async function detachRole(
   actor: ActorAuthz,
   connectionId: string,
   roleId: string,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -605,7 +605,7 @@ async function setRoles(
   actor: ActorAuthz,
   connectionId: string,
   roleIds: string[],
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -661,7 +661,7 @@ async function attachToolOverride(
   actor: ActorAuthz,
   connectionId: string,
   input: SetToolOverrideInput,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -696,7 +696,7 @@ async function detachToolOverride(
   actor: ActorAuthz,
   connectionId: string,
   toolId: string,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -732,7 +732,7 @@ async function setToolOverrides(
   actor: ActorAuthz,
   connectionId: string,
   overrides: SetToolOverrideInput[],
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -825,7 +825,7 @@ async function mintCredential(
   actor: ActorAuthz,
   connectionId: string,
   input: { name?: string | undefined } = {},
-): Promise<Result<MintedGatewayCredential, MeshError>> {
+): Promise<Result<MintedGatewayCredential, JacklineError>> {
   const connectionResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -900,7 +900,7 @@ async function listCredentials(
   tenantId: string,
   actor: ActorAuthz,
   connectionId: string,
-): Promise<Result<PublicGatewayCredential[], MeshError>> {
+): Promise<Result<PublicGatewayCredential[], JacklineError>> {
   const connectionResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -936,7 +936,7 @@ async function revokeCredential(
   actor: ActorAuthz,
   connectionId: string,
   secretId: string,
-): Promise<Result<PublicGatewayCredential, MeshError>> {
+): Promise<Result<PublicGatewayCredential, JacklineError>> {
   const connectionResult = await requireScopedConnection(
     tenantId,
     actor,
@@ -981,7 +981,7 @@ async function setMemberToolEnabled(
   connectionId: string,
   toolId: string,
   enabled: boolean,
-): Promise<Result<PublicConnectionDetail, MeshError>> {
+): Promise<Result<PublicConnectionDetail, JacklineError>> {
   const rowResult = await requireScopedConnection(
     tenantId,
     actor,

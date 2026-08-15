@@ -1,5 +1,5 @@
-import { parseUpstreamOAuthSecret } from "@mesh/shared";
-import type { MeshConfigServer, MeshPaths } from "./paths.js";
+import { parseUpstreamOAuthSecret } from "@jackline/shared";
+import type { JacklineConfigServer, JacklinePaths } from "./paths.js";
 import { getSecretPlaintext } from "./secrets.js";
 
 export type StoredOauthApp = {
@@ -15,7 +15,7 @@ export type StoredOauthApp = {
  */
 export async function readStoredOauthApp(
   secretId: string,
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<StoredOauthApp | null> {
   try {
     const secret = await getSecretPlaintext(secretId, paths);
@@ -42,13 +42,13 @@ export async function readStoredOauthApp(
  * when adding Google Drive).
  */
 export async function findReusableOauthApp(
-  servers: MeshConfigServer[],
+  servers: JacklineConfigServer[],
   opts: {
     authorizeUrl?: string | undefined;
     tokenUrl?: string | undefined;
     preferSecretId?: string | undefined;
   },
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<StoredOauthApp | null> {
   const ordered = [...servers];
   if (opts.preferSecretId) {

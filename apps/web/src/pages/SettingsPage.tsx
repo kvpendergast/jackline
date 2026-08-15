@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,12 +14,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   CreateInviteBody,
   PublicInvite,
   PublicSsoConfig,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 type Tab = "sso" | "scim" | "invites" | "admins";
 
@@ -46,13 +46,13 @@ export function SettingsPage() {
   async function load() {
     if (!tenantId) return;
     const [invitePage, adminPage] = await Promise.all([
-      meshApi.listInvites(tenantId),
-      meshApi.listAdmins(tenantId),
+      jacklineApi.listInvites(tenantId),
+      jacklineApi.listAdmins(tenantId),
     ]);
     setInvites(invitePage.items);
     setAdmins(adminPage.items);
     if (isFullAdmin) {
-      setSso(await meshApi.getSsoConfig(tenantId));
+      setSso(await jacklineApi.getSsoConfig(tenantId));
     } else {
       setSso(null);
     }
@@ -231,7 +231,7 @@ function SsoForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      const next = await meshApi.updateSsoConfig(tenantId, {
+      const next = await jacklineApi.updateSsoConfig(tenantId, {
         enabled,
         issuer: issuer.trim() || null,
         clientId: clientId.trim() || null,
@@ -325,7 +325,7 @@ function ScimPanel({
     if (!tenantId) return;
     setBusy(true);
     try {
-      const result = await meshApi.rotateScimToken(tenantId);
+      const result = await jacklineApi.rotateScimToken(tenantId);
       setToken(result.token);
       setBaseUrl(result.scimBaseUrl);
       await onRotated("SCIM token rotated — copy it now; it will not be shown again.");
@@ -339,7 +339,7 @@ function ScimPanel({
   return (
     <section className="max-w-lg space-y-3 border border-border bg-card p-4">
       <p className="text-sm text-muted-foreground">
-        Point your IdP SCIM client at Mesh. Token status:{" "}
+        Point your IdP SCIM client at Jackline. Token status:{" "}
         {sso.hasScimToken ? "configured" : "not set"}. SCIM enabled flag:{" "}
         {sso.scimEnabled ? "on" : "off"} (turned on when you rotate).
       </p>
@@ -385,7 +385,7 @@ function InvitesPanel({
     if (!tenantId) return;
     setBusy(true);
     try {
-      const result = await meshApi.createInvite(tenantId, {
+      const result = await jacklineApi.createInvite(tenantId, {
         email,
         role,
         team: isFullAdmin ? team.trim() || null : actorTeam,

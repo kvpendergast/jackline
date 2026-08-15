@@ -2,15 +2,15 @@ import { consola } from "consola";
 import {
   encodeOAuthSecretValue,
   getConnectorPreset,
-} from "@mesh/shared";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+} from "@jackline/shared";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { loadConfig } from "../lib/config.js";
 import { putSecret } from "../lib/secrets.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 import { readStoredOauthApp } from "../lib/oauthApp.js";
 import { runBrowserOAuthConnect } from "../lib/oauthConnect.js";
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "connect",
     description:
@@ -41,12 +41,12 @@ export default defineMeshCommand({
     },
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     const config = await loadConfig(paths);
     const query = args.name.toLowerCase();
     const server = config.servers.find(
@@ -57,7 +57,7 @@ export default defineMeshCommand({
 
     if (!server) {
       consola.error(
-        `No server matching "${args.name}". Add one first with \`mesh add\`.`,
+        `No server matching "${args.name}". Add one first with \`jackline add\`.`,
       );
       process.exit(1);
     }

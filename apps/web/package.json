@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/web",
+  "name": "@jackline/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@mesh/shared": "workspace:*",
+    "@jackline/shared": "workspace:*",
     "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

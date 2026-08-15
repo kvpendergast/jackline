@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { KeyRound, Plus } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,8 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
-import type { ClientKind, PublicClient } from "@mesh/shared";
+import { jacklineApi } from "@/lib/jackline-api";
+import type { ClientKind, PublicClient } from "@jackline/shared";
 
 export function ClientsPage() {
   const { tenantId } = useAuth();
@@ -41,7 +41,7 @@ export function ClientsPage() {
 
   async function load() {
     if (!tenantId) return;
-    const page = await meshApi.listClients(tenantId);
+    const page = await jacklineApi.listClients(tenantId);
     setItems(page.items);
   }
 
@@ -224,7 +224,7 @@ function CreateClientForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.createClient(tenantId, { name, kind });
+      await jacklineApi.createClient(tenantId, { name, kind });
       await onCreated();
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Create failed");
@@ -288,7 +288,7 @@ function ClientCredentialsPanel({
     if (!tenantId) return;
     setBusy(true);
     try {
-      const result = await meshApi.rotateClientCredentials(tenantId, client.id, {});
+      const result = await jacklineApi.rotateClientCredentials(tenantId, client.id, {});
       onMinted({
         clientId: result.clientId,
         clientSecret: result.clientSecret,
@@ -305,7 +305,7 @@ function ClientCredentialsPanel({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.revokeClientCredentials(tenantId, client.id);
+      await jacklineApi.revokeClientCredentials(tenantId, client.id);
       await onRevoked();
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Revoke failed");

@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { MeshError } from "@mesh/shared";
+import type { JacklineError } from "@jackline/shared";
 import {
   connectUpstream,
   formatUpstreamError,
@@ -25,7 +25,7 @@ function cacheKey(tenantId: string, serverId: string): string {
 
 /**
  * Fetch upstream tools/list schemas for a server (cached ~60s).
- * Failures return empty map so Mesh can still advertise allowed tools.
+ * Failures return empty map so Jackline can still advertise allowed tools.
  */
 export async function fetchUpstreamToolMeta(
   log: Logger,
@@ -78,8 +78,8 @@ export async function fetchUpstreamToolMeta(
     );
     return byName;
   } catch (cause) {
-    const meshErr: MeshError = formatUpstreamError(cause, "list");
-    log.warn({ err: meshErr, serverId }, "fetchUpstreamToolMeta: listTools failed");
+    const jacklineErr: JacklineError = formatUpstreamError(cause, "list");
+    log.warn({ err: jacklineErr, serverId }, "fetchUpstreamToolMeta: listTools failed");
     return new Map();
   } finally {
     await connected.value.close();

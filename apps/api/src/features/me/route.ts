@@ -3,7 +3,7 @@ import {
   PublicMembershipSchema,
   PublicTenantSchema,
   PublicUserSchema,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import {
   ErrorEnvelopeSchema,
   successEnvelopeSchema,

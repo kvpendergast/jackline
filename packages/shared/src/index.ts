@@ -2,7 +2,7 @@ export { loadConfig, getConfig, publicApiBaseUrl, publicMcpUrl, webTrustedOrigin
 export { EnvSchema, type Env } from "./env/schema.js";
 export {
   ErrorCode,
-  MeshError,
+  JacklineError,
   UnauthorizedError,
   ForbiddenError,
   NotFoundError,

@@ -1,4 +1,4 @@
-import type { Connection } from "@mesh/db";
+import type { Connection } from "@jackline/db";
 import type { Logger } from "pino";
 
 export type GatewayConnectionContext = {

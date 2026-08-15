@@ -1,12 +1,12 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { meshOnError } from "./mapError.js";
+import { jacklineOnError } from "./mapError.js";
 import { validationHook } from "./validationHook.js";
-import type { MeshEnv } from "./env.js";
+import type { JacklineEnv } from "./env.js";
 
-export function createMeshApp() {
-  const app = new OpenAPIHono<MeshEnv>({
+export function createJacklineApp() {
+  const app = new OpenAPIHono<JacklineEnv>({
     defaultHook: validationHook,
   });
-  app.onError(meshOnError);
+  app.onError(jacklineOnError);
   return app;
 }

@@ -8,8 +8,8 @@ import {
   ShieldBan,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/mesh/StatusBadge";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   PublicAuditEvent,
   PublicClient,
@@ -28,7 +28,7 @@ import type {
   PublicRole,
   PublicServer,
   PublicTool,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 type ChecklistItem = {
   id: string;
@@ -38,7 +38,7 @@ type ChecklistItem = {
 };
 
 function checklistStorageKey(tenantId: string) {
-  return `mesh.dashboard.checklistDismissed.${tenantId}`;
+  return `jackline.dashboard.checklistDismissed.${tenantId}`;
 }
 
 export function DashboardPage() {
@@ -75,12 +75,12 @@ export function DashboardPage() {
           denyPage,
           clientPage,
         ] = await Promise.all([
-          meshApi.listServers(tenantId),
-          meshApi.listTools(tenantId),
-          meshApi.listConnections(tenantId),
-          meshApi.listRoles(tenantId),
-          meshApi.listAuditEvents(tenantId, { outcome: "deny", limit: "10" }),
-          meshApi.listClients(tenantId),
+          jacklineApi.listServers(tenantId),
+          jacklineApi.listTools(tenantId),
+          jacklineApi.listConnections(tenantId),
+          jacklineApi.listRoles(tenantId),
+          jacklineApi.listAuditEvents(tenantId, { outcome: "deny", limit: "10" }),
+          jacklineApi.listClients(tenantId),
         ]);
         if (cancelled) return;
         setServers(serverPage.items);

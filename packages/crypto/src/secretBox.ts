@@ -1,10 +1,10 @@
 import { err, ok, type Result } from "neverthrow";
-import { EncryptionError, NotImplementedError } from "@mesh/shared";
+import { EncryptionError, NotImplementedError } from "@jackline/shared";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export type SecretBoxConfig = {
     secretStorageLocation: 'local',
-    base64MeshMasterKey: string;
+    base64JacklineMasterKey: string;
     keyVersion: number;
 } | {
     secretStorageLocation: 'aws_kms',
@@ -36,16 +36,16 @@ export interface SecretBox {
 }
 
 class LocalSecretBox implements SecretBox {
-    private readonly meshMasterKey: Uint8Array;
+    private readonly jacklineMasterKey: Uint8Array;
     private readonly keyVersion: number = 1;
-    constructor(meshMasterKey: Uint8Array, keyVersion: number) {
-        this.meshMasterKey = meshMasterKey;
+    constructor(jacklineMasterKey: Uint8Array, keyVersion: number) {
+        this.jacklineMasterKey = jacklineMasterKey;
         this.keyVersion = keyVersion;
     }
 
     encrypt(plaintext: Uint8Array, aad?: Uint8Array): Result<EncryptedPayload, EncryptionError> {
         const nonce = randomBytes(12);
-        const cipher = createCipheriv('aes-256-gcm', this.meshMasterKey, nonce);
+        const cipher = createCipheriv('aes-256-gcm', this.jacklineMasterKey, nonce);
         if (aad) {
             cipher.setAAD(aad);
         }
@@ -76,7 +76,7 @@ class LocalSecretBox implements SecretBox {
         try {
             const decipher = createDecipheriv(
             "aes-256-gcm",
-            this.meshMasterKey,           // Uint8Array, 32 bytes
+            this.jacklineMasterKey,           // Uint8Array, 32 bytes
             payload.nonce,      // same 12 bytes from encrypt
             );
             if (aad) {
@@ -115,7 +115,7 @@ function createLocalSecretBox(base64MasterKey: string, keyVersion: number): Resu
 export function createSecretBox(secretBoxConfig: SecretBoxConfig): Result<SecretBox, NotImplementedError | EncryptionError> {
     switch (secretBoxConfig.secretStorageLocation) {
         case "local":
-            return createLocalSecretBox(secretBoxConfig.base64MeshMasterKey, secretBoxConfig.keyVersion).mapErr((e) => new EncryptionError(e.message));
+            return createLocalSecretBox(secretBoxConfig.base64JacklineMasterKey, secretBoxConfig.keyVersion).mapErr((e) => new EncryptionError(e.message));
         case "aws_kms":
             return err(new NotImplementedError());
         case "gcp_kms":

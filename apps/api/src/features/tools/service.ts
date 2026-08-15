@@ -1,17 +1,17 @@
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, servers, tools, type Tool } from "@mesh/db";
+import { db, servers, tools, type Tool } from "@jackline/db";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type CursorPage,
   type PublicTool,
   type ToolHttpMethod,
   type ToolStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -64,7 +64,7 @@ function toPublicTool(row: Tool): PublicTool {
 async function assertServerInTenant(
   tenantId: string,
   serverId: string,
-): Promise<Result<{ kind: string }, MeshError>> {
+): Promise<Result<{ kind: string }, JacklineError>> {
   const [server] = await db
     .select({ id: servers.id, kind: servers.kind })
     .from(servers)
@@ -82,7 +82,7 @@ function validateHttpBinding(
   serverKind: string,
   httpMethod: ToolHttpMethod | null | undefined,
   pathTemplate: string | null | undefined,
-): Result<void, MeshError> {
+): Result<void, JacklineError> {
   const hasMethod = httpMethod != null;
   const hasPath = pathTemplate != null && pathTemplate !== "";
   if (hasMethod !== hasPath) {
@@ -107,7 +107,7 @@ async function create(
   log: Logger,
   tenantId: string,
   input: CreateToolInput,
-): Promise<Result<PublicTool, MeshError>> {
+): Promise<Result<PublicTool, JacklineError>> {
   const serverCheck = await assertServerInTenant(tenantId, input.serverId);
   if (serverCheck.isErr()) {
     return err(serverCheck.error);
@@ -153,7 +153,7 @@ async function list(
   log: Logger,
   tenantId: string,
   query: ListToolsQuery,
-): Promise<Result<CursorPage<PublicTool>, MeshError>> {
+): Promise<Result<CursorPage<PublicTool>, JacklineError>> {
   const conditions = [eq(tools.tenantId, tenantId)];
 
   if (query.serverId) {
@@ -210,7 +210,7 @@ async function get(
   log: Logger,
   tenantId: string,
   toolId: string,
-): Promise<Result<PublicTool, MeshError>> {
+): Promise<Result<PublicTool, JacklineError>> {
   const [row] = await db
     .select()
     .from(tools)
@@ -230,7 +230,7 @@ async function update(
   tenantId: string,
   toolId: string,
   input: UpdateToolInput,
-): Promise<Result<PublicTool, MeshError>> {
+): Promise<Result<PublicTool, JacklineError>> {
   const [existing] = await db
     .select({
       id: tools.id,
@@ -292,7 +292,7 @@ async function remove(
   log: Logger,
   tenantId: string,
   toolId: string,
-): Promise<Result<PublicTool, MeshError>> {
+): Promise<Result<PublicTool, JacklineError>> {
   const [row] = await db
     .delete(tools)
     .where(and(eq(tools.id, toolId), eq(tools.tenantId, tenantId)))

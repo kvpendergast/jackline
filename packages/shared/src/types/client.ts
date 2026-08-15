@@ -49,13 +49,13 @@ export type RotateClientCredentialsBody = z.infer<
 >;
 export type OauthTokenResponse = z.infer<typeof OauthTokenResponseSchema>;
 
-/** OAuth2 access token prefix for Mesh Admin API. */
-export const MESH_ACCESS_TOKEN_PREFIX = "mesh_at_" as const;
+/** OAuth2 access token prefix for Jackline Admin API. */
+export const JACKLINE_ACCESS_TOKEN_PREFIX = "jackline_at_" as const;
 /** OAuth2 client_secret prefix. */
-export const MESH_CLIENT_SECRET_PREFIX = "mesh_cs_" as const;
+export const JACKLINE_CLIENT_SECRET_PREFIX = "jackline_cs_" as const;
 
 /** Default access token lifetime (seconds). */
-export const MESH_ACCESS_TOKEN_TTL_SECONDS = 3600 as const;
+export const JACKLINE_ACCESS_TOKEN_TTL_SECONDS = 3600 as const;
 
 /** Public path for the client_credentials token endpoint. */
 export const OAUTH_TOKEN_PATH = "/api/v1/oauth/token" as const;

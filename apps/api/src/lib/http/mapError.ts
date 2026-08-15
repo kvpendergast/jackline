@@ -1,12 +1,12 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { ErrorCode, MeshError } from "@mesh/shared";
+import { ErrorCode, JacklineError } from "@jackline/shared";
 import { ZodError } from "zod";
 import { errEnvelope, formatZodIssues } from "./envelope.js";
-import type { MeshEnv } from "./env.js";
+import type { JacklineEnv } from "./env.js";
 import { logger } from "../logger.js";
 
-export function toHttpStatus(error: MeshError): ContentfulStatusCode {
+export function toHttpStatus(error: JacklineError): ContentfulStatusCode {
   switch (error.code) {
     case ErrorCode.UNAUTHORIZED:
       return 401;
@@ -26,12 +26,12 @@ export function toHttpStatus(error: MeshError): ContentfulStatusCode {
   }
 }
 
-export function meshOnError(err: Error, c: Context<MeshEnv>) {
+export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
   const ctx = c.get("requestContext");
   const log = ctx?.log ?? logger;
   const requestId = ctx?.requestId ?? c.res.headers.get("X-Request-Id");
 
-  if (err instanceof MeshError) {
+  if (err instanceof JacklineError) {
     const status = toHttpStatus(err);
     const level = status >= 500 ? "error" : "warn";
     log[level](

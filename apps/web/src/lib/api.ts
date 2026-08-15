@@ -1,4 +1,4 @@
-import type { CursorPage } from "@mesh/shared";
+import type { CursorPage } from "@jackline/shared";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -21,7 +21,7 @@ async function parseEnvelope<T>(res: Response): Promise<T> {
   if (!text.trim()) {
     throw new ApiError(
       res.status >= 500
-        ? `API unavailable (${res.status}). Is @mesh/api running on :8080?`
+        ? `API unavailable (${res.status}). Is @jackline/api running on :8080?`
         : `Empty response from API (${res.status})`,
       res.status,
     );
@@ -88,7 +88,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     headers["Content-Type"] = "application/json";
   }
   if (options.tenantId) {
-    headers["X-Mesh-Tenant-Id"] = options.tenantId;
+    headers["X-Jackline-Tenant-Id"] = options.tenantId;
   }
 
   const res = await fetch(url.pathname + url.search, {

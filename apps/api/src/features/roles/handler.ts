@@ -1,9 +1,9 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { Role } from "./resource.js";
 
-const list: RouteHandler<typeof Role.routes.list, MeshEnv> = async (c) => {
+const list: RouteHandler<typeof Role.routes.list, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
   const result = await Role.services.list(log, auth.tenantId, query);
@@ -14,7 +14,7 @@ const list: RouteHandler<typeof Role.routes.list, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const create: RouteHandler<typeof Role.routes.create, MeshEnv> = async (c) => {
+const create: RouteHandler<typeof Role.routes.create, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
   const result = await Role.services.create(log, auth.tenantId, body);
@@ -25,7 +25,7 @@ const create: RouteHandler<typeof Role.routes.create, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 201);
 };
 
-const get: RouteHandler<typeof Role.routes.get, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof Role.routes.get, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Role.services.get(log, auth.tenantId, id);
@@ -36,7 +36,7 @@ const get: RouteHandler<typeof Role.routes.get, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const update: RouteHandler<typeof Role.routes.update, MeshEnv> = async (c) => {
+const update: RouteHandler<typeof Role.routes.update, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
@@ -48,7 +48,7 @@ const update: RouteHandler<typeof Role.routes.update, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const remove: RouteHandler<typeof Role.routes.delete, MeshEnv> = async (c) => {
+const remove: RouteHandler<typeof Role.routes.delete, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Role.services.delete(log, auth.tenantId, id);
@@ -59,7 +59,7 @@ const remove: RouteHandler<typeof Role.routes.delete, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const attachTool: RouteHandler<typeof Role.routes.attachTool, MeshEnv> = async (
+const attachTool: RouteHandler<typeof Role.routes.attachTool, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -73,7 +73,7 @@ const attachTool: RouteHandler<typeof Role.routes.attachTool, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
-const setTools: RouteHandler<typeof Role.routes.setTools, MeshEnv> = async (
+const setTools: RouteHandler<typeof Role.routes.setTools, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");
@@ -87,7 +87,7 @@ const setTools: RouteHandler<typeof Role.routes.setTools, MeshEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
-const detachTool: RouteHandler<typeof Role.routes.detachTool, MeshEnv> = async (
+const detachTool: RouteHandler<typeof Role.routes.detachTool, JacklineEnv> = async (
   c,
 ) => {
   const { auth, log } = c.get("tenantContext");

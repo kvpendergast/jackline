@@ -4,7 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import consola from "consola";
 import { loadConfig } from "../config.js";
-import type { MeshPaths } from "../paths.js";
+import type { JacklinePaths } from "../paths.js";
 import { toolPolicyFingerprint } from "../toolPolicy.js";
 import {
   createPersonalMcpServer,
@@ -34,9 +34,9 @@ function isInitializePayload(body: unknown): boolean {
 /**
  * Stateful Streamable HTTP sessions plus a config.yaml watcher.
  * Cursor's GET SSE stream receives notifications/tools/list_changed when
- * `mesh tools enable|disable` updates disabledTools.
+ * `jackline tools enable|disable` updates disabledTools.
  */
-export function createSessionHub(paths: MeshPaths) {
+export function createSessionHub(paths: JacklinePaths) {
   const sessions = new Map<string, LiveSession>();
   let lastFingerprint = "";
   let debounce: ReturnType<typeof setTimeout> | undefined;

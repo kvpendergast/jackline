@@ -17,7 +17,7 @@ export const connectionToolOverrideTypeEnum = pgEnum(
   ["allow", "deny"],
 );
 
-/** Policy target: (client, user). Mesh gateway credentials bind here. */
+/** Policy target: (client, user). Jackline gateway credentials bind here. */
 export const connections = pgTable(
   "connections",
   {

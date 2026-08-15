@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { err, ok, type Result } from "neverthrow";
-import { BadRequestError, type MeshError } from "@mesh/shared";
+import { BadRequestError, type JacklineError } from "@jackline/shared";
 
 export const DEFAULT_PAGE_LIMIT = 50;
 export const MAX_PAGE_LIMIT = 100;
@@ -49,7 +49,7 @@ export function encodeCreatedAtIdCursor(cursor: CreatedAtIdCursor): string {
 
 export function decodeCreatedAtIdCursor(
   cursor: string,
-): Result<CreatedAtIdCursor, MeshError> {
+): Result<CreatedAtIdCursor, JacklineError> {
   try {
     const json = Buffer.from(cursor, "base64url").toString("utf8");
     const parsed = CreatedAtIdCursorSchema.safeParse(JSON.parse(json));

@@ -1,12 +1,12 @@
-# Mesh edge proxy — control plane only (UI + API).
+# Jackline edge proxy — control plane only (UI + API).
 # Use with compose.gateway-split.yml; MCP is published on the gateway service directly.
 #
-# Set MESH_PUBLIC_MCP_URL to the gateway's public URL (e.g. https://mcp.example.com/mcp).
+# Set JACKLINE_PUBLIC_MCP_URL to the gateway's public URL (e.g. https://mcp.example.com/mcp).
 {
-	{$MESH_CADDY_GLOBAL_OPTIONS}
+	{$JACKLINE_CADDY_GLOBAL_OPTIONS}
 }
 
-{$MESH_SITE_ADDRESS} {
+{$JACKLINE_SITE_ADDRESS} {
 	encode gzip
 
 	handle /api* {
@@ -31,7 +31,7 @@
 	}
 }
 
-{$MESH_DOCS_SITE_ADDRESS} {
+{$JACKLINE_DOCS_SITE_ADDRESS} {
 	encode gzip
 	reverse_proxy docs:80
 }

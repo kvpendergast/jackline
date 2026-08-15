@@ -3,9 +3,9 @@ import {
   formatGatewayToken,
   GATEWAY_TOKEN_KIND,
   parseGatewayToken,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { loadConfig, saveConfig } from "./config.js";
-import { getMeshPaths, type MeshPaths } from "./paths.js";
+import { getJacklinePaths, type JacklinePaths } from "./paths.js";
 import { getSecretPlaintext, putSecret } from "./secrets.js";
 
 export type PersonalMcpClientConfig = {
@@ -54,7 +54,7 @@ export function cursorMcpSettingsSnippet(
   return JSON.stringify(
     {
       mcpServers: {
-        mesh: personalMcpClientConfig(host, port, token),
+        jackline: personalMcpClientConfig(host, port, token),
       },
     },
     null,
@@ -63,13 +63,13 @@ export function cursorMcpSettingsSnippet(
 }
 
 /**
- * Mint a new long-lived local gateway token (`msh_<id>.<secret>`), store the
+ * Mint a new long-lived local gateway token (`jkl_<id>.<secret>`), store the
  * secret encrypted in secrets.json, and persist the secret id in config.yaml.
  */
 export async function mintGatewayToken(
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<string> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const config = await loadConfig(p);
   const secretId = randomUUID();
   const secret = randomBytes(32).toString("base64url");
@@ -95,12 +95,12 @@ export async function mintGatewayToken(
 }
 
 /**
- * Return the existing gateway token, or mint one if this ~/.mesh predates auth.
+ * Return the existing gateway token, or mint one if this ~/.jackline predates auth.
  */
 export async function ensureGatewayToken(
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<{ token: string; created: boolean }> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const config = await loadConfig(p);
   const secretId = config.gatewayTokenSecretId;
 
@@ -123,20 +123,20 @@ export async function ensureGatewayToken(
 }
 
 export async function loadGatewayToken(
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<string> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const config = await loadConfig(p);
   const secretId = config.gatewayTokenSecretId;
   if (!secretId) {
     throw new Error(
-      `No gateway token in ${p.config}. Run \`mesh serve\` or \`mesh init\` first.`,
+      `No gateway token in ${p.config}. Run \`jackline serve\` or \`jackline init\` first.`,
     );
   }
   const stored = await getSecretPlaintext(secretId, p);
   if (stored.kind !== GATEWAY_TOKEN_KIND) {
     throw new Error(
-      `Secret ${secretId} is not a gateway token. Re-run \`mesh serve\` to mint one.`,
+      `Secret ${secretId} is not a gateway token. Re-run \`jackline serve\` to mint one.`,
     );
   }
   return formatGatewayToken(secretId, stored.value);
@@ -148,9 +148,9 @@ export async function loadGatewayToken(
  */
 export async function verifyGatewayAuthorization(
   authorization: string | undefined,
-  paths?: MeshPaths,
+  paths?: JacklinePaths,
 ): Promise<boolean> {
-  const p = paths ?? getMeshPaths();
+  const p = paths ?? getJacklinePaths();
   const bearer = extractBearer(authorization);
   if (!bearer) return false;
 

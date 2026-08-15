@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, KeyRound, ShieldBan, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/mesh/StatusBadge";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   MintedGatewayCredential,
   PublicAuditEvent,
@@ -27,7 +27,7 @@ import type {
   PublicTool,
   PublicUser,
   UpstreamCredentialStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 export function ConnectionDetailPage() {
   const { id = "" } = useParams();
@@ -56,7 +56,7 @@ export function ConnectionDetailPage() {
   const [overrideToolId, setOverrideToolId] = useState("");
   const [overrideType, setOverrideType] = useState<"allow" | "deny">("deny");
   const [servers, setServers] = useState<
-    import("@mesh/shared").PublicServer[]
+    import("@jackline/shared").PublicServer[]
   >([]);
   const [catalogBusy, setCatalogBusy] = useState<string | null>(null);
 
@@ -77,20 +77,20 @@ export function ConnectionDetailPage() {
       denyPage,
       serverPage,
     ] = await Promise.all([
-      meshApi.getConnection(tenantId, id),
-      meshApi.listClients(tenantId),
-      meshApi.listUsers(tenantId).catch(() => ({ items: [] as PublicUser[] })),
-      meshApi.listRoles(tenantId).catch(() => ({ items: [] as PublicRole[] })),
-      meshApi.listTools(tenantId),
-      meshApi.listCredentials(tenantId, id),
-      meshApi.listEffectiveTools(tenantId, id),
-      meshApi.listUpstreamCredentials(tenantId, id),
-      meshApi.listAuditEvents(tenantId, {
+      jacklineApi.getConnection(tenantId, id),
+      jacklineApi.listClients(tenantId),
+      jacklineApi.listUsers(tenantId).catch(() => ({ items: [] as PublicUser[] })),
+      jacklineApi.listRoles(tenantId).catch(() => ({ items: [] as PublicRole[] })),
+      jacklineApi.listTools(tenantId),
+      jacklineApi.listCredentials(tenantId, id),
+      jacklineApi.listEffectiveTools(tenantId, id),
+      jacklineApi.listUpstreamCredentials(tenantId, id),
+      jacklineApi.listAuditEvents(tenantId, {
         connectionId: id,
         outcome: "deny",
         limit: "10",
       }).catch(() => ({ items: [] as PublicAuditEvent[] })),
-      meshApi.listServers(tenantId),
+      jacklineApi.listServers(tenantId),
     ]);
     setDetail(conn);
     setClient(clientPage.items.find((c) => c.id === conn.clientId) ?? null);
@@ -137,7 +137,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await meshApi.mintCredential(tenantId, id);
+      const result = await jacklineApi.mintCredential(tenantId, id);
       setMinted(result);
       await load();
     } catch (err) {
@@ -152,7 +152,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.setMemberToolEnabled(tenantId, id, toolId, enabled);
+      await jacklineApi.setMemberToolEnabled(tenantId, id, toolId, enabled);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Toggle failed");
@@ -166,7 +166,7 @@ export function ConnectionDetailPage() {
     setCatalogBusy(serverId);
     setError(null);
     try {
-      await meshApi.attachAutoAllowedTools(tenantId, {
+      await jacklineApi.attachAutoAllowedTools(tenantId, {
         connectionId: id,
         serverId,
       });
@@ -183,7 +183,7 @@ export function ConnectionDetailPage() {
     setCatalogBusy(serverId);
     setError(null);
     try {
-      await meshApi.createAccessRequest(tenantId, {
+      await jacklineApi.createAccessRequest(tenantId, {
         connectionId: id,
         serverId,
       });
@@ -200,7 +200,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.revokeCredential(tenantId, id, secretId);
+      await jacklineApi.revokeCredential(tenantId, id, secretId);
       setMinted(null);
       await load();
     } catch (err) {
@@ -215,7 +215,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.updateConnection(tenantId, detail.id, { status: next });
+      await jacklineApi.updateConnection(tenantId, detail.id, { status: next });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Update failed");
@@ -229,7 +229,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.attachConnectionRole(tenantId, detail.id, attachRoleId);
+      await jacklineApi.attachConnectionRole(tenantId, detail.id, attachRoleId);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Attach failed");
@@ -243,7 +243,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.attachToolOverride(tenantId, detail.id, {
+      await jacklineApi.attachToolOverride(tenantId, detail.id, {
         toolId: overrideToolId,
         type: overrideType,
       });
@@ -260,7 +260,7 @@ export function ConnectionDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await meshApi.removeToolOverride(tenantId, detail.id, toolId);
+      await jacklineApi.removeToolOverride(tenantId, detail.id, toolId);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Remove failed");
@@ -424,7 +424,7 @@ export function ConnectionDetailPage() {
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No gateway token. Mint one to connect Cursor/Claude via Mesh.
+                No gateway token. Mint one to connect Cursor/Claude via Jackline.
               </p>
             )}
           </div>

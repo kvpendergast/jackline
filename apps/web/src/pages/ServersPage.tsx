@@ -11,12 +11,12 @@ import {
   type ServerAuthMethod,
   type ServerCredentialMode,
   type ServerKind,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
-import { ConnectorLogo } from "@/components/mesh/ConnectorLogo";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { ConnectorLogo } from "@/components/jackline/ConnectorLogo";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
 export function ServersPage() {
   const { tenantId } = useAuth();
@@ -64,7 +64,7 @@ export function ServersPage() {
 
   async function load() {
     if (!tenantId) return;
-    const page = await meshApi.listServers(tenantId);
+    const page = await jacklineApi.listServers(tenantId);
     setItems(page.items);
   }
 
@@ -94,7 +94,7 @@ export function ServersPage() {
     setError(null);
     setInfo(null);
     try {
-      await meshApi.updateServer(tenantId, id, {
+      await jacklineApi.updateServer(tenantId, id, {
         status: status === "active" ? "disabled" : "active",
       });
       await load();
@@ -108,7 +108,7 @@ export function ServersPage() {
     setError(null);
     setInfo(null);
     try {
-      const result = await meshApi.syncServerTools(tenantId, id);
+      const result = await jacklineApi.syncServerTools(tenantId, id);
       await load();
       setInfo(
         `Synced ${result.discovered} tool(s): ${result.created} created, ${result.updated} updated (new tools need review)`,
@@ -123,7 +123,7 @@ export function ServersPage() {
       <PageHeader
         eyebrow="Upstream"
         title="Servers"
-        description="MCP (or API) upstreams Mesh proxies to after policy allows a tool call."
+        description="MCP (or API) upstreams Jackline proxies to after policy allows a tool call."
       />
 
       {error ? <p className="text-sm text-deny">{error}</p> : null}
@@ -289,7 +289,7 @@ export function ServersPage() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        void meshApi
+                        void jacklineApi
                           .updateServer(tenantId!, row.id, {
                             requiresApproval: !row.requiresApproval,
                           })
@@ -492,7 +492,7 @@ function ServerForm({
     let cancelled = false;
     (async () => {
       try {
-        const page = await meshApi.listSecrets(tenantId);
+        const page = await jacklineApi.listSecrets(tenantId);
         const secretKind = upstreamSecretKind(authMethod);
         const match = page.items.find(
           (s) =>
@@ -568,14 +568,14 @@ function ServerForm({
       secretName.trim() || `${nameFromForm()} ${secretKind}`;
 
     if (existingSecretId) {
-      await meshApi.updateSecret(tenantId, existingSecretId, {
+      await jacklineApi.updateSecret(tenantId, existingSecretId, {
         name: credentialName,
         value: plaintext,
       });
       return;
     }
 
-    await meshApi.createSecret(tenantId, {
+    await jacklineApi.createSecret(tenantId, {
       kind: secretKind,
       name: credentialName,
       value: plaintext,
@@ -596,14 +596,14 @@ function ServerForm({
     const credentialName = `${nameFromForm()} oauth app`;
 
     if (existingOauthAppSecretId) {
-      await meshApi.updateSecret(tenantId, existingOauthAppSecretId, {
+      await jacklineApi.updateSecret(tenantId, existingOauthAppSecretId, {
         name: credentialName,
         value,
       });
       return;
     }
 
-    await meshApi.createSecret(tenantId, {
+    await jacklineApi.createSecret(tenantId, {
       kind: "oauth_client",
       name: credentialName,
       value,
@@ -662,7 +662,7 @@ function ServerForm({
 
       let serverId = server?.id;
       if (mode === "create") {
-        const created = await meshApi.createServer(tenantId, {
+        const created = await jacklineApi.createServer(tenantId, {
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           authMethod,
@@ -676,7 +676,7 @@ function ServerForm({
         });
         serverId = created.id;
       } else if (serverId) {
-        await meshApi.updateServer(tenantId, serverId, {
+        await jacklineApi.updateServer(tenantId, serverId, {
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           authMethod,
@@ -847,7 +847,7 @@ function ServerForm({
           <div>
             <p className="text-sm font-medium">OAuth app (Connect)</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Register a Mesh callback on the provider
+              Register a Jackline callback on the provider
               ({`{API_URL}/api/v1/oauth/callback`}). Members use Connect in My
               Access when client id + secret are set.
             </p>

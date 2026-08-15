@@ -1,6 +1,6 @@
 import z from "zod";
 
-/** Mesh membership roles for control-plane access. */
+/** Jackline membership roles for control-plane access. */
 export const MembershipRoleSchema = z.enum([
   "full_admin",
   "delegated_admin",

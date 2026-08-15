@@ -3,12 +3,12 @@
  * gateway tools/list → quarantine kill-switch.
  *
  * Requires API + gateway already running:
- *   pnpm --filter @mesh/api smoke
+ *   pnpm --filter @jackline/api smoke
  */
 import { loadEnvFile } from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadConfig } from "@mesh/shared";
+import { loadConfig } from "@jackline/shared";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 loadEnvFile(path.join(root, ".env"));
@@ -18,7 +18,7 @@ if (configResult.isErr()) throw configResult.error;
 const API = process.env.SMOKE_API_URL ?? "http://127.0.0.1:8080";
 const GATEWAY = process.env.SMOKE_GATEWAY_URL ?? "http://127.0.0.1:8081";
 const ORIGIN = process.env.SMOKE_ORIGIN ?? configResult.value.WEB_ORIGIN;
-const email = `smoke-${Date.now()}@mesh.local`;
+const email = `smoke-${Date.now()}@jackline.local`;
 const password = "smoke-password-12345";
 const jar = new Map<string, string>();
 
@@ -47,7 +47,7 @@ async function api<T>(
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  if (init.tenantId) headers.set("X-Mesh-Tenant-Id", init.tenantId);
+  if (init.tenantId) headers.set("X-Jackline-Tenant-Id", init.tenantId);
   const cookie = cookieHeader();
   if (cookie) headers.set("Cookie", cookie);
 
@@ -65,9 +65,9 @@ async function api<T>(
 }
 
 async function ensureSession(): Promise<string> {
-  const { auth, initAuth } = await import("@mesh/auth");
+  const { auth, initAuth } = await import("@jackline/auth");
   await initAuth();
-  const { db, memberships, tenants } = await import("@mesh/db");
+  const { db, memberships, tenants } = await import("@jackline/db");
 
   const signup = await fetch(`${API}/api/v1/signup`, {
     method: "POST",
@@ -137,7 +137,7 @@ async function ensureSession(): Promise<string> {
 }
 
 async function main() {
-  const { getAllowedTools } = await import("@mesh/policy");
+  const { getAllowedTools } = await import("@jackline/policy");
 
   console.log("Smoke golden path");
   console.log(`API=${API} GATEWAY=${GATEWAY}`);

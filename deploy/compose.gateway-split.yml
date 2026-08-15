@@ -5,17 +5,17 @@
 #     --env-file .env.prod up --build -d
 #
 # Set in .env.prod (example):
-#   MESH_PUBLIC_MCP_URL=https://mcp.example.com/mcp
-#   # or for local: MESH_PUBLIC_MCP_URL=http://127.0.0.1:8081/mcp
-#   MESH_GATEWAY_PUBLISH_PORT=8081
+#   JACKLINE_PUBLIC_MCP_URL=https://mcp.example.com/mcp
+#   # or for local: JACKLINE_PUBLIC_MCP_URL=http://127.0.0.1:8081/mcp
+#   JACKLINE_GATEWAY_PUBLISH_PORT=8081
 #
-# Point Cursor / MCP clients at MESH_PUBLIC_MCP_URL. Put your own TLS
+# Point Cursor / MCP clients at JACKLINE_PUBLIC_MCP_URL. Put your own TLS
 # terminator in front of the published gateway port when exposing publicly.
 
 services:
   gateway:
     ports:
-      - "${MESH_GATEWAY_PUBLISH_PORT:-8081}:8081"
+      - "${JACKLINE_GATEWAY_PUBLISH_PORT:-8081}:8081"
 
   caddy:
     volumes:

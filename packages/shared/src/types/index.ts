@@ -74,9 +74,9 @@ export {
   RotateClientCredentialsBodySchema,
   type OauthTokenResponse,
   OauthTokenResponseSchema,
-  MESH_ACCESS_TOKEN_PREFIX,
-  MESH_CLIENT_SECRET_PREFIX,
-  MESH_ACCESS_TOKEN_TTL_SECONDS,
+  JACKLINE_ACCESS_TOKEN_PREFIX,
+  JACKLINE_CLIENT_SECRET_PREFIX,
+  JACKLINE_ACCESS_TOKEN_TTL_SECONDS,
   OAUTH_TOKEN_PATH,
   oauthTokenUrl,
 } from './client.js';

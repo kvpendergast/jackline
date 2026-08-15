@@ -1,17 +1,17 @@
 import { count, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
-import { auth } from "@mesh/auth";
-import { db, memberships, tenants, user } from "@mesh/db";
+import { auth } from "@jackline/auth";
+import { db, memberships, tenants, user } from "@jackline/db";
 import {
   assertCanCreateTenant,
   BadRequestError,
   getConfig,
-  MeshError,
+  JacklineError,
   SetupError,
   type PublicMembership,
   type PublicTenant,
   type PublicUser,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import type { Logger } from "pino";
 import { slugify } from "../../lib/slug.js";
 
@@ -32,7 +32,7 @@ export type SignupSuccess = {
 async function create(
   log: Logger,
   input: SignupInput,
-): Promise<Result<SignupSuccess, MeshError>> {
+): Promise<Result<SignupSuccess, JacklineError>> {
   const configResult = getConfig();
   if (configResult.isErr()) {
     return err(configResult.error);
@@ -44,7 +44,7 @@ async function create(
 
   const gate = assertCanCreateTenant(
     tenantCount,
-    configResult.value.MESH_TENANCY,
+    configResult.value.JACKLINE_TENANCY,
   );
   if (gate.isErr()) {
     return err(gate.error);
@@ -130,7 +130,7 @@ async function create(
     });
   } catch (cause) {
     await db.delete(user).where(eq(user.id, userId));
-    if (cause instanceof MeshError) {
+    if (cause instanceof JacklineError) {
       return err(cause);
     }
     const message =

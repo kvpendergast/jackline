@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/db",
+  "name": "@jackline/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "lint": "echo \"lint later\""
   },
   "dependencies": {
-    "@mesh/shared": "workspace:*",
+    "@jackline/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.22.0"
   },

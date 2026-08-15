@@ -1,12 +1,12 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { Context } from "hono";
-import { getConfig } from "@mesh/shared";
-import type { MeshEnv } from "../../lib/http/env.js";
+import { getConfig } from "@jackline/shared";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { oauthCallbackQuerySchema, oauthRoutes } from "./route.js";
 import { oauthServices } from "./service.js";
 
-const start: RouteHandler<typeof oauthRoutes.start, MeshEnv> = async (c) => {
+const start: RouteHandler<typeof oauthRoutes.start, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
   const result = await oauthServices.startConnect(
@@ -20,7 +20,7 @@ const start: RouteHandler<typeof oauthRoutes.start, MeshEnv> = async (c) => {
 };
 
 /** GET /api/v1/oauth/callback — public browser redirect (no tenant header). */
-export async function oauthCallbackHandler(c: Context<MeshEnv>) {
+export async function oauthCallbackHandler(c: Context<JacklineEnv>) {
   const log = c.get("requestContext").log;
   const query = oauthCallbackQuerySchema.parse(c.req.query());
   const config = getConfig();

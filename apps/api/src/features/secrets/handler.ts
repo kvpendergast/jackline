@@ -1,9 +1,9 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { Secret } from "./resource.js";
 
-const list: RouteHandler<typeof Secret.routes.list, MeshEnv> = async (c) => {
+const list: RouteHandler<typeof Secret.routes.list, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
   const result = await Secret.services.list(log, auth.tenantId, query);
@@ -11,7 +11,7 @@ const list: RouteHandler<typeof Secret.routes.list, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const create: RouteHandler<typeof Secret.routes.create, MeshEnv> = async (c) => {
+const create: RouteHandler<typeof Secret.routes.create, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
   const result = await Secret.services.create(log, auth.tenantId, body);
@@ -19,7 +19,7 @@ const create: RouteHandler<typeof Secret.routes.create, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 201);
 };
 
-const get: RouteHandler<typeof Secret.routes.get, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof Secret.routes.get, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Secret.services.get(log, auth.tenantId, id);
@@ -27,7 +27,7 @@ const get: RouteHandler<typeof Secret.routes.get, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const reveal: RouteHandler<typeof Secret.routes.reveal, MeshEnv> = async (c) => {
+const reveal: RouteHandler<typeof Secret.routes.reveal, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Secret.services.reveal(log, auth.tenantId, id);
@@ -35,7 +35,7 @@ const reveal: RouteHandler<typeof Secret.routes.reveal, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 200);
 };
 
-const update: RouteHandler<typeof Secret.routes.update, MeshEnv> = async (c) => {
+const update: RouteHandler<typeof Secret.routes.update, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
@@ -44,7 +44,7 @@ const update: RouteHandler<typeof Secret.routes.update, MeshEnv> = async (c) => 
   return c.json(okEnvelope(result.value), 200);
 };
 
-const remove: RouteHandler<typeof Secret.routes.delete, MeshEnv> = async (c) => {
+const remove: RouteHandler<typeof Secret.routes.delete, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await Secret.services.delete(log, auth.tenantId, id);

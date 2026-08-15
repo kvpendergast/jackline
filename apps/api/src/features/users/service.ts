@@ -1,17 +1,17 @@
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, memberships, user } from "@mesh/db";
+import { db, memberships, user } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type CursorPage,
   type PublicUser,
   type UserKind,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import {
   resolveTeamFilter,
   type ActorAuthz,
@@ -47,14 +47,14 @@ function toPublicUser(row: UserRow): PublicUser {
 }
 
 function defaultServiceEmail(userId: string): string {
-  return `service+${userId.replace(/-/g, "")}@users.mesh.local`;
+  return `service+${userId.replace(/-/g, "")}@users.jackline.local`;
 }
 
 async function createService(
   log: Logger,
   tenantId: string,
   input: CreateServiceUserInput,
-): Promise<Result<PublicUser, MeshError>> {
+): Promise<Result<PublicUser, JacklineError>> {
   const id = crypto.randomUUID();
   const email = input.email?.trim() || defaultServiceEmail(id);
   const name = input.name.trim();
@@ -108,7 +108,7 @@ async function list(
   tenantId: string,
   actor: ActorAuthz,
   query: ListUsersQuery,
-): Promise<Result<CursorPage<PublicUser>, MeshError>> {
+): Promise<Result<CursorPage<PublicUser>, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
   const teamFilter = teamResult.value;
@@ -173,7 +173,7 @@ async function get(
   tenantId: string,
   actor: ActorAuthz,
   userId: string,
-): Promise<Result<PublicUser, MeshError>> {
+): Promise<Result<PublicUser, JacklineError>> {
   const teamResult = resolveTeamFilter(actor);
   if (teamResult.isErr()) return err(teamResult.error);
   const teamFilter = teamResult.value;

@@ -1,21 +1,21 @@
 import { Hono } from "hono";
 import { verifyGatewayAuthorization } from "../lib/gatewayAuth.js";
-import { getMeshPaths, type MeshPaths } from "../lib/paths.js";
+import { getJacklinePaths, type JacklinePaths } from "../lib/paths.js";
 import { createSessionHub } from "../lib/mcp/sessionHub.js";
 
-export type MeshCliApp = Hono & { close: () => void };
+export type JacklineCliApp = Hono & { close: () => void };
 
-export function createApp(paths?: MeshPaths): MeshCliApp {
+export function createApp(paths?: JacklinePaths): JacklineCliApp {
   const app = new Hono();
-  const meshPaths = paths ?? getMeshPaths();
-  const hub = createSessionHub(meshPaths);
+  const jacklinePaths = paths ?? getJacklinePaths();
+  const hub = createSessionHub(jacklinePaths);
 
   app.get("/health", (c) => c.json({ ok: true, mode: "personal" }));
 
   app.use("/mcp", async (c, next) => {
     const ok = await verifyGatewayAuthorization(
       c.req.header("Authorization"),
-      meshPaths,
+      jacklinePaths,
     );
     if (!ok) {
       return c.json(

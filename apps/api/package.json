@@ -1,5 +1,5 @@
 {
-  "name": "@mesh/api",
+  "name": "@jackline/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -22,11 +22,11 @@
   "dependencies": {
     "@hono/node-server": "^2.0.10",
     "@hono/zod-openapi": "^1.5.1",
-    "@mesh/auth": "workspace:*",
-    "@mesh/crypto": "workspace:*",
-    "@mesh/db": "workspace:*",
-    "@mesh/policy": "workspace:*",
-    "@mesh/shared": "workspace:*",
+    "@jackline/auth": "workspace:*",
+    "@jackline/crypto": "workspace:*",
+    "@jackline/db": "workspace:*",
+    "@jackline/policy": "workspace:*",
+    "@jackline/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.30",

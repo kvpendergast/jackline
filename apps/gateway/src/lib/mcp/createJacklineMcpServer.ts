@@ -1,22 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { err, ok, type Result } from "neverthrow";
-import type { AuditOutcome, MeshError } from "@mesh/shared";
+import type { AuditOutcome, JacklineError } from "@jackline/shared";
 import { writeAuditEvent } from "../audit/writeAuditEvent.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import { listAllowedMcpTools } from "../policy/listAllowedTools.js";
 import { proxyToolCall } from "./proxyToolCall.js";
 
-function outcomeFromProxyError(error: MeshError): AuditOutcome {
+function outcomeFromProxyError(error: JacklineError): AuditOutcome {
   if (error.code === "BAD_REQUEST" || error.code === "FORBIDDEN") {
     return "deny";
   }
   return "allow_upstream_error";
 }
 
-export async function createMeshMcpServer(
+export async function createJacklineMcpServer(
   ctx: GatewayConnectionContext,
-): Promise<Result<McpServer, MeshError>> {
-  const server = new McpServer({ name: "mesh", version: "0.0.0" });
+): Promise<Result<McpServer, JacklineError>> {
+  const server = new McpServer({ name: "jackline", version: "0.0.0" });
 
   const result = await listAllowedMcpTools(
     ctx.log,

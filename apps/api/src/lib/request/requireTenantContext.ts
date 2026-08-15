@@ -1,16 +1,16 @@
 import type { Context } from "hono";
 import { and, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
-import { auth, hashToken } from "@mesh/auth";
-import { db, memberships, oauthAccessTokens } from "@mesh/db";
+import { auth, hashToken } from "@jackline/auth";
+import { db, memberships, oauthAccessTokens } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
-  MESH_ACCESS_TOKEN_PREFIX,
-  MeshError,
+  JACKLINE_ACCESS_TOKEN_PREFIX,
+  JacklineError,
   UnauthorizedError,
-} from "@mesh/shared";
-import type { MeshEnv } from "../http/env.js";
+} from "@jackline/shared";
+import type { JacklineEnv } from "../http/env.js";
 import type { AuthContext, RequestContext } from "./types.js";
 
 function extractBearer(authorization: string | undefined): string | null {
@@ -20,10 +20,10 @@ function extractBearer(authorization: string | undefined): string | null {
 }
 
 async function resolveBearerAuth(
-  c: Context<MeshEnv>,
+  c: Context<JacklineEnv>,
   accessToken: string,
-): Promise<Result<AuthContext, MeshError>> {
-  if (!accessToken.startsWith(MESH_ACCESS_TOKEN_PREFIX)) {
+): Promise<Result<AuthContext, JacklineError>> {
+  if (!accessToken.startsWith(JACKLINE_ACCESS_TOKEN_PREFIX)) {
     return err(new UnauthorizedError("Invalid access token"));
   }
 
@@ -47,10 +47,10 @@ async function resolveBearerAuth(
     return err(new UnauthorizedError("Access token expired"));
   }
 
-  const headerTenantId = c.req.header("X-Mesh-Tenant-Id")?.trim();
+  const headerTenantId = c.req.header("X-Jackline-Tenant-Id")?.trim();
   if (headerTenantId && headerTenantId !== row.tenantId) {
     return err(
-      new ForbiddenError("X-Mesh-Tenant-Id does not match the access token tenant"),
+      new ForbiddenError("X-Jackline-Tenant-Id does not match the access token tenant"),
     );
   }
 
@@ -83,8 +83,8 @@ async function resolveBearerAuth(
 }
 
 async function resolveSessionAuth(
-  c: Context<MeshEnv>,
-): Promise<Result<AuthContext, MeshError>> {
+  c: Context<JacklineEnv>,
+): Promise<Result<AuthContext, JacklineError>> {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers,
   });
@@ -93,9 +93,9 @@ async function resolveSessionAuth(
     return err(new UnauthorizedError("No session"));
   }
 
-  const tenantId = c.req.header("X-Mesh-Tenant-Id")?.trim();
+  const tenantId = c.req.header("X-Jackline-Tenant-Id")?.trim();
   if (!tenantId) {
-    return err(new BadRequestError("X-Mesh-Tenant-Id header is required"));
+    return err(new BadRequestError("X-Jackline-Tenant-Id header is required"));
   }
 
   const [membership] = await db
@@ -126,8 +126,8 @@ async function resolveSessionAuth(
 }
 
 export async function requireTenantContext(
-  c: Context<MeshEnv>,
-): Promise<Result<RequestContext, MeshError>> {
+  c: Context<JacklineEnv>,
+): Promise<Result<RequestContext, JacklineError>> {
   const base = c.get("requestContext");
   const bearer = extractBearer(c.req.header("Authorization"));
 

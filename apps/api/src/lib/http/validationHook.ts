@@ -1,8 +1,8 @@
 import type { Hook } from "@hono/zod-openapi";
-import { ErrorCode } from "@mesh/shared";
+import { ErrorCode } from "@jackline/shared";
 import { errEnvelope, formatZodIssues } from "./envelope.js";
 
-/** OpenAPIHono defaultHook — maps Zod validation failures to the Mesh error envelope. */
+/** OpenAPIHono defaultHook — maps Zod validation failures to the Jackline error envelope. */
 export const validationHook: Hook<unknown, any, any, Response | void> = (
   result,
   c,

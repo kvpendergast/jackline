@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { resolveOAuthAccessToken } from "@mesh/shared";
+import { resolveOAuthAccessToken } from "@jackline/shared";
 import consola from "consola";
-import type { MeshConfigServer, MeshPaths } from "../paths.js";
+import type { JacklineConfigServer, JacklinePaths } from "../paths.js";
 import { getSecretPlaintext, putSecret } from "../secrets.js";
 
 export type ConnectedUpstream = {
@@ -74,8 +74,8 @@ type UpstreamAuth = {
 };
 
 export async function resolveUpstreamAuth(
-  server: MeshConfigServer,
-  paths?: MeshPaths,
+  server: JacklineConfigServer,
+  paths?: JacklinePaths,
   options?: { forceRefresh?: boolean },
 ): Promise<UpstreamAuth> {
   if (server.authMethod === "mtls") {
@@ -96,7 +96,7 @@ export async function resolveUpstreamAuth(
   );
   if (token.isErr()) {
     throw new Error(
-      `Failed to resolve OAuth token for "${server.name}": ${token.error.message}. Re-run \`mesh connect ${server.connectorKey ?? server.name}\`.`,
+      `Failed to resolve OAuth token for "${server.name}": ${token.error.message}. Re-run \`jackline connect ${server.connectorKey ?? server.name}\`.`,
     );
   }
 
@@ -117,7 +117,7 @@ export async function resolveUpstreamAuth(
 }
 
 async function openUpstream(
-  server: MeshConfigServer,
+  server: JacklineConfigServer,
   auth: UpstreamAuth,
 ): Promise<ConnectedUpstream> {
   let baseUrl: URL;
@@ -135,7 +135,7 @@ async function openUpstream(
       },
     },
   });
-  const client = new Client({ name: "mesh-cli", version: "0.0.0" });
+  const client = new Client({ name: "jackline-cli", version: "0.0.0" });
 
   try {
     await client.connect(transport as unknown as Transport);
@@ -158,8 +158,8 @@ async function openUpstream(
 }
 
 export async function connectUpstream(
-  server: MeshConfigServer,
-  paths?: MeshPaths,
+  server: JacklineConfigServer,
+  paths?: JacklinePaths,
 ): Promise<ConnectedUpstream> {
   const auth = await resolveUpstreamAuth(server, paths);
   try {

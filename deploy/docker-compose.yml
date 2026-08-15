@@ -1,6 +1,6 @@
-# Production-like single-host stand-up for Mesh.
+# Production-like single-host stand-up for Jackline.
 # Usage (from repo root):
-#   cp .env.example .env   # fill MESH_MASTER_KEY, BETTER_AUTH_SECRET
+#   cp .env.example .env   # fill JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
 #   docker compose -f deploy/docker-compose.yml up --build
 #
 # UI:      http://127.0.0.1:5173
@@ -14,15 +14,15 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: mesh
-      POSTGRES_PASSWORD: mesh
-      POSTGRES_DB: mesh
+      POSTGRES_USER: jackline
+      POSTGRES_PASSWORD: jackline
+      POSTGRES_DB: jackline
     ports:
       - "5433:5432"
     volumes:
-      - mesh_pg:/var/lib/postgresql/data
+      - jackline_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mesh -d mesh"]
+      test: ["CMD-SHELL", "pg_isready -U jackline -d jackline"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,7 +35,7 @@ services:
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      DATABASE_URL: postgresql://jackline:jackline@postgres:5432/jackline
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,11 +44,11 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.dev
-    command: ["pnpm", "--filter", "@mesh/api", "dev"]
+    command: ["pnpm", "--filter", "@jackline/api", "dev"]
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      DATABASE_URL: postgresql://jackline:jackline@postgres:5432/jackline
       API_HOST: 0.0.0.0
       API_PORT: 8080
       BETTER_AUTH_URL: http://127.0.0.1:8080
@@ -63,11 +63,11 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.dev
-    command: ["pnpm", "--filter", "@mesh/gateway", "dev"]
+    command: ["pnpm", "--filter", "@jackline/gateway", "dev"]
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      DATABASE_URL: postgresql://jackline:jackline@postgres:5432/jackline
       GATEWAY_PORT: 8081
     ports:
       - "8081:8081"
@@ -83,7 +83,7 @@ services:
       [
         "pnpm",
         "--filter",
-        "@mesh/web",
+        "@jackline/web",
         "dev",
         "--",
         "--host",
@@ -104,15 +104,15 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.dev
     # Exports OpenAPI then serves Zudoku. Prefer host networking-friendly bind.
-    command: ["pnpm", "--filter", "@mesh/docs", "dev", "--", "--port", "3000"]
+    command: ["pnpm", "--filter", "@jackline/docs", "dev", "--", "--port", "3000"]
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql://mesh:mesh@postgres:5432/mesh
+      DATABASE_URL: postgresql://jackline:jackline@postgres:5432/jackline
     ports:
       - "3000:3000"
     depends_on:
       - api
 
 volumes:
-  mesh_pg:
+  jackline_pg:

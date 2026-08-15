@@ -1,10 +1,10 @@
-import type { MeshConfig, MeshConfigServer } from "./paths.js";
+import type { JacklineConfig, JacklineConfigServer } from "./paths.js";
 
 /** Resolve a server by display name, catalog key, or id (case-insensitive). */
 export function findServer(
-  config: MeshConfig,
+  config: JacklineConfig,
   query: string,
-): MeshConfigServer | undefined {
+): JacklineConfigServer | undefined {
   const q = query.trim().toLowerCase();
   if (!q) return undefined;
   return config.servers.find(

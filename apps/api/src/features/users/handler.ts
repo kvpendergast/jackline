@@ -1,9 +1,9 @@
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MeshEnv } from "../../lib/http/env.js";
+import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { User } from "./resource.js";
 
-function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
+function actorFrom(auth: JacklineEnv["Variables"]["tenantContext"]["auth"]) {
   return {
     userId: auth.userId,
     role: auth.membership.role,
@@ -11,7 +11,7 @@ function actorFrom(auth: MeshEnv["Variables"]["tenantContext"]["auth"]) {
   };
 }
 
-const list: RouteHandler<typeof User.routes.list, MeshEnv> = async (c) => {
+const list: RouteHandler<typeof User.routes.list, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const query = c.req.valid("query");
   const result = await User.services.list(
@@ -27,7 +27,7 @@ const list: RouteHandler<typeof User.routes.list, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 200);
 };
 
-const create: RouteHandler<typeof User.routes.create, MeshEnv> = async (c) => {
+const create: RouteHandler<typeof User.routes.create, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const body = c.req.valid("json");
   const result = await User.services.createService(log, auth.tenantId, {
@@ -41,7 +41,7 @@ const create: RouteHandler<typeof User.routes.create, MeshEnv> = async (c) => {
   return c.json(okEnvelope(result.value), 201);
 };
 
-const get: RouteHandler<typeof User.routes.get, MeshEnv> = async (c) => {
+const get: RouteHandler<typeof User.routes.get, JacklineEnv> = async (c) => {
   const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const result = await User.services.get(

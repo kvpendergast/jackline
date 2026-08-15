@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { PublicNotification } from "@mesh/shared";
+import type { PublicNotification } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
-import { PageHeader } from "@/components/mesh/PageHeader";
+import { PageHeader } from "@/components/jackline/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
 export function NotificationsPage() {
   const { tenantId } = useAuth();
@@ -16,7 +16,7 @@ export function NotificationsPage() {
   async function load() {
     if (!tenantId) return;
     try {
-      const data = await meshApi.listNotifications(tenantId);
+      const data = await jacklineApi.listNotifications(tenantId);
       setItems(data.items);
       setUnreadCount(data.unreadCount);
     } catch (e) {
@@ -40,7 +40,7 @@ export function NotificationsPage() {
               variant="outline"
               size="sm"
               onClick={() =>
-                void meshApi
+                void jacklineApi
                   .markAllNotificationsRead(tenantId!)
                   .then(() => load())
               }
@@ -83,7 +83,7 @@ export function NotificationsPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() =>
-                        void meshApi
+                        void jacklineApi
                           .markNotificationRead(tenantId!, n.id)
                           .then(() => load())
                       }

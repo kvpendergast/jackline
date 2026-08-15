@@ -5,14 +5,14 @@ import {
   auditEvents,
   db,
   type AuditEvent as AuditEventRow,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
-  MeshError,
+  JacklineError,
   NotFoundError,
   type AuditOutcome,
   type CursorPage,
   type PublicAuditEvent,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import {
   decodeCreatedAtIdCursor,
   encodeCreatedAtIdCursor,
@@ -53,7 +53,7 @@ async function list(
   log: Logger,
   tenantId: string,
   query: ListAuditEventsQuery,
-): Promise<Result<CursorPage<PublicAuditEvent>, MeshError>> {
+): Promise<Result<CursorPage<PublicAuditEvent>, JacklineError>> {
   const conditions = [eq(auditEvents.tenantId, tenantId)];
 
   if (query.connectionId) {
@@ -122,7 +122,7 @@ async function get(
   log: Logger,
   tenantId: string,
   eventId: string,
-): Promise<Result<PublicAuditEvent, MeshError>> {
+): Promise<Result<PublicAuditEvent, JacklineError>> {
   const [row] = await db
     .select()
     .from(auditEvents)

@@ -1,10 +1,10 @@
-import { createSecretBox, type SecretBox } from "@mesh/crypto";
+import { createSecretBox, type SecretBox } from "@jackline/crypto";
 import {
   EncryptionError,
   getConfig,
   NotImplementedError,
   SetupError,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { err, ok, type Result } from "neverthrow";
 
 const LOCAL_KEY_VERSION = 1;
@@ -25,17 +25,17 @@ export function getSecretBox(): Result<
   }
 
   const config = configResult.value;
-  if (config.MESH_SECRET_STORAGE_LOCATION !== "local") {
+  if (config.JACKLINE_SECRET_STORAGE_LOCATION !== "local") {
     return err(
       new NotImplementedError(
-        `Secret storage "${config.MESH_SECRET_STORAGE_LOCATION}" is not implemented`,
+        `Secret storage "${config.JACKLINE_SECRET_STORAGE_LOCATION}" is not implemented`,
       ),
     );
   }
 
   const boxResult = createSecretBox({
     secretStorageLocation: "local",
-    base64MeshMasterKey: config.MESH_MASTER_KEY,
+    base64JacklineMasterKey: config.JACKLINE_MASTER_KEY,
     keyVersion: LOCAL_KEY_VERSION,
   });
 

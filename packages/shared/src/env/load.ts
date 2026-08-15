@@ -6,9 +6,9 @@ import { EnvSchema, type Env } from "./schema.js";
 const ENV_KEYS = [
   "NODE_ENV",
   "LOG_LEVEL",
-  "MESH_TENANCY",
-  "MESH_MASTER_KEY",
-  "MESH_SECRET_STORAGE_LOCATION",
+  "JACKLINE_TENANCY",
+  "JACKLINE_MASTER_KEY",
+  "JACKLINE_SECRET_STORAGE_LOCATION",
   "DATABASE_URL",
   "API_HOST",
   "API_PORT",
@@ -17,12 +17,12 @@ const ENV_KEYS = [
   "WEB_ORIGIN",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
-  "MESH_PUBLIC_API_URL",
-  "MESH_PUBLIC_MCP_URL",
-  "MESH_ADDITIONAL_ORIGINS",
-  "MESH_OIDC_ISSUER",
-  "MESH_OIDC_CLIENT_ID",
-  "MESH_OIDC_CLIENT_SECRET",
+  "JACKLINE_PUBLIC_API_URL",
+  "JACKLINE_PUBLIC_MCP_URL",
+  "JACKLINE_ADDITIONAL_ORIGINS",
+  "JACKLINE_OIDC_ISSUER",
+  "JACKLINE_OIDC_CLIENT_ID",
+  "JACKLINE_OIDC_CLIENT_SECRET",
 ] as const;
 
 let config: Env | undefined;
@@ -52,13 +52,13 @@ export function getConfig(): Result<Env, SetupError> {
 
 /** Browser-reachable API origin (ngrok in local OAuth tests). */
 export function publicApiBaseUrl(env: Env): string {
-  return (env.MESH_PUBLIC_API_URL ?? env.BETTER_AUTH_URL).replace(/\/$/, "");
+  return (env.JACKLINE_PUBLIC_API_URL ?? env.BETTER_AUTH_URL).replace(/\/$/, "");
 }
 
 /** Public MCP endpoint for minted connection credentials. */
 export function publicMcpUrl(env: Env): string {
-  if (env.MESH_PUBLIC_MCP_URL) {
-    return env.MESH_PUBLIC_MCP_URL.replace(/\/$/, "");
+  if (env.JACKLINE_PUBLIC_MCP_URL) {
+    return env.JACKLINE_PUBLIC_MCP_URL.replace(/\/$/, "");
   }
   return `http://127.0.0.1:${env.GATEWAY_PORT}/mcp`;
 }
@@ -66,7 +66,7 @@ export function publicMcpUrl(env: Env): string {
 /**
  * Origins allowed for the web UI (CORS + Better Auth trustedOrigins).
  * Expands localhost ↔ 127.0.0.1 so either hostname works in local dev.
- * Also includes MESH_ADDITIONAL_ORIGINS (comma-separated) for split-host setups.
+ * Also includes JACKLINE_ADDITIONAL_ORIGINS (comma-separated) for split-host setups.
  */
 export function webTrustedOrigins(env: Env): string[] {
   const primary = env.WEB_ORIGIN.replace(/\/$/, "");
@@ -83,7 +83,7 @@ export function webTrustedOrigins(env: Env): string[] {
   } catch {
     /* keep primary only */
   }
-  for (const part of (env.MESH_ADDITIONAL_ORIGINS ?? "").split(",")) {
+  for (const part of (env.JACKLINE_ADDITIONAL_ORIGINS ?? "").split(",")) {
     const origin = part.trim().replace(/\/$/, "");
     if (!origin) continue;
     try {

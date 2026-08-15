@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,13 +22,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   PublicServer,
   PublicTool,
   ToolHttpMethod,
   ToolStatus,
-} from "@mesh/shared";
+} from "@jackline/shared";
+
+function needsAllow(row: PublicTool): boolean {
+  return row.status !== "active" || row.requiresApproval;
+}
 
 export function ToolsPage() {
   const { tenantId } = useAuth();
@@ -37,17 +41,53 @@ export function ToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [serverFilter, setServerFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [busy, setBusy] = useState(false);
 
   const serverById = useMemo(
     () => new Map(servers.map((s) => [s.id, s])),
     [servers],
   );
 
+  const sortedServers = useMemo(
+    () => [...servers].sort((a, b) => a.name.localeCompare(b.name)),
+    [servers],
+  );
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return items.filter((row) => {
+      if (serverFilter !== "all" && row.serverId !== serverFilter) return false;
+      if (!q) return true;
+      return (
+        row.name.toLowerCase().includes(q) ||
+        (row.description?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [items, serverFilter, query]);
+
+  const visibleIds = useMemo(() => visible.map((row) => row.id), [visible]);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selected.has(id));
+
+  const selectedRows = useMemo(
+    () => visible.filter((row) => selected.has(row.id)),
+    [visible, selected],
+  );
+  const allowTargets =
+    selectedRows.length > 0 ? selectedRows.filter(needsAllow) : visible.filter(needsAllow);
+
   async function load() {
     if (!tenantId) return;
     const [toolPage, serverPage] = await Promise.all([
-      meshApi.listTools(tenantId),
-      meshApi.listServers(tenantId),
+      jacklineApi.listTools(
+        tenantId,
+        serverFilter === "all" ? undefined : serverFilter,
+      ),
+      jacklineApi.listServers(tenantId),
     ]);
     setItems(toolPage.items);
     setServers(serverPage.items);
@@ -72,13 +112,35 @@ export function ToolsPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId]);
+  }, [tenantId, serverFilter]);
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [serverFilter, query]);
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      if (allVisibleSelected) return new Set();
+      const next = new Set(prev);
+      for (const id of visibleIds) next.add(id);
+      return next;
+    });
+  }
 
   async function toggleStatus(row: PublicTool) {
     if (!tenantId) return;
     setError(null);
     try {
-      await meshApi.updateTool(tenantId, row.id, {
+      await jacklineApi.updateTool(tenantId, row.id, {
         status: row.status === "active" ? "disabled" : "active",
       });
       await load();
@@ -86,6 +148,33 @@ export function ToolsPage() {
       setError(err instanceof ApiError ? err.message : "Update failed");
     }
   }
+
+  async function allowTools(rows: PublicTool[]) {
+    if (!tenantId || rows.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await Promise.all(
+        rows.map((row) =>
+          jacklineApi.updateTool(tenantId, row.id, {
+            status: "active",
+            requiresApproval: false,
+          }),
+        ),
+      );
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const filteredServerName =
+    serverFilter === "all"
+      ? null
+      : (serverById.get(serverFilter)?.name ?? "server");
 
   return (
     <div className="space-y-6">
@@ -121,9 +210,81 @@ export function ToolsPage() {
       {error ? <p className="text-sm text-deny">{error}</p> : null}
 
       <section className="border border-border bg-card">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border px-3 py-2">
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Server
+            </span>
+            <FieldSelect
+              className="w-48"
+              value={serverFilter}
+              onChange={(e) => setServerFilter(e.target.value)}
+            >
+              <option value="all">All servers</option>
+              {sortedServers.map((server) => (
+                <option key={server.id} value={server.id}>
+                  {server.name}
+                </option>
+              ))}
+            </FieldSelect>
+          </label>
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Search
+            </span>
+            <Input
+              id="tool-search"
+              className="w-48"
+              placeholder="Tool name"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {visible.length} tool{visible.length === 1 ? "" : "s"}
+              {filteredServerName ? ` on ${filteredServerName}` : ""}
+              {selected.size > 0 ? ` · ${selected.size} selected` : ""}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={visibleIds.length === 0 || allVisibleSelected}
+              onClick={toggleSelectAllVisible}
+            >
+              Select all
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy || allowTargets.length === 0}
+              onClick={() => void allowTools(allowTargets)}
+            >
+              {busy
+                ? "Allowing…"
+                : selected.size > 0
+                  ? `Allow selected (${allowTargets.length})`
+                  : `Allow all (${allowTargets.length})`}
+            </Button>
+          </div>
+        </div>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              <TableHead className="w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all visible tools"
+                  checked={allVisibleSelected}
+                  ref={(el) => {
+                    if (el) {
+                      el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                    }
+                  }}
+                  onChange={toggleSelectAllVisible}
+                />
+              </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 Tool
               </TableHead>
@@ -140,17 +301,27 @@ export function ToolsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {!loading && items.length === 0 ? (
+            {!loading && visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  {servers.length === 0
-                    ? "Create a server first, then register tools."
-                    : "No tools yet. Sync MCP or import OpenAPI, or create manually."}
+                <TableCell colSpan={6} className="text-muted-foreground">
+                  {items.length === 0
+                    ? servers.length === 0
+                      ? "Create a server first, then register tools."
+                      : "No tools yet. Sync MCP or import OpenAPI, or create manually."
+                    : "No tools match this server or search."}
                 </TableCell>
               </TableRow>
             ) : null}
-            {items.map((row) => (
+            {visible.map((row) => (
               <TableRow key={row.id}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${row.name}`}
+                    checked={selected.has(row.id)}
+                    onChange={(e) => toggleSelected(row.id, e.target.checked)}
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="font-mono text-[13px]">{row.name}</div>
                   {row.description ? (
@@ -184,7 +355,7 @@ export function ToolsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        void meshApi
+                        void jacklineApi
                           .updateTool(tenantId!, row.id, {
                             requiresApproval: !row.requiresApproval,
                           })
@@ -244,7 +415,7 @@ function CreateToolForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.createTool(tenantId, {
+      await jacklineApi.createTool(tenantId, {
         name,
         serverId,
         status,

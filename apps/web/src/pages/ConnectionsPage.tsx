@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,13 +23,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   PublicAuditEvent,
   PublicClient,
   PublicConnection,
   PublicUser,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 export function ConnectionsPage() {
   const { tenantId } = useAuth();
@@ -46,10 +46,10 @@ export function ConnectionsPage() {
   async function load() {
     if (!tenantId) return;
     const [connPage, clientPage, userPage, denyPage] = await Promise.all([
-      meshApi.listConnections(tenantId),
-      meshApi.listClients(tenantId),
-      meshApi.listUsers(tenantId),
-      meshApi.listAuditEvents(tenantId, { outcome: "deny", limit: "3" }),
+      jacklineApi.listConnections(tenantId),
+      jacklineApi.listClients(tenantId),
+      jacklineApi.listUsers(tenantId),
+      jacklineApi.listAuditEvents(tenantId, { outcome: "deny", limit: "3" }),
     ]);
     setConnections(connPage.items);
     setClients(clientPage.items);
@@ -284,14 +284,14 @@ function CreateConnectionForm({
     try {
       let resolvedClientId = clientId;
       if (!resolvedClientId && newClientName.trim()) {
-        const createdClient = await meshApi.createClient(tenantId, {
+        const createdClient = await jacklineApi.createClient(tenantId, {
           name: newClientName.trim(),
           kind: "interactive",
           ownerUserId: isAdmin ? null : user.id,
         });
         resolvedClientId = createdClient.id;
       }
-      const created = await meshApi.createConnection(tenantId, {
+      const created = await jacklineApi.createConnection(tenantId, {
         clientId: resolvedClientId,
         userId: isAdmin ? userId : user.id,
       });

@@ -1,5 +1,5 @@
 import pino from "pino";
-import { getConfig } from "@mesh/shared";
+import { getConfig } from "@jackline/shared";
 
 function createRootLogger() {
   const configResult = getConfig();

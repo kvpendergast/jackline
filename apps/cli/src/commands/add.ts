@@ -4,11 +4,11 @@ import {
   encodeOAuthSecretValue,
   getConnectorPreset,
   upstreamSecretKind,
-} from "@mesh/shared";
-import { defineMeshCommand } from "./defineMeshCommand.js";
+} from "@jackline/shared";
+import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { loadConfig, saveConfig } from "../lib/config.js";
 import { putSecret } from "../lib/secrets.js";
-import { getMeshPaths } from "../lib/paths.js";
+import { getJacklinePaths } from "../lib/paths.js";
 import {
   findReusableOauthApp,
   readStoredOauthApp,
@@ -33,7 +33,7 @@ function resolveAuthMethod(
   return raw;
 }
 
-export default defineMeshCommand({
+export default defineJacklineCommand({
   meta: {
     name: "add",
     description:
@@ -43,7 +43,7 @@ export default defineMeshCommand({
     name: {
       type: "positional",
       description:
-        "Server name, or a catalog key (see mesh catalog)",
+        "Server name, or a catalog key (see jackline catalog)",
       required: true,
     },
     url: {
@@ -119,12 +119,12 @@ export default defineMeshCommand({
     },
     dir: {
       type: "string",
-      description: "Config directory (default: ~/.mesh)",
+      description: "Config directory (default: ~/.jackline)",
       valueHint: "path",
     },
   },
   async run({ args }) {
-    const paths = getMeshPaths(args.dir);
+    const paths = getJacklinePaths(args.dir);
     const preset = getConnectorPreset(args.name);
 
     const serverName = preset?.name ?? args.name;
@@ -198,7 +198,7 @@ export default defineMeshCommand({
 
       if (!clientId || !clientSecret) {
         consola.error(
-          "--connect needs an OAuth app. Pass --client-id and --client-secret once; later `mesh add` / `mesh connect` reuse them for the same IdP.",
+          "--connect needs an OAuth app. Pass --client-id and --client-secret once; later `jackline add` / `jackline connect` reuse them for the same IdP.",
         );
         process.exit(1);
       }
@@ -296,7 +296,7 @@ export default defineMeshCommand({
         );
         if (preset?.oauthAuthorizeUrl) {
           consola.info(
-            `Example: mesh add ${preset.key} --connect --client-id … --client-secret …`,
+            `Example: jackline add ${preset.key} --connect --client-id … --client-secret …`,
           );
         }
         process.exit(1);
@@ -327,7 +327,7 @@ export default defineMeshCommand({
 
     if (existing && !args.force) {
       consola.error(
-        `Server "${existing.name}" already exists. Use --force to replace, or \`mesh connect ${existing.connectorKey ?? existing.name}\` to re-auth.`,
+        `Server "${existing.name}" already exists. Use --force to replace, or \`jackline connect ${existing.connectorKey ?? existing.name}\` to re-auth.`,
       );
       process.exit(1);
     }

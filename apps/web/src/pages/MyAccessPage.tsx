@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { encodeOAuthSecretValue, upstreamSecretKind } from "@mesh/shared";
-import type { MyAccessServer, ServerAuthMethod } from "@mesh/shared";
+import { encodeOAuthSecretValue, upstreamSecretKind } from "@jackline/shared";
+import type { MyAccessServer, ServerAuthMethod } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 
 type OAuthMode = "access_token" | "client_credentials" | "refreshable";
 
@@ -49,7 +49,7 @@ export function MyAccessPage() {
 
   async function load() {
     if (!tenantId) return [];
-    const data = await meshApi.listMyAccessServers(tenantId);
+    const data = await jacklineApi.listMyAccessServers(tenantId);
     setItems(data.items);
     return data.items;
   }
@@ -82,7 +82,7 @@ export function MyAccessPage() {
               !oauthError
             ) {
               try {
-                const result = await meshApi.startOauthConnect(
+                const result = await jacklineApi.startOauthConnect(
                   tenantId!,
                   target.serverId,
                 );
@@ -141,7 +141,7 @@ export function MyAccessPage() {
     setError(null);
     setInfo(null);
     try {
-      const result = await meshApi.startOauthConnect(tenantId, row.serverId);
+      const result = await jacklineApi.startOauthConnect(tenantId, row.serverId);
       window.location.assign(result.authorizeUrl);
     } catch (err) {
       setError(
@@ -162,7 +162,7 @@ export function MyAccessPage() {
     setError(null);
     setInfo(null);
     try {
-      await meshApi.deleteMyAccessCredential(tenantId, row.serverId);
+      await jacklineApi.deleteMyAccessCredential(tenantId, row.serverId);
       setInfo(`Disconnected ${row.name}`);
       await load();
     } catch (err) {
@@ -400,7 +400,7 @@ function ConnectForm({
         return;
       }
 
-      await meshApi.upsertMyAccessCredential(tenantId, server.serverId, {
+      await jacklineApi.upsertMyAccessCredential(tenantId, server.serverId, {
         name:
           secretName.trim() ||
           `${server.name} personal ${upstreamSecretKind(authMethod)}`,

@@ -9,16 +9,16 @@ import {
   servers,
   user,
   type Secret as SecretRow,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   BadRequestError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type CursorPage,
   type PublicSecret,
   type SecretValue,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -77,7 +77,7 @@ function normalizeBinding(input: {
   serverId?: string | null | undefined;
   userId?: string | null | undefined;
   connectionId?: string | null | undefined;
-}): Result<Binding, MeshError> {
+}): Result<Binding, JacklineError> {
   const serverId = input.serverId ?? null;
   const userId = input.userId ?? null;
   const connectionId = input.connectionId ?? null;
@@ -104,7 +104,7 @@ function normalizeBinding(input: {
 async function assertBindingInTenant(
   tenantId: string,
   binding: Binding,
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   if (binding.connectionId) {
     const [connection] = await db
       .select({ id: connections.id })
@@ -179,7 +179,7 @@ async function create(
   log: Logger,
   tenantId: string,
   input: CreateSecretInput,
-): Promise<Result<PublicSecret, MeshError>> {
+): Promise<Result<PublicSecret, JacklineError>> {
   const bindingResult = normalizeBinding(input);
   if (bindingResult.isErr()) return err(bindingResult.error);
 
@@ -243,7 +243,7 @@ async function list(
   log: Logger,
   tenantId: string,
   query: ListSecretsQuery,
-): Promise<Result<CursorPage<PublicSecret>, MeshError>> {
+): Promise<Result<CursorPage<PublicSecret>, JacklineError>> {
   const conditions = [eq(secrets.tenantId, tenantId)];
 
   if (query.kind) conditions.push(eq(secrets.kind, query.kind));
@@ -300,7 +300,7 @@ async function get(
   log: Logger,
   tenantId: string,
   secretId: string,
-): Promise<Result<PublicSecret, MeshError>> {
+): Promise<Result<PublicSecret, JacklineError>> {
   const [row] = await db
     .select()
     .from(secrets)
@@ -319,7 +319,7 @@ async function reveal(
   log: Logger,
   tenantId: string,
   secretId: string,
-): Promise<Result<SecretValue, MeshError>> {
+): Promise<Result<SecretValue, JacklineError>> {
   const [row] = await db
     .select()
     .from(secrets)
@@ -360,7 +360,7 @@ async function update(
   tenantId: string,
   secretId: string,
   input: UpdateSecretInput,
-): Promise<Result<PublicSecret, MeshError>> {
+): Promise<Result<PublicSecret, JacklineError>> {
   const [existing] = await db
     .select()
     .from(secrets)
@@ -419,7 +419,7 @@ async function remove(
   log: Logger,
   tenantId: string,
   secretId: string,
-): Promise<Result<PublicSecret, MeshError>> {
+): Promise<Result<PublicSecret, JacklineError>> {
   const [row] = await db
     .delete(secrets)
     .where(and(eq(secrets.id, secretId), eq(secrets.tenantId, tenantId)))

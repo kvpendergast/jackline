@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
   StartOauthBodySchema,
   StartOauthResultSchema,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
   notFoundError,

@@ -1,6 +1,6 @@
 import { defineCommand, type ArgsDef, type CommandContext } from "citty";
 
-type MeshCommandDef<T extends ArgsDef = ArgsDef> = {
+type JacklineCommandDef<T extends ArgsDef = ArgsDef> = {
   meta: {
     name: string;
     description: string;
@@ -13,11 +13,11 @@ type MeshCommandDef<T extends ArgsDef = ArgsDef> = {
 };
 
 /**
- * Shared wrapper for Mesh CLI commands. Put cross-cutting behavior here
+ * Shared wrapper for Jackline CLI commands. Put cross-cutting behavior here
  * (error formatting, tracing, shared flags) as the CLI grows.
  */
-export function defineMeshCommand<T extends ArgsDef = ArgsDef>(
-  def: MeshCommandDef<T>,
+export function defineJacklineCommand<T extends ArgsDef = ArgsDef>(
+  def: JacklineCommandDef<T>,
 ) {
   return defineCommand({
     meta: def.meta,

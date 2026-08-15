@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
-import { BadRequestError, MeshError } from "../errors/index.js";
+import { BadRequestError, JacklineError } from "../errors/index.js";
 
 /**
  * Upstream OAuth secret plaintext (encrypted at rest as the secret `value`).
@@ -46,7 +46,7 @@ const TokenResponseSchema = z.object({
 
 export function parseUpstreamOAuthSecret(
   plaintext: string,
-): Result<UpstreamOAuthSecret, MeshError> {
+): Result<UpstreamOAuthSecret, JacklineError> {
   const trimmed = plaintext.trim();
   if (!trimmed) {
     return err(new BadRequestError("OAuth secret value is empty"));
@@ -82,7 +82,7 @@ async function tokenRequest(
   tokenUrl: string,
   body: URLSearchParams,
   basic?: { clientId: string; clientSecret: string },
-): Promise<Result<z.infer<typeof TokenResponseSchema>, MeshError>> {
+): Promise<Result<z.infer<typeof TokenResponseSchema>, JacklineError>> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/x-www-form-urlencoded",
@@ -106,7 +106,7 @@ async function tokenRequest(
     });
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : "network error";
-    return err(new MeshError("INTERNAL", `OAuth token request failed: ${detail}`));
+    return err(new JacklineError("INTERNAL", `OAuth token request failed: ${detail}`));
   }
 
   const text = await res.text();
@@ -115,7 +115,7 @@ async function tokenRequest(
     json = text ? JSON.parse(text) : null;
   } catch {
     return err(
-      new MeshError(
+      new JacklineError(
         "INTERNAL",
         `OAuth token endpoint returned non-JSON (${res.status})`,
       ),
@@ -132,7 +132,7 @@ async function tokenRequest(
         ? (json as { error_description: string }).error_description
         : text.slice(0, 200) || res.statusText;
     return err(
-      new MeshError(
+      new JacklineError(
         "INTERNAL",
         `OAuth token endpoint → ${res.status}: ${message}`,
       ),
@@ -142,7 +142,7 @@ async function tokenRequest(
   const parsed = TokenResponseSchema.safeParse(json);
   if (!parsed.success) {
     return err(
-      new MeshError(
+      new JacklineError(
         "INTERNAL",
         "OAuth token endpoint response missing access_token",
       ),
@@ -179,7 +179,7 @@ function refreshedPlaintext(
 export async function resolveOAuthAccessToken(
   plaintext: string,
   options?: { forceRefresh?: boolean },
-): Promise<Result<ResolvedUpstreamBearer, MeshError>> {
+): Promise<Result<ResolvedUpstreamBearer, JacklineError>> {
   const parsed = parseUpstreamOAuthSecret(plaintext);
   if (parsed.isErr()) return err(parsed.error);
 
@@ -273,12 +273,12 @@ export function encodeOAuthSecretValue(input: {
   tokenUrl?: string;
   scopes?: string;
   expiresAt?: number;
-}): Result<string, MeshError> {
+}): Result<string, JacklineError> {
   if (input.mode === "access_token") {
     if (!input.accessToken?.trim()) {
       return err(new BadRequestError("Access token is required"));
     }
-    // Persist BYO OAuth app next to the token so `mesh connect` can reuse it.
+    // Persist BYO OAuth app next to the token so `jackline connect` can reuse it.
     if (input.clientId?.trim() && input.clientSecret?.trim()) {
       return ok(
         JSON.stringify({
@@ -343,7 +343,7 @@ export function upstreamSecretKind(
 /** Server-level secret holding the OAuth app client secret. */
 export const OAUTH_CLIENT_SECRET_KIND = "oauth_client" as const;
 
-/** Public API path for the upstream OAuth callback (append to MESH_PUBLIC_API_URL / BETTER_AUTH_URL). */
+/** Public API path for the upstream OAuth callback (append to JACKLINE_PUBLIC_API_URL / BETTER_AUTH_URL). */
 export const OAUTH_CALLBACK_PATH = "/api/v1/oauth/callback" as const;
 
 export function oauthCallbackUrl(apiBaseUrl: string): string {
@@ -431,7 +431,7 @@ export async function exchangeAuthorizationCode(input: {
       expiresAt?: number;
       scopes?: string;
     },
-    MeshError
+    JacklineError
   >
 > {
   const body = new URLSearchParams({

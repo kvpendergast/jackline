@@ -1,9 +1,9 @@
 import type { MiddlewareHandler } from "hono";
-import type { MeshEnv } from "../http/env.js";
+import type { JacklineEnv } from "../http/env.js";
 import { requireTenantContext } from "./requireTenantContext.js";
 
-/** Resolves session + X-Mesh-Tenant-Id membership into `tenantContext`. */
-export const tenantContextMiddleware: MiddlewareHandler<MeshEnv> = async (
+/** Resolves session + X-Jackline-Tenant-Id membership into `tenantContext`. */
+export const tenantContextMiddleware: MiddlewareHandler<JacklineEnv> = async (
   c,
   next,
 ) => {

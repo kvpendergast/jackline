@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { getAllowedTools, type ToolPermission } from "@mesh/policy";
+import { getAllowedTools, type ToolPermission } from "@jackline/policy";
 import {
   connectionRoles,
   connectionToolOverrides,
@@ -11,13 +11,13 @@ import {
   roles,
   servers,
   tools,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   formatMcpToolName,
-  MeshError,
+  JacklineError,
   NotFoundError,
   type PublicEffectiveTool,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 type SourceRow = ToolPermission & {
   name: string;
@@ -34,7 +34,7 @@ export async function listEffectiveTools(
   log: Logger,
   tenantId: string,
   connectionId: string,
-): Promise<Result<PublicEffectiveTool[], MeshError>> {
+): Promise<Result<PublicEffectiveTool[], JacklineError>> {
   const [conn] = await db
     .select({ id: connections.id })
     .from(connections)

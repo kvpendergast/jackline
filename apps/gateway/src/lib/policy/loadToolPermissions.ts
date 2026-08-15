@@ -9,9 +9,9 @@ import {
   roles,
   servers,
   tools,
-} from "@mesh/db";
-import type { MeshError } from "@mesh/shared";
-import type { ToolPermission } from "@mesh/policy";
+} from "@jackline/db";
+import type { JacklineError } from "@jackline/shared";
+import type { ToolPermission } from "@jackline/policy";
 
 export type ConnectionToolRecord = ToolPermission & {
   name: string;
@@ -29,7 +29,7 @@ export async function loadConnectionToolPermissions(
   log: Logger,
   tenantId: string,
   connectionId: string,
-): Promise<Result<ConnectionToolRecord[], MeshError>> {
+): Promise<Result<ConnectionToolRecord[], JacklineError>> {
   const roleRows = await db
     .select({
       id: tools.id,

@@ -3,7 +3,7 @@ import {
   MyAccessServerSchema,
   PublicSecretSchema,
   UpsertMyAccessCredentialBodySchema,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
 import {
   notFoundError,

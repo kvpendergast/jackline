@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FieldSelect } from "@/components/mesh/FormBits";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { KindBadge } from "@/components/mesh/StatusBadge";
+import { Field, FieldSelect } from "@/components/jackline/FormBits";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,14 +22,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
+import { jacklineApi } from "@/lib/jackline-api";
 import type {
   PublicRole,
   PublicRoleDetail,
   PublicServer,
   PublicTool,
   RoleType,
-} from "@mesh/shared";
+} from "@jackline/shared";
 
 export function RolesPage() {
   const { tenantId } = useAuth();
@@ -45,9 +45,9 @@ export function RolesPage() {
   async function load() {
     if (!tenantId) return;
     const [rolePage, toolPage, serverPage] = await Promise.all([
-      meshApi.listRoles(tenantId),
-      meshApi.listTools(tenantId),
-      meshApi.listServers(tenantId),
+      jacklineApi.listRoles(tenantId),
+      jacklineApi.listTools(tenantId),
+      jacklineApi.listServers(tenantId),
     ]);
     setItems(rolePage.items);
     setTools(toolPage.items);
@@ -80,7 +80,7 @@ export function RolesPage() {
     setError(null);
     setInfo(null);
     try {
-      const detail = await meshApi.getRole(tenantId, id);
+      const detail = await jacklineApi.getRole(tenantId, id);
       setEditing(detail);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load role");
@@ -224,7 +224,7 @@ function CreateRoleForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await meshApi.createRole(tenantId, {
+      await jacklineApi.createRole(tenantId, {
         name,
         type,
         description: description.trim() || null,
@@ -382,12 +382,12 @@ function EditRoleForm({
           patch.description = nextDescription;
         }
         if (Object.keys(patch).length > 0) {
-          detail = await meshApi.updateRole(tenantId, role.id, patch);
+          detail = await jacklineApi.updateRole(tenantId, role.id, patch);
         }
       }
 
       if (toolsChanged) {
-        detail = await meshApi.setRoleTools(tenantId, role.id, [...selected]);
+        detail = await jacklineApi.setRoleTools(tenantId, role.id, [...selected]);
       }
 
       await onSaved(detail);

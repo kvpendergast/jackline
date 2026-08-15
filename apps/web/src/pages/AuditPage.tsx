@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, Fragment } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { PageHeader, MonoId } from "@/components/mesh/PageHeader";
-import { OutcomeBadge } from "@/components/mesh/StatusBadge";
+import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { OutcomeBadge } from "@/components/jackline/StatusBadge";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -12,8 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { meshApi } from "@/lib/mesh-api";
-import type { PublicAuditEvent, PublicClient, PublicUser } from "@mesh/shared";
+import { jacklineApi } from "@/lib/jackline-api";
+import type { PublicAuditEvent, PublicClient, PublicUser } from "@jackline/shared";
 
 export function AuditPage() {
   const { tenantId } = useAuth();
@@ -33,9 +33,9 @@ export function AuditPage() {
       setError(null);
       try {
         const [page, clientPage, userPage] = await Promise.all([
-          meshApi.listAuditEvents(tenantId, { limit: "50" }),
-          meshApi.listClients(tenantId),
-          meshApi.listUsers(tenantId),
+          jacklineApi.listAuditEvents(tenantId, { limit: "50" }),
+          jacklineApi.listClients(tenantId),
+          jacklineApi.listUsers(tenantId),
         ]);
         if (cancelled) return;
         setEvents(page.items);

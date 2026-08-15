@@ -15,7 +15,7 @@ type ThemeContextValue = {
   toggleTheme: () => void;
 };
 
-const STORAGE_KEY = "mesh-theme";
+const STORAGE_KEY = "jackline-theme";
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 

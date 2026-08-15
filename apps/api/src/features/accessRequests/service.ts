@@ -11,16 +11,16 @@ import {
   servers,
   tools,
   type AccessRequest as AccessRequestRow,
-} from "@mesh/db";
+} from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
-  MeshError,
+  JacklineError,
   NotFoundError,
   SetupError,
   type PublicAccessRequest,
   type PublicNotification,
-} from "@mesh/shared";
+} from "@jackline/shared";
 import {
   isAdminRole,
   resolveTeamFilter,
@@ -121,7 +121,7 @@ async function grantAllowOverrides(
   tenantId: string,
   connectionId: string,
   toolIds: string[],
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   if (toolIds.length === 0) return ok(undefined);
 
   try {
@@ -173,7 +173,7 @@ async function attachAutoAllowedTools(
   actor: ActorAuthz,
   connectionId: string,
   serverId: string,
-): Promise<Result<{ attachedToolIds: string[] }, MeshError>> {
+): Promise<Result<{ attachedToolIds: string[] }, JacklineError>> {
   const [connection] = await db
     .select()
     .from(connections)
@@ -259,7 +259,7 @@ async function createRequest(
   tenantId: string,
   actor: ActorAuthz,
   input: { connectionId: string; serverId: string },
-): Promise<Result<PublicAccessRequest, MeshError>> {
+): Promise<Result<PublicAccessRequest, JacklineError>> {
   const [connection] = await db
     .select()
     .from(connections)
@@ -368,7 +368,7 @@ async function listRequests(
   tenantId: string,
   actor: ActorAuthz,
   query: { status?: string | undefined },
-): Promise<Result<{ items: PublicAccessRequest[] }, MeshError>> {
+): Promise<Result<{ items: PublicAccessRequest[] }, JacklineError>> {
   const conditions = [eq(accessRequests.tenantId, tenantId)];
   if (query.status) {
     conditions.push(
@@ -413,7 +413,7 @@ async function assertCanDecide(
   tenantId: string,
   actor: ActorAuthz,
   requesterUserId: string,
-): Promise<Result<void, MeshError>> {
+): Promise<Result<void, JacklineError>> {
   if (!isAdminRole(actor.role)) {
     return err(new ForbiddenError("admin role required"));
   }
@@ -445,7 +445,7 @@ async function approveRequest(
   actor: ActorAuthz,
   requestId: string,
   input: { toolIds?: string[] | null | undefined; note?: string | null | undefined },
-): Promise<Result<PublicAccessRequest, MeshError>> {
+): Promise<Result<PublicAccessRequest, JacklineError>> {
   const [row] = await db
     .select()
     .from(accessRequests)
@@ -533,7 +533,7 @@ async function denyRequest(
   actor: ActorAuthz,
   requestId: string,
   input: { note?: string | null | undefined },
-): Promise<Result<PublicAccessRequest, MeshError>> {
+): Promise<Result<PublicAccessRequest, JacklineError>> {
   const [row] = await db
     .select()
     .from(accessRequests)
@@ -585,7 +585,7 @@ async function cancelRequest(
   tenantId: string,
   actor: ActorAuthz,
   requestId: string,
-): Promise<Result<PublicAccessRequest, MeshError>> {
+): Promise<Result<PublicAccessRequest, JacklineError>> {
   const [row] = await db
     .select()
     .from(accessRequests)
@@ -637,7 +637,7 @@ async function listNotifications(
   log: Logger,
   tenantId: string,
   userId: string,
-): Promise<Result<{ items: PublicNotification[]; unreadCount: number }, MeshError>> {
+): Promise<Result<{ items: PublicNotification[]; unreadCount: number }, JacklineError>> {
   const rows = await db
     .select()
     .from(notifications)
@@ -660,7 +660,7 @@ async function markNotificationRead(
   tenantId: string,
   userId: string,
   notificationId: string,
-): Promise<Result<PublicNotification, MeshError>> {
+): Promise<Result<PublicNotification, JacklineError>> {
   const [row] = await db
     .update(notifications)
     .set({ readAt: new Date(), updatedAt: new Date() })
@@ -682,7 +682,7 @@ async function markAllNotificationsRead(
   log: Logger,
   tenantId: string,
   userId: string,
-): Promise<Result<{ updated: number }, MeshError>> {
+): Promise<Result<{ updated: number }, JacklineError>> {
   const rows = await db
     .update(notifications)
     .set({ readAt: new Date(), updatedAt: new Date() })

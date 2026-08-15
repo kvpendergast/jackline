@@ -42,7 +42,7 @@ const catalog = [
 
 export const main = defineCommand({
   meta: {
-    name: "mesh",
+    name: "jackline",
     version: packageJson.version,
     description: packageJson.description,
   },

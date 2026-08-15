@@ -1,10 +1,10 @@
 {
-  "name": "@mesh/cli",
+  "name": "@jackline/cli",
   "version": "0.1.0",
-  "description": "Personal Mesh CLI — local MCP policy gateway",
+  "description": "Personal Jackline CLI — local MCP policy gateway",
   "type": "module",
   "license": "MIT",
-  "author": "Mesh contributors",
+  "author": "Jackline contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kvpendergast/mesh.git",
@@ -19,14 +19,14 @@
     "cli",
     "gateway",
     "policy",
-    "mesh",
+    "jackline",
     "model-context-protocol"
   ],
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "mesh": "./dist/index.js"
+    "jackline": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -49,8 +49,8 @@
     "lint": "echo \"lint later\""
   },
   "devDependencies": {
-    "@mesh/crypto": "workspace:*",
-    "@mesh/shared": "workspace:*",
+    "@jackline/crypto": "workspace:*",
+    "@jackline/shared": "workspace:*",
     "tsup": "^8.5.1",
     "tsx": "^4.19.0"
   },
