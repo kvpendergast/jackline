@@ -39,7 +39,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": false
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

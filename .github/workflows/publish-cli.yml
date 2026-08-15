@@ -1,17 +1,20 @@
 # Publish @buildstuff/jackline to npm via OIDC trusted publishing (no long-lived NPM_TOKEN).
 #
 # Prerequisites (npm-side; CI cannot create these):
-# 1. Create the npm org "buildstuff" (https://www.npmjs.com/org/create) — the @buildstuff
-#    scope does not exist until you do. Without it, publish returns a misleading E404.
+# 1. Create the npm org "buildstuff" if needed.
 # 2. Bootstrap the package once (trusted publisher requires an existing package record):
 #      cd apps/cli && npm login && npm publish --access public --ignore-scripts --provenance=false
-#    (build first; local publish cannot generate OIDC provenance)
-# 3. On npmjs.com → @buildstuff/jackline → Settings → Trusted Publisher:
+# 3. On https://www.npmjs.com/package/@buildstuff/jackline → Settings / Access → Trusted Publisher:
 #      Organization/user: kvpendergast
 #      Repository:        jackline
-#      Workflow filename: publish-cli.yml
+#      Workflow filename: publish-cli.yml   (filename only, with .yml)
+#      Environment:       (leave empty unless the job sets `environment:`)
 #      Allowed action:    npm publish
 # 4. Revoke any temporary publish tokens after OIDC works.
+#
+# Notes:
+# - Provenance is off while the GitHub repo is private (npm requires a public repo for provenance).
+# - ENEEDAUTH from this workflow almost always means step 3 is missing or mismatched.
 #
 # Release: bump apps/cli version, commit, then:
 #   git tag cli-vX.Y.Z && git push origin cli-vX.Y.Z
@@ -24,7 +27,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # required for npm OIDC trusted publishing + provenance
+  id-token: write # required for npm OIDC trusted publishing
 
 concurrency:
   group: publish-cli-${{ github.ref }}
@@ -42,17 +45,19 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      # Do not set registry-url here — setup-node would write an .npmrc with
-      # always-auth that can interfere with OIDC trusted publishing.
+      # Do not set registry-url — setup-node would write an .npmrc that can block OIDC.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           # Release builds should not reuse install caches.
           cache: ""
 
       - name: Upgrade npm (OIDC trusted publishing needs >= 11.5.1)
-        run: npm install -g npm@latest
+        run: |
+          npm install -g npm@latest
+          node -v
+          npm -v
 
       - name: Verify release tag matches package.json
         run: |
@@ -77,8 +82,22 @@ jobs:
       - name: Build CLI
         run: pnpm --filter @buildstuff/jackline build
 
+      - name: OIDC preflight
+        run: |
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "Missing GitHub OIDC env (id-token: write not effective)."
+            exit 1
+          fi
+          echo "GitHub OIDC request URL is present."
+          # Ensure token-based auth is not preferred over OIDC.
+          unset NODE_AUTH_TOKEN NPM_TOKEN || true
+          rm -f "$HOME/.npmrc" .npmrc apps/cli/.npmrc || true
+
       - name: Publish @buildstuff/jackline
         working-directory: apps/cli
         # Build already ran; skip prepublishOnly (pnpm build) under npm.
-        # Auth is OIDC from id-token: write — do not set NODE_AUTH_TOKEN.
-        run: npm publish --access public --ignore-scripts
+        # Auth is OIDC from id-token: write — do not set NODE_AUTH_TOKEN (even to "").
+        run: |
+          unset NODE_AUTH_TOKEN NPM_TOKEN || true
+          npm publish --access public --ignore-scripts
