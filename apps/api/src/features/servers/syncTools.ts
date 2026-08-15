@@ -28,6 +28,7 @@ function toPublicTool(row: Tool): PublicTool {
     httpMethod: row.httpMethod,
     pathTemplate: row.pathTemplate,
     status: row.status,
+    requiresApproval: row.requiresApproval,
     serverId: row.serverId,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),

@@ -266,19 +266,34 @@ function CreateConnectionForm({
   onCreated: (connectionId: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
-  const { tenantId } = useAuth();
+  const { tenantId, user, membership } = useAuth();
+  const isAdmin =
+    membership?.role === "full_admin" ||
+    membership?.role === "delegated_admin";
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
-  const [userId, setUserId] = useState(users[0]?.id ?? "");
+  const [userId, setUserId] = useState(
+    isAdmin ? (users[0]?.id ?? "") : (user?.id ?? ""),
+  );
+  const [newClientName, setNewClientName] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!tenantId) return;
+    if (!tenantId || !user) return;
     setBusy(true);
     try {
+      let resolvedClientId = clientId;
+      if (!resolvedClientId && newClientName.trim()) {
+        const createdClient = await meshApi.createClient(tenantId, {
+          name: newClientName.trim(),
+          kind: "interactive",
+          ownerUserId: isAdmin ? null : user.id,
+        });
+        resolvedClientId = createdClient.id;
+      }
       const created = await meshApi.createConnection(tenantId, {
-        clientId,
-        userId,
+        clientId: resolvedClientId,
+        userId: isAdmin ? userId : user.id,
       });
       await onCreated(created.id);
     } catch (err) {
@@ -290,36 +305,58 @@ function CreateConnectionForm({
 
   return (
     <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
-      <Field label="Client">
-        <FieldSelect
-          required
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-        >
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.kind})
-            </option>
-          ))}
-        </FieldSelect>
-      </Field>
-      <Field label="Subject">
-        <FieldSelect
-          required
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-        >
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.email} ({u.kind})
-            </option>
-          ))}
-        </FieldSelect>
-      </Field>
+      {clients.length > 0 ? (
+        <Field label="Client">
+          <FieldSelect
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+          >
+            <option value="">Create new…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.kind})
+              </option>
+            ))}
+          </FieldSelect>
+        </Field>
+      ) : null}
+      {!clientId ? (
+        <Field label="New client name">
+          <Input
+            required
+            value={newClientName}
+            onChange={(e) => setNewClientName(e.target.value)}
+            placeholder="My Cursor"
+          />
+        </Field>
+      ) : null}
+      {isAdmin ? (
+        <Field label="Subject">
+          <FieldSelect
+            required
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+          >
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.email} ({u.kind})
+              </option>
+            ))}
+          </FieldSelect>
+        </Field>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Connection will be created for your account.
+        </p>
+      )}
       <Button
         type="submit"
         className="w-full"
-        disabled={busy || !clientId || !userId}
+        disabled={
+          busy ||
+          (!clientId && !newClientName.trim()) ||
+          (isAdmin && !userId)
+        }
       >
         {busy ? "Creating…" : "Create"}
       </Button>

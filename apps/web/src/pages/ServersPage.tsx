@@ -271,13 +271,40 @@ export function ServersPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <KindBadge kind={row.status} />
+                  <div className="flex flex-wrap gap-1">
+                    <KindBadge kind={row.status} />
+                    <KindBadge
+                      kind={
+                        row.requiresApproval ? "needs-approval" : "auto-allow"
+                      }
+                    />
+                  </div>
                 </TableCell>
                 <TableCell>
                   <KindBadge kind={row.health} />
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void meshApi
+                          .updateServer(tenantId!, row.id, {
+                            requiresApproval: !row.requiresApproval,
+                          })
+                          .then(() => load())
+                          .catch((err) =>
+                            setError(
+                              err instanceof ApiError
+                                ? err.message
+                                : "Update failed",
+                            ),
+                          )
+                      }
+                    >
+                      {row.requiresApproval ? "Make auto-allow" : "Require approval"}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

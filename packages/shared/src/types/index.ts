@@ -133,3 +133,19 @@ export {
   type RotateScimTokenResult,
   RotateScimTokenResultSchema,
 } from './identity.js';
+export {
+  type AccessRequestStatus,
+  AccessRequestStatusSchema,
+  type PublicAccessRequest,
+  PublicAccessRequestSchema,
+  type CreateAccessRequestBody,
+  CreateAccessRequestBodySchema,
+  type DecideAccessRequestBody,
+  DecideAccessRequestBodySchema,
+  type DenyAccessRequestBody,
+  DenyAccessRequestBodySchema,
+} from './accessRequest.js';
+export {
+  type PublicNotification,
+  PublicNotificationSchema,
+} from './notification.js';

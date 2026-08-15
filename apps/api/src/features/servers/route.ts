@@ -59,6 +59,7 @@ const UpdateServerBodySchema = z
     oauthTokenUrl: z.url().nullable().optional(),
     oauthScopes: z.string().min(1).nullable().optional(),
     oauthClientId: z.string().min(1).nullable().optional(),
+    requiresApproval: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",

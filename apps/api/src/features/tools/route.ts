@@ -53,6 +53,7 @@ const UpdateToolBodySchema = z
     inputSchema: z.record(z.string(), z.unknown()).nullable().optional(),
     httpMethod: ToolHttpMethodSchema.nullable().optional(),
     pathTemplate: z.string().min(1).nullable().optional(),
+    requiresApproval: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",

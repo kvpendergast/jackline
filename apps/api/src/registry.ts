@@ -1,3 +1,4 @@
+import { accessRequestsFeature } from "./features/accessRequests/index.js";
 import { signupFeature } from "./features/signup/index.js";
 import { healthFeature } from "./features/health/index.js";
 import type { AppSlice } from "./lib/feature.js";
@@ -39,6 +40,7 @@ export const tenantV1Features: AppSlice[] = [
   identityTenantFeature,
   myAccessFeature,
   oauthFeature,
+  accessRequestsFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */

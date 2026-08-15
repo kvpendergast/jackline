@@ -44,6 +44,8 @@ import {
 export type CreateClientInput = {
   name: string;
   kind: ClientKind;
+  /** Member owner; admins may set on behalf of a user. */
+  ownerUserId?: string | null | undefined;
 };
 
 export type UpdateClientInput = {
@@ -80,6 +82,7 @@ function toPublicClient(row: ClientRow): PublicClient {
     name: row.name,
     kind: row.kind,
     tenantId: row.tenantId,
+    ownerUserId: row.ownerUserId ?? null,
     hasClientSecret: row.clientSecretHash != null,
     apiRole,
     apiTeam: row.apiTeam ?? null,
@@ -191,8 +194,26 @@ async function ensureServiceActor(
 async function create(
   log: Logger,
   tenantId: string,
+  actor: { userId: string; role: string },
   input: CreateClientInput,
 ): Promise<Result<PublicClient, MeshError>> {
+  const isAdmin = actor.role === "full_admin" || actor.role === "delegated_admin";
+  const isFull = actor.role === "full_admin";
+
+  if (input.kind === "service" && !isFull) {
+    return err(new ForbiddenError("Only full_admin can create service clients"));
+  }
+  if (!isAdmin && input.kind !== "interactive") {
+    return err(new ForbiddenError("Members may only create interactive clients"));
+  }
+
+  let ownerUserId: string | null = null;
+  if (!isAdmin) {
+    ownerUserId = actor.userId;
+  } else if (input.ownerUserId !== undefined) {
+    ownerUserId = input.ownerUserId;
+  }
+
   try {
     const [row] = await db
       .insert(clients)
@@ -200,6 +221,7 @@ async function create(
         name: input.name,
         kind: input.kind,
         tenantId,
+        ownerUserId,
       })
       .returning();
 
@@ -217,9 +239,18 @@ async function create(
 async function list(
   log: Logger,
   tenantId: string,
+  actor: { userId: string; role: string },
   query: ListClientsQuery,
 ): Promise<Result<CursorPage<PublicClient>, MeshError>> {
   const conditions = [eq(clients.tenantId, tenantId)];
+  const isAdmin = actor.role === "full_admin" || actor.role === "delegated_admin";
+
+  if (!isAdmin) {
+    // Own clients + org-managed (no owner)
+    conditions.push(
+      or(eq(clients.ownerUserId, actor.userId), isNull(clients.ownerUserId))!,
+    );
+  }
 
   if (query.kind) {
     conditions.push(eq(clients.kind, query.kind));
@@ -271,9 +302,36 @@ async function list(
   });
 }
 
+async function assertCanManageClient(
+  tenantId: string,
+  actor: { userId: string; role: string },
+  clientId: string,
+): Promise<Result<ClientRow, MeshError>> {
+  const [row] = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+    .limit(1);
+
+  if (!row) {
+    return err(new NotFoundError("Client not found"));
+  }
+
+  const isFull = actor.role === "full_admin";
+  const isAdmin =
+    actor.role === "full_admin" || actor.role === "delegated_admin";
+
+  if (isFull) return ok(row);
+  if (row.ownerUserId === actor.userId) return ok(row);
+  if (isAdmin && row.ownerUserId == null) return ok(row);
+
+  return err(new ForbiddenError("You cannot manage this client"));
+}
+
 async function get(
   log: Logger,
   tenantId: string,
+  actor: { userId: string; role: string },
   clientId: string,
 ): Promise<Result<PublicClient, MeshError>> {
   const [row] = await db
@@ -286,6 +344,16 @@ async function get(
     return err(new NotFoundError("Client not found"));
   }
 
+  const isAdmin =
+    actor.role === "full_admin" || actor.role === "delegated_admin";
+  if (
+    !isAdmin &&
+    row.ownerUserId != null &&
+    row.ownerUserId !== actor.userId
+  ) {
+    return err(new ForbiddenError("You cannot view this client"));
+  }
+
   log.debug({ clientId, tenantId }, "Client.services.get");
   return ok(toPublicClient(row));
 }
@@ -293,9 +361,22 @@ async function get(
 async function update(
   log: Logger,
   tenantId: string,
+  actor: { userId: string; role: string },
   clientId: string,
   input: UpdateClientInput,
 ): Promise<Result<PublicClient, MeshError>> {
+  const existing = await assertCanManageClient(tenantId, actor, clientId);
+  if (existing.isErr()) return err(existing.error);
+
+  if (actor.role !== "full_admin") {
+    if (input.kind === "service") {
+      return err(new ForbiddenError("Only full_admin can set service clients"));
+    }
+    if (input.apiRole !== undefined || input.apiTeam !== undefined) {
+      return err(new ForbiddenError("Only full_admin can change API roles"));
+    }
+  }
+
   const patch: Partial<typeof clients.$inferInsert> & { updatedAt: Date } = {
     updatedAt: new Date(),
   };
@@ -346,8 +427,12 @@ async function update(
 async function remove(
   log: Logger,
   tenantId: string,
+  actor: { userId: string; role: string },
   clientId: string,
 ): Promise<Result<PublicClient, MeshError>> {
+  const existing = await assertCanManageClient(tenantId, actor, clientId);
+  if (existing.isErr()) return err(existing.error);
+
   const [row] = await db
     .delete(clients)
     .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))

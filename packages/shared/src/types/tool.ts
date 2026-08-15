@@ -23,6 +23,8 @@ export const PublicToolSchema = z.strictObject({
   httpMethod: ToolHttpMethodSchema.nullable(),
   pathTemplate: z.string().nullable(),
   status: ToolStatusSchema,
+  /** When true, members need approval before this tool can be granted. */
+  requiresApproval: z.boolean(),
   serverId: z.uuid(),
   tenantId: z.uuid(),
   createdAt: z.iso.datetime(),

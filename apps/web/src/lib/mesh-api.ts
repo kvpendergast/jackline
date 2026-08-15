@@ -84,6 +84,7 @@ export const meshApi = {
       oauthTokenUrl?: string | null;
       oauthScopes?: string | null;
       oauthClientId?: string | null;
+      requiresApproval?: boolean;
     },
   ) =>
     api<PublicServer>(`/api/v1/servers/${id}`, {
@@ -125,7 +126,7 @@ export const meshApi = {
   updateTool: (
     tenantId: string,
     id: string,
-    body: { status?: ToolStatus; name?: string },
+    body: { status?: ToolStatus; name?: string; requiresApproval?: boolean },
   ) =>
     api<PublicTool>(`/api/v1/tools/${id}`, {
       tenantId,
@@ -176,8 +177,14 @@ export const meshApi = {
       searchParams: { limit: "100" },
     }),
 
-  createClient: (tenantId: string, body: { name: string; kind: ClientKind }) =>
-    api<PublicClient>("/api/v1/clients", { tenantId, method: "POST", body }),
+  createClient: (
+    tenantId: string,
+    body: {
+      name: string;
+      kind: ClientKind;
+      ownerUserId?: string | null;
+    },
+  ) => api<PublicClient>("/api/v1/clients", { tenantId, method: "POST", body }),
 
   rotateClientCredentials: (
     tenantId: string,
@@ -319,6 +326,88 @@ export const meshApi = {
       `/api/v1/connections/${connectionId}/credentials`,
       { tenantId, method: "POST", body: {} },
     ),
+
+  setMemberToolEnabled: (
+    tenantId: string,
+    connectionId: string,
+    toolId: string,
+    enabled: boolean,
+  ) =>
+    api<PublicConnectionDetail>(
+      `/api/v1/connections/${connectionId}/member-tools/${toolId}`,
+      { tenantId, method: "POST", body: { enabled } },
+    ),
+
+  listAccessRequests: (tenantId: string, status?: string) =>
+    api<{ items: import("@mesh/shared").PublicAccessRequest[] }>(
+      "/api/v1/access-requests",
+      { tenantId, searchParams: { status } },
+    ),
+
+  createAccessRequest: (
+    tenantId: string,
+    body: { connectionId: string; serverId: string },
+  ) =>
+    api<import("@mesh/shared").PublicAccessRequest>("/api/v1/access-requests", {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  attachAutoAllowedTools: (
+    tenantId: string,
+    body: { connectionId: string; serverId: string },
+  ) =>
+    api<{ attachedToolIds: string[] }>("/api/v1/access-requests/attach-auto", {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  approveAccessRequest: (
+    tenantId: string,
+    id: string,
+    body: { toolIds?: string[] | null; note?: string | null } = {},
+  ) =>
+    api<import("@mesh/shared").PublicAccessRequest>(
+      `/api/v1/access-requests/${id}/approve`,
+      { tenantId, method: "POST", body },
+    ),
+
+  denyAccessRequest: (
+    tenantId: string,
+    id: string,
+    body: { note?: string | null } = {},
+  ) =>
+    api<import("@mesh/shared").PublicAccessRequest>(
+      `/api/v1/access-requests/${id}/deny`,
+      { tenantId, method: "POST", body },
+    ),
+
+  cancelAccessRequest: (tenantId: string, id: string) =>
+    api<import("@mesh/shared").PublicAccessRequest>(
+      `/api/v1/access-requests/${id}/cancel`,
+      { tenantId, method: "POST" },
+    ),
+
+  listNotifications: (tenantId: string) =>
+    api<{
+      items: import("@mesh/shared").PublicNotification[];
+      unreadCount: number;
+    }>("/api/v1/notifications", { tenantId }),
+
+  markNotificationRead: (tenantId: string, id: string) =>
+    api<import("@mesh/shared").PublicNotification>(
+      `/api/v1/notifications/${id}/read`,
+      { tenantId, method: "POST", body: {} },
+    ),
+
+  markAllNotificationsRead: (tenantId: string) =>
+    api<{ updated: number }>("/api/v1/notifications/read-all", {
+      tenantId,
+      method: "POST",
+      body: {},
+    }),
 
   revokeCredential: (
     tenantId: string,

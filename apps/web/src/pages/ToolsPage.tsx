@@ -169,9 +169,37 @@ export function ToolsPage() {
                   {serverById.get(row.serverId)?.name ?? row.serverId.slice(0, 8)}
                 </TableCell>
                 <TableCell>
-                  <KindBadge kind={row.status} />
+                  <div className="flex flex-wrap gap-1">
+                    <KindBadge kind={row.status} />
+                    <KindBadge
+                      kind={
+                        row.requiresApproval ? "needs-approval" : "auto-allow"
+                      }
+                    />
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void meshApi
+                          .updateTool(tenantId!, row.id, {
+                            requiresApproval: !row.requiresApproval,
+                          })
+                          .then(() => load())
+                          .catch((err) =>
+                            setError(
+                              err instanceof ApiError
+                                ? err.message
+                                : "Update failed",
+                            ),
+                          )
+                      }
+                    >
+                      {row.requiresApproval ? "Auto-allow" : "Need approval"}
+                    </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -179,6 +207,7 @@ export function ToolsPage() {
                   >
                     {row.status === "active" ? "Disable" : "Activate"}
                   </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

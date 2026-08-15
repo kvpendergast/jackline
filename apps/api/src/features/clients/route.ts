@@ -35,6 +35,7 @@ const CreateClientBodySchema = z
   .strictObject({
     name: z.string().min(1),
     kind: ClientKindSchema,
+    ownerUserId: z.string().min(1).nullable().optional(),
   })
   .openapi("CreateClientBody");
 
@@ -98,8 +99,7 @@ const create = createRoute({
   method: "post",
   path: "/clients",
   tags: ["Clients"],
-  summary: "Create a client",
-  middleware: [requireFullAdmin] as const,
+  summary: "Create a client (members: own interactive; admins: any)",
   request: {
     headers: TenantIdHeaderSchema,
     body: {
@@ -143,8 +143,7 @@ const update = createRoute({
   method: "patch",
   path: "/clients/{id}",
   tags: ["Clients"],
-  summary: "Update a client",
-  middleware: [requireFullAdmin] as const,
+  summary: "Update a client you manage",
   request: {
     headers: TenantIdHeaderSchema,
     params: ClientIdParamSchema,
@@ -169,8 +168,7 @@ const remove = createRoute({
   method: "delete",
   path: "/clients/{id}",
   tags: ["Clients"],
-  summary: "Delete a client",
-  middleware: [requireFullAdmin] as const,
+  summary: "Delete a client you manage",
   request: {
     headers: TenantIdHeaderSchema,
     params: ClientIdParamSchema,

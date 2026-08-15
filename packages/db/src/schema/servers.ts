@@ -1,4 +1,11 @@
-import { pgEnum, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  pgEnum,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
 
@@ -49,6 +56,11 @@ export const servers = pgTable(
     oauthScopes: text("oauth_scopes"),
     /** Public OAuth client id (secret stored separately as kind oauth_client). */
     oauthClientId: text("oauth_client_id"),
+    /**
+     * When true, members must request access to this server.
+     * When false, members may self-attach auto-allowed tools.
+     */
+    requiresApproval: boolean("requires_approval").notNull().default(true),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
