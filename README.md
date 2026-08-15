@@ -25,7 +25,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Mesh as an MCP server.
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
-| Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod images + Caddy) |
+| Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod; optional gateway-split / byo-edge overlays) |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 
@@ -92,7 +92,8 @@ docker compose -f deploy/docker-compose.yml up --build
 
 ### Production Compose (recommended self-host)
 
-Multi-stage images (`deploy/Dockerfile`) + Caddy edge proxy (`deploy/compose.prod.yml`):
+Multi-stage images (`deploy/Dockerfile`) + optional Caddy edge (`deploy/compose.prod.yml`).
+Default topology: **UI + API + MCP on one origin** (simplest cookies/CORS). Caddy is convenience, not required.
 
 ```bash
 cp deploy/.env.prod.example .env.prod
@@ -107,7 +108,19 @@ docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 | http://localhost/openapi.json | OpenAPI JSON |
 | http://localhost/health | API health |
 
-Same-origin routing keeps session cookies simple. Set `MESH_HOST` / `WEB_ORIGIN` / `BETTER_AUTH_URL` / `MESH_PUBLIC_*` when using a real domain.
+**HTTPS:** set `MESH_SITE_ADDRESS` / `MESH_DOCS_SITE_ADDRESS` to bare hostnames (no `http://`), align `WEB_ORIGIN` / `BETTER_AUTH_URL` / `MESH_PUBLIC_*` to `https://…`, and ensure ports 80/443 are reachable.
+
+**Other topologies** (see `apps/docs/pages/self-hosting.mdx`):
+
+```bash
+# Gateway on its own published port; Caddy = control plane only
+docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
+  --env-file .env.prod up --build -d
+
+# No Caddy — publish api/gateway/web/docs for your own reverse proxy
+docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
+  --env-file .env.prod up --build -d
+```
 
 Build a single target:
 

@@ -1,0 +1,22 @@
+# Overlay: publish the MCP gateway on its own port/host; Caddy serves control plane only.
+#
+# Usage (from repo root):
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
+#     --env-file .env.prod up --build -d
+#
+# Set in .env.prod (example):
+#   MESH_PUBLIC_MCP_URL=https://mcp.example.com/mcp
+#   # or for local: MESH_PUBLIC_MCP_URL=http://127.0.0.1:8081/mcp
+#   MESH_GATEWAY_PUBLISH_PORT=8081
+#
+# Point Cursor / MCP clients at MESH_PUBLIC_MCP_URL. Put your own TLS
+# terminator in front of the published gateway port when exposing publicly.
+
+services:
+  gateway:
+    ports:
+      - "${MESH_GATEWAY_PUBLISH_PORT:-8081}:8081"
+
+  caddy:
+    volumes:
+      - ./Caddyfile.gateway-split:/etc/caddy/Caddyfile:ro

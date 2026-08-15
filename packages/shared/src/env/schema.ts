@@ -29,9 +29,16 @@ export const EnvSchema = z.object({
   /**
    * Public MCP gateway URL embedded in minted connection credentials.
    * Defaults to http://127.0.0.1:${GATEWAY_PORT}/mcp.
-   * Production Compose (Caddy): http://localhost/mcp or https://mesh.example.com/mcp
+   * Same-origin Compose: http://localhost/mcp or https://mesh.example.com/mcp
+   * Gateway-split: https://mcp.example.com/mcp (or host:port when BYO TLS)
    */
   MESH_PUBLIC_MCP_URL: z.string().url().optional(),
+  /**
+   * Extra browser origins allowed for CORS + Better Auth (comma-separated).
+   * Use when the admin UI is on a different host than WEB_ORIGIN alone covers,
+   * or when you need additional preview/staging origins.
+   */
+  MESH_ADDITIONAL_ORIGINS: z.string().optional(),
   /** Optional global OIDC (discovery via issuer/.well-known/openid-configuration). */
   MESH_OIDC_ISSUER: z.string().url().optional(),
   MESH_OIDC_CLIENT_ID: z.string().min(1).optional(),
