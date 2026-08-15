@@ -11,6 +11,7 @@ import {
   identityTenantFeature,
 } from "./features/identity/index.js";
 import { myAccessFeature } from "./features/myAccess/index.js";
+import { mcpOauthFeature } from "./features/mcpOauth/index.js";
 import { oauthFeature } from "./features/oauth/index.js";
 import { rolesFeature } from "./features/roles/index.js";
 import { secretsFeature } from "./features/secrets/index.js";
@@ -39,6 +40,7 @@ export const tenantV1Features: AppSlice[] = [
   auditEventsFeature,
   identityTenantFeature,
   myAccessFeature,
+  mcpOauthFeature,
   oauthFeature,
   accessRequestsFeature,
 ];

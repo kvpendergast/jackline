@@ -54,3 +54,13 @@ Used by the admin UI. Sign up / sign in via Better Auth (`/api/auth/*`), then se
 ## Gateway MCP tokens
 
 Connection credentials (`jkl_…`) authenticate the **MCP gateway**, not the Admin API. Do not reuse them for `/api/v1`.
+
+
+## MCP gateway auth (OAuth + static token)
+
+MCP hosts (Cursor, Claude Code) authenticate to `/mcp` with either:
+
+1. **MCP OAuth (preferred)** — short-lived access tokens + refresh. Create a client on a connection (`POST /api/v1/connections/{id}/mcp-oauth/clients`), then configure Cursor `auth.CLIENT_ID` / `CLIENT_SECRET` or Claude Code `oauth.clientId`. Discovery: `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`.
+2. **Static gateway token (`jkl_…`)** — long-lived Bearer for harnesses that cannot do OAuth. Mint via connection credentials; rotate by revoke + mint.
+
+Redirect URIs are allowlisted per MCP OAuth client (built-in Cursor/Claude presets plus custom URLs).

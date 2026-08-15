@@ -8,5 +8,9 @@ export {
   generateScimToken,
   generateClientSecret,
   generateAccessToken,
+  generateMcpOauthAccessToken,
+  generateMcpOauthRefreshToken,
+  generateMcpOauthClientSecret,
+  generateMcpOauthAuthorizationCode,
   ssoSecretAad,
 } from "./createAuth.js";

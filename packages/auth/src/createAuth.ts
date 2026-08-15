@@ -38,6 +38,26 @@ export function generateAccessToken(): string {
   return `jackline_at_${randomBytes(32).toString("base64url")}`;
 }
 
+/** Opaque MCP OAuth access token (gateway /mcp). */
+export function generateMcpOauthAccessToken(): string {
+  return `jkl_mcp_at_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque MCP OAuth refresh token. */
+export function generateMcpOauthRefreshToken(): string {
+  return `jkl_mcp_rt_${randomBytes(32).toString("base64url")}`;
+}
+
+/** MCP OAuth client_secret. */
+export function generateMcpOauthClientSecret(): string {
+  return `jkl_mcp_cs_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Authorization code (hashed at rest). */
+export function generateMcpOauthAuthorizationCode(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
   const config = getConfig();
   if (config.isErr()) throw config.error;
