@@ -1,5 +1,5 @@
 {
-  "name": "@jackline/cli",
+  "name": "@buildstuff/jackline",
   "version": "0.1.0",
   "description": "Personal Jackline CLI — local MCP policy gateway",
   "type": "module",
@@ -20,6 +20,7 @@
     "gateway",
     "policy",
     "jackline",
+    "buildstuff",
     "model-context-protocol"
   ],
   "engines": {

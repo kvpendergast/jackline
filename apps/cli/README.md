@@ -1,4 +1,4 @@
-# `@jackline/cli`
+# `@buildstuff/jackline`
 
 Personal **Jackline** CLI — a local MCP policy gateway you run on your machine.
 
@@ -11,14 +11,14 @@ Clients (Cursor, Claude Code, and other MCP hosts) connect to Jackline. Jackline
 ## Install
 
 ```bash
-npm install -g @jackline/cli
+npm install -g @buildstuff/jackline
 # or
-npx @jackline/cli <command>
+npx @buildstuff/jackline <command>
 ```
 
 The binary name is `jackline`.
 
-> The package is prepared for public npm publish (`publishConfig.access: public`). Publishing requires ownership of the `@jackline` npm org.
+> Public npm package under the **`@buildstuff`** org (`publishConfig.access: public`).
 
 ## Quick start
 
@@ -117,21 +117,21 @@ From the repo root:
 
 ```bash
 pnpm install
-pnpm --filter @jackline/cli dev      # tsx watch
-pnpm --filter @jackline/cli build    # tsup → dist/
-pnpm --filter @jackline/cli typecheck
+pnpm --filter @buildstuff/jackline dev      # tsx watch
+pnpm --filter @buildstuff/jackline build    # tsup → dist/
+pnpm --filter @buildstuff/jackline typecheck
 ```
 
 Workspace packages `@jackline/crypto` and `@jackline/shared` are **bundled into `dist`** at build time so the published package does not depend on private workspace packages.
 
-## Publishing (`@jackline/cli`)
+## Publishing (`@buildstuff/jackline`)
 
 Releases are meant to go out **only from GitHub Actions** via npm **trusted publishing** (OIDC). There should be no long-lived `NPM_TOKEN` for routine publishes.
 
 ### One-time setup (maintainer)
 
-1. Own the `@jackline` npm org; enforce 2FA for publishers.
-2. On npmjs.com → `@jackline/cli` → Trusted Publisher:
+1. Own the **`@buildstuff`** npm org; enforce 2FA for publishers.
+2. On npmjs.com → `@buildstuff/jackline` → Trusted Publisher:
    - GitHub user/org: `kvpendergast`
    - Repository: `jackline`
    - Workflow filename: `publish-cli.yml`
@@ -152,7 +152,7 @@ git push origin cli-v0.1.0
 ```
 
 4. Confirm the **Publish CLI** workflow succeeded on GitHub Actions.
-5. Verify: `npm view @jackline/cli version`
+5. Verify: `npm view @buildstuff/jackline version`
 
 Do **not** run `npm publish` from a laptop for normal releases.
 
