@@ -1,19 +1,17 @@
-# Mesh edge proxy (production Compose).
-# Path routing keeps Admin UI + API on one origin (cookies / CORS stay simple).
+# Mesh edge proxy — default all-in-one topology (UI + API + MCP on one site).
 #
-#   http://localhost/           → admin UI
-#   http://localhost/api/*      → API
-#   http://localhost/scim/*     → SCIM
-#   http://localhost/health     → API health
-#   http://localhost/openapi.json → OpenAPI JSON
-#   http://localhost/mcp        → MCP gateway
-#   http://docs.localhost/      → Zudoku docs
-
+# MESH_SITE_ADDRESS controls HTTP vs HTTPS:
+#   Local:        http://localhost
+#   Let's Encrypt: mesh.example.com   (no scheme — Caddy enables HTTPS)
+#
+# Docs site is separate (subdomain or alternate host):
+#   Local:        http://docs.localhost
+#   Production:   docs.mesh.example.com
 {
-	auto_https off
+	{$MESH_CADDY_GLOBAL_OPTIONS}
 }
 
-http://{$MESH_HOST:localhost} {
+{$MESH_SITE_ADDRESS} {
 	encode gzip
 
 	handle /mcp* {
@@ -42,7 +40,7 @@ http://{$MESH_HOST:localhost} {
 	}
 }
 
-http://docs.{$MESH_HOST:localhost} {
+{$MESH_DOCS_SITE_ADDRESS} {
 	encode gzip
 	reverse_proxy docs:80
 }

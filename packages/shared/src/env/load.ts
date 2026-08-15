@@ -19,6 +19,7 @@ const ENV_KEYS = [
   "BETTER_AUTH_URL",
   "MESH_PUBLIC_API_URL",
   "MESH_PUBLIC_MCP_URL",
+  "MESH_ADDITIONAL_ORIGINS",
   "MESH_OIDC_ISSUER",
   "MESH_OIDC_CLIENT_ID",
   "MESH_OIDC_CLIENT_SECRET",
@@ -65,6 +66,7 @@ export function publicMcpUrl(env: Env): string {
 /**
  * Origins allowed for the web UI (CORS + Better Auth trustedOrigins).
  * Expands localhost ↔ 127.0.0.1 so either hostname works in local dev.
+ * Also includes MESH_ADDITIONAL_ORIGINS (comma-separated) for split-host setups.
  */
 export function webTrustedOrigins(env: Env): string[] {
   const primary = env.WEB_ORIGIN.replace(/\/$/, "");
@@ -80,6 +82,15 @@ export function webTrustedOrigins(env: Env): string[] {
     }
   } catch {
     /* keep primary only */
+  }
+  for (const part of (env.MESH_ADDITIONAL_ORIGINS ?? "").split(",")) {
+    const origin = part.trim().replace(/\/$/, "");
+    if (!origin) continue;
+    try {
+      origins.add(new URL(origin).origin);
+    } catch {
+      origins.add(origin);
+    }
   }
   return [...origins];
 }

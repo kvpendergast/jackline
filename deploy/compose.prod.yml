@@ -1,14 +1,15 @@
-# Production single-host stand-up for Mesh.
+# Production single-host stand-up for Mesh (default topology).
+#
+# UI + API + MCP share one origin via Caddy. Caddy is a convenience edge —
+# not required (see compose.byo-edge.yml / compose.gateway-split.yml).
 #
 # Usage (from repo root):
 #   cp deploy/.env.prod.example .env.prod
 #   # set MESH_MASTER_KEY, BETTER_AUTH_SECRET
 #   docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 #
-# Entry points:
-#   App (+ API + MCP):  http://localhost/
-#   Docs:               http://docs.localhost/
-#   OpenAPI JSON:       http://localhost/openapi.json
+# HTTPS: set MESH_SITE_ADDRESS / MESH_DOCS_SITE_ADDRESS to bare hostnames
+# (no http://) and open ports 80 + 443. See apps/docs/pages/self-hosting.mdx.
 #
 # Dev (tsx watch) stack remains: deploy/docker-compose.yml + Dockerfile.dev
 
@@ -110,10 +111,15 @@ services:
     image: caddy:2.9-alpine
     ports:
       - "${MESH_HTTP_PORT:-80}:80"
+      - "${MESH_HTTPS_PORT:-443}:443"
     environment:
-      MESH_HOST: ${MESH_HOST:-localhost}
+      MESH_SITE_ADDRESS: ${MESH_SITE_ADDRESS:-http://localhost}
+      MESH_DOCS_SITE_ADDRESS: ${MESH_DOCS_SITE_ADDRESS:-http://docs.localhost}
+      MESH_CADDY_GLOBAL_OPTIONS: ${MESH_CADDY_GLOBAL_OPTIONS:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - api
       - gateway
@@ -123,3 +129,5 @@ services:
 
 volumes:
   mesh_pg:
+  caddy_data:
+  caddy_config:
