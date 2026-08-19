@@ -1,5 +1,10 @@
 import type { MiddlewareHandler } from "hono";
-import { JacklineError } from "@jackline/shared";
+import {
+  JacklineError,
+  getConfig,
+  mcpOauthWwwAuthenticate,
+  publicMcpUrl,
+} from "@jackline/shared";
 import { logger } from "../logger.js";
 import { resolveConnectionFromAuthorization } from "./resolveConnection.js";
 import type { GatewayEnv } from "./types.js";
@@ -14,6 +19,16 @@ function errorStatus(error: JacklineError): number {
       return 400;
     default:
       return 500;
+  }
+}
+
+function wwwAuthenticateHeader(): string | undefined {
+  const config = getConfig();
+  if (config.isErr()) return undefined;
+  try {
+    return mcpOauthWwwAuthenticate(publicMcpUrl(config.value));
+  } catch {
+    return undefined;
   }
 }
 
@@ -42,6 +57,10 @@ export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
     if (status >= 500) {
       log.error({ err: error }, "gateway auth failed");
     }
+    if (status === 401) {
+      const challenge = wwwAuthenticateHeader();
+      if (challenge) c.header("WWW-Authenticate", challenge);
+    }
     return c.json(
       {
         error: {
@@ -53,17 +72,22 @@ export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
     );
   }
 
-  const { connection, tenantId, secretId } = result.value;
+  const { connection, tenantId, auth } = result.value;
   c.set("gatewayContext", {
     requestId,
     connection,
     tenantId,
-    secretId,
+    secretId: auth.kind === "gateway_token" ? auth.secretId : null,
+    mcpOAuthAccessTokenId:
+      auth.kind === "mcp_oauth" ? auth.accessTokenId : null,
+    mcpOAuthClientId: auth.kind === "mcp_oauth" ? auth.mcpClientId : null,
+    authKind: auth.kind,
     log: log.child({
       connectionId: connection.id,
       tenantId,
       clientId: connection.clientId,
       userId: connection.userId,
+      authKind: auth.kind,
     }),
   });
 

@@ -9,6 +9,13 @@ import {
 import { scimApp } from "./features/identity/scim.js";
 import { oauthCallbackHandler } from "./features/oauth/handler.js";
 import { oauthTokenHandler } from "./features/clients/tokenHandler.js";
+import {
+  mcpOauthAsMetadataHandler,
+  mcpOauthAuthorizeGetHandler,
+  mcpOauthAuthorizePostHandler,
+  mcpOauthProtectedResourceHandler,
+  mcpOauthTokenHandler,
+} from "./features/mcpOauth/asHandlers.js";
 import { oauthTokenRoute } from "./features/clients/tokenRoute.js";
 import {
   publicV1Features,
@@ -32,6 +39,9 @@ app.use(
 );
 
 app.use("*", requestMiddleware);
+
+app.get("/.well-known/oauth-authorization-server", mcpOauthAsMetadataHandler);
+app.get("/.well-known/oauth-protected-resource", mcpOauthProtectedResourceHandler);
 
 for (const feature of rootFeatures) {
   for (const { route, handler } of feature.routes) {
@@ -57,6 +67,11 @@ v1.get("/oauth/callback", oauthCallbackHandler);
  */
 v1.post("/oauth/token", oauthTokenHandler);
 v1.openAPIRegistry.registerPath(oauthTokenRoute);
+
+/** MCP Authorization Server (Cursor/Claude) — distinct from Admin API token. */
+v1.get("/mcp/oauth/authorize", mcpOauthAuthorizeGetHandler);
+v1.post("/mcp/oauth/authorize", mcpOauthAuthorizePostHandler);
+v1.post("/mcp/oauth/token", mcpOauthTokenHandler);
 
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   extractBearer,
+  killGatewayToken,
+  rotateGatewayToken,
   verifyGatewayAuthorization,
 } from "./gatewayAuth.js";
 import { createApp } from "../server/app.js";
@@ -120,5 +122,37 @@ describe("gateway /mcp auth", () => {
     } finally {
       app.close();
     }
+  });
+
+  it("rotate invalidates the old local gateway bearer", async () => {
+    const { paths, token: oldToken } =
+      await createTempJacklineHomeWithGatewayToken();
+    const oldValid = await verifyGatewayAuthorization(
+      `Bearer ${oldToken}`,
+      paths,
+    );
+    assert.equal(oldValid, true);
+
+    const newToken = await rotateGatewayToken(paths);
+    const newValid = await verifyGatewayAuthorization(
+      `Bearer ${newToken}`,
+      paths,
+    );
+    assert.equal(newValid, true);
+    const oldValidAfter = await verifyGatewayAuthorization(
+      `Bearer ${oldToken}`,
+      paths,
+    );
+    assert.equal(oldValidAfter, false);
+  });
+
+  it("kill invalidates the current local gateway bearer", async () => {
+    const { paths, token } = await createTempJacklineHomeWithGatewayToken();
+    const valid = await verifyGatewayAuthorization(`Bearer ${token}`, paths);
+    assert.equal(valid, true);
+
+    await killGatewayToken(paths);
+    const validAfter = await verifyGatewayAuthorization(`Bearer ${token}`, paths);
+    assert.equal(validAfter, false);
   });
 });

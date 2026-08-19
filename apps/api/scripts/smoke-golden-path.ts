@@ -8,7 +8,7 @@
 import { loadEnvFile } from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadConfig } from "@jackline/shared";
+import { createOAuthState, createPkcePair, loadConfig } from "@jackline/shared";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 loadEnvFile(path.join(root, ".env"));
@@ -171,8 +171,11 @@ async function main() {
 
   const tenantId = await ensureSession();
 
-  const me = await api<{ user: { email: string } }>("/api/v1/me");
+  const me = await api<{ user: { id: string; email: string } }>(
+    "/api/v1/me",
+  );
   console.log(`✓ me ${me.data.user.email}`);
+  const userId = me.data.user.id;
 
   const server = await api<{ id: string }>("/api/v1/servers", {
     method: "POST",
@@ -226,12 +229,8 @@ async function main() {
     }),
   });
 
-  const users = await api<{ items: { id: string }[] }>(
-    "/api/v1/users?limit=50",
-    { tenantId },
-  );
-  const userId = users.data.items[0]?.id;
-  if (!userId) throw new Error("No tenant user for connection subject");
+  // Use the signed-in smoke admin as the connection subject so MCP OAuth
+  // consent authorization can succeed.
 
   const connection = await api<{ id: string }>("/api/v1/connections", {
     method: "POST",
@@ -316,6 +315,235 @@ async function main() {
     );
   }
   console.log("✓ gateway tools/list includes smoke tool");
+
+  console.log("\nMCP OAuth happy path smoke");
+  const redirectUri = "http://127.0.0.1:8787/callback";
+
+  const mcpOauthClient = await api<any>(
+    `/api/v1/connections/${connection.data.id}/mcp-oauth/clients`,
+    {
+      method: "POST",
+      tenantId,
+      body: JSON.stringify({
+        name: `smoke-mcp-oauth-${Date.now()}`,
+        redirectPresets: ["cursor-desktop"],
+      }),
+    },
+  );
+  const clientId = mcpOauthClient.data.clientId as string;
+  const clientSecret = mcpOauthClient.data.clientSecret as string;
+
+  const { codeVerifier, codeChallenge } = await createPkcePair();
+  const state = createOAuthState();
+
+  const approveForm = new URLSearchParams({
+    decision: "approve",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    state,
+    scope: "mcp",
+  });
+
+  const authorizeRes = await fetch(
+    `${API}/api/v1/mcp/oauth/authorize`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        Origin: ORIGIN,
+        Cookie: cookieHeader(),
+      },
+      body: approveForm.toString(),
+      redirect: "manual",
+    },
+  );
+
+  if (authorizeRes.status !== 302) {
+    throw new Error(
+      `mcp/oauth/authorize → ${authorizeRes.status}: ${await authorizeRes.text()}`,
+    );
+  }
+
+  const location = authorizeRes.headers.get("location");
+  if (!location) throw new Error("authorize response missing Location header");
+  const authCode = new URL(location).searchParams.get("code");
+  if (!authCode) throw new Error("authorize redirect missing code");
+  console.log("✓ /mcp/oauth/authorize issued code");
+
+  const tokenRes = await fetch(`${API}/api/v1/mcp/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: authCode,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    }).toString(),
+  });
+  const tokenJson = (await tokenRes.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+  };
+  if (!tokenRes.ok || !tokenJson.access_token) {
+    throw new Error(
+      `mcp/oauth/token → ${tokenRes.status}: ${JSON.stringify(tokenJson)}`,
+    );
+  }
+
+  const accessToken1 = tokenJson.access_token;
+  const refreshToken = tokenJson.refresh_token as string;
+  console.log("✓ OAuth token exchange (authorization_code)");
+
+  const initOauthRes = await fetch(`${GATEWAY}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken1}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "smoke-oauth", version: "0" },
+      },
+    }),
+  });
+  if (!initOauthRes.ok) {
+    throw new Error(
+      `gateway initialize (OAuth) → ${initOauthRes.status}: ${await initOauthRes.text()}`,
+    );
+  }
+
+  const toolsOauthRes = await fetch(`${GATEWAY}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken1}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/list",
+    }),
+  });
+  const toolsOauthText = await toolsOauthRes.text();
+  if (!toolsOauthRes.ok || !toolsOauthText.includes("smoke")) {
+    throw new Error(
+      `gateway tools/list (OAuth access) failed: ${toolsOauthRes.status}: ${toolsOauthText.slice(0, 500)}`,
+    );
+  }
+  console.log("✓ gateway tools/list works with MCP OAuth access token");
+
+  const refreshRes = await fetch(`${API}/api/v1/mcp/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+    }).toString(),
+  });
+  const refreshJson = (await refreshRes.json()) as {
+    access_token?: string;
+  };
+  if (!refreshRes.ok || !refreshJson.access_token) {
+    throw new Error(
+      `mcp/oauth/token refresh → ${refreshRes.status}: ${JSON.stringify(refreshJson)}`,
+    );
+  }
+
+  const accessToken2 = refreshJson.access_token;
+  const toolsOauth2Res = await fetch(`${GATEWAY}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken2}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/list",
+    }),
+  });
+  const toolsOauth2Text = await toolsOauth2Res.text();
+  if (!toolsOauth2Res.ok || !toolsOauth2Text.includes("smoke")) {
+    throw new Error(
+      `gateway tools/list (refreshed OAuth access) failed: ${toolsOauth2Res.status}: ${toolsOauth2Text.slice(0, 500)}`,
+    );
+  }
+  console.log("✓ OAuth refresh_token minted working access token");
+
+  await api(
+    `/api/v1/connections/${connection.data.id}/mcp-oauth/clients/${clientId}/revoke-sessions`,
+    {
+      method: "POST",
+      tenantId,
+    },
+  );
+  console.log("✓ killed MCP OAuth refresh/access sessions");
+
+  // Old refresh token should now be rejected.
+  const refreshAfterKillRes = await fetch(`${API}/api/v1/mcp/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+    }).toString(),
+  });
+
+  const refreshAfterKillJson = await refreshAfterKillRes
+    .json()
+    .catch(() => ({}));
+  if (refreshAfterKillRes.ok) {
+    throw new Error(
+      `expected refresh token to be revoked after kill, got ${refreshAfterKillRes.status}: ${JSON.stringify(refreshAfterKillJson)}`,
+    );
+  }
+  console.log("✓ refresh token rejected after session kill");
+
+  // Access token minted from the refreshed session should also be revoked.
+  const killedToolsRes = await fetch(`${GATEWAY}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken2}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 13,
+      method: "tools/list",
+    }),
+  });
+
+  const wwwAuth =
+    killedToolsRes.headers.get("www-authenticate") ??
+    killedToolsRes.headers.get("WWW-Authenticate");
+  if (killedToolsRes.status !== 401) {
+    throw new Error(
+      `expected gateway 401 after kill, got ${killedToolsRes.status}: ${await killedToolsRes.text()}`,
+    );
+  }
+  if (!wwwAuth || !wwwAuth.includes("resource_metadata")) {
+    throw new Error(
+      `expected WWW-Authenticate challenge with resource_metadata, got: ${wwwAuth ?? "missing"}`,
+    );
+  }
+  console.log("✓ gateway challenges revoked MCP access tokens");
 
   await api(`/api/v1/connections/${connection.data.id}`, {
     method: "PATCH",

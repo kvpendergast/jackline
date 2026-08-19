@@ -8,6 +8,9 @@ import type {
   PublicClient,
   PublicConnection,
   PublicConnectionDetail,
+  CreateMcpOauthClientBody,
+  MintedMcpOauthClient,
+  PublicMcpOauthClient,
   PublicGatewayCredential,
   PublicRole,
   PublicRoleDetail,
@@ -417,6 +420,55 @@ export const jacklineApi = {
     api<PublicGatewayCredential>(
       `/api/v1/connections/${connectionId}/credentials/${secretId}`,
       { tenantId, method: "DELETE" },
+    ),
+
+  listMcpOauthClients: (tenantId: string, connectionId: string) =>
+    api<PublicMcpOauthClient[]>(
+      `/api/v1/connections/${connectionId}/mcp-oauth/clients`,
+      { tenantId },
+    ),
+
+  createMcpOauthClient: (
+    tenantId: string,
+    connectionId: string,
+    body: CreateMcpOauthClientBody,
+  ) =>
+    api<MintedMcpOauthClient>(
+      `/api/v1/connections/${connectionId}/mcp-oauth/clients`,
+      { tenantId, method: "POST", body },
+    ),
+
+  rotateMcpOauthClientSecret: (
+    tenantId: string,
+    connectionId: string,
+    clientId: string,
+  ) =>
+    api<MintedMcpOauthClient>(
+      `/api/v1/connections/${connectionId}/mcp-oauth/clients/${clientId}/rotate-secret`,
+      { tenantId, method: "POST", body: {} },
+    ),
+
+  revokeMcpOauthClient: (
+    tenantId: string,
+    connectionId: string,
+    clientId: string,
+  ) =>
+    api<PublicMcpOauthClient>(
+      `/api/v1/connections/${connectionId}/mcp-oauth/clients/${clientId}/revoke`,
+      { tenantId, method: "POST", body: {} },
+    ),
+
+  revokeMcpOauthClientSessions: (
+    tenantId: string,
+    connectionId: string,
+    clientId: string,
+  ) =>
+    api<{
+      revokedRefreshTokens: number;
+      revokedAccessTokens: number;
+    }>(
+      `/api/v1/connections/${connectionId}/mcp-oauth/clients/${clientId}/revoke-sessions`,
+      { tenantId, method: "POST", body: {} },
     ),
 
   listAuditEvents: (
