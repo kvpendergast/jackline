@@ -35,6 +35,11 @@ export const MCP_OAUTH_REDIRECT_PRESETS = [
     label: "Claude.ai / Desktop connectors",
     uri: "https://claude.ai/api/mcp/auth_callback",
   },
+  {
+    id: "claude-code-local",
+    label: "Claude Code (loopback /callback)",
+    uri: "http://localhost:8787/callback",
+  },
 ] as const;
 
 export type McpOauthRedirectPresetId =
