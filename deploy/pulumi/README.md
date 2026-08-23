@@ -96,8 +96,9 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
 | `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
 | `JACKLINE_SECRET_PREFIX` (variable) | Default `jackline-pulumi-` |
+| `JACKLINE_CI_DEPLOY_ENABLED` (variable) | Set to `true` when WIF + secrets are configured; workflows skip otherwise |
 
-Workflows **skip** when WIF secrets are unset (safe for forks that do not self-host via CI).
+Workflows **skip** when `JACKLINE_CI_DEPLOY_ENABLED` is not `true` (safe for forks that do not self-host via CI). GitHub does not allow checking `secrets` in job-level `if` conditions.
 
 Enable **IAP** tunnel access for the deploy SA (`roles/iap.tunnelResourceAccessor`) so Actions can `gcloud compute ssh --tunnel-through-iap` without opening SSH to the world.
 
