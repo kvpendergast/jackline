@@ -163,11 +163,23 @@ jobs:
           # Startup script bootstraps on first create; give it a head start before compose rebuild.
           sleep 30
 
+          # OS Login ignores metadata SSH keys. Register an RSA key on the deploy SA profile
+          # (ed25519 is not reliably accepted; auto keygen races OS Login propagation).
+          mkdir -p "${HOME}/.ssh"
+          chmod 700 "${HOME}/.ssh"
+          KEY="${HOME}/.ssh/google_compute_engine"
+          if [[ ! -f "${KEY}" ]]; then
+            ssh-keygen -t rsa -b 3072 -f "${KEY}" -N "" -C "github-actions-jackline-deploy"
+          fi
+          gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600
+          sleep 15
+
           gcloud compute ssh "${VM_NAME}" \
             --project="${GCP_PROJECT_ID}" \
             --zone="${VM_ZONE}" \
             --tunnel-through-iap \
             --quiet \
+            --ssh-key-file="${KEY}" \
             --ssh-flag="-o StrictHostKeyChecking=no" \
             --command="sudo GIT_SHA='${GITHUB_SHA}' bash -s" \
             < "${GITHUB_WORKSPACE}/deploy/scripts/remote-deploy.sh"
