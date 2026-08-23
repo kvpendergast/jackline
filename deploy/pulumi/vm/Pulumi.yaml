@@ -1,0 +1,3 @@
+name: jackline-vm
+runtime: nodejs
+description: Jackline on a single GCP VM via Docker Compose (hobbyist default)

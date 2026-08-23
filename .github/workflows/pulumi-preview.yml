@@ -1,0 +1,99 @@
+# pulumi preview on pull requests (no apply, no VM SSH).
+#
+# Uses the same per-repo WIF / Pulumi secrets as deploy-prod.yml.
+# Skips when those secrets are unset.
+name: Pulumi preview
+
+on:
+  pull_request:
+    paths:
+      - "deploy/pulumi/**"
+      - "deploy/compose.prod.yml"
+      - "deploy/Dockerfile"
+      - "deploy/Caddyfile"
+      - "deploy/scripts/**"
+      - ".github/workflows/pulumi-preview.yml"
+      - ".github/workflows/deploy-prod.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: pulumi-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && secrets.GCP_PROJECT_ID != '' }}
+    env:
+      DEPLOY_PATH: ${{ vars.JACKLINE_DEPLOY_PATH || 'vm' }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+        with:
+          pulumi-version: ^3.130.0
+
+      - name: Resolve deploy directory
+        id: path
+        run: |
+          set -euo pipefail
+          case "${DEPLOY_PATH}" in
+            vm|gke) ;;
+            *)
+              echo "Invalid DEPLOY_PATH=${DEPLOY_PATH} (want vm or gke)"
+              exit 1
+              ;;
+          esac
+          echo "dir=deploy/pulumi/${DEPLOY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Pulumi program deps
+        working-directory: ${{ steps.path.outputs.dir }}
+        run: npm ci
+
+      - name: Restore Pulumi stack config
+        working-directory: ${{ steps.path.outputs.dir }}
+        env:
+          PULUMI_STACK_CONFIG: ${{ secrets.PULUMI_STACK_CONFIG }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PULUMI_STACK_CONFIG:-}" ]; then
+            echo "PULUMI_STACK_CONFIG secret is required"
+            exit 1
+          fi
+          printf '%s\n' "$PULUMI_STACK_CONFIG" > Pulumi.prod.yaml
+
+      - name: Pulumi preview
+        working-directory: ${{ steps.path.outputs.dir }}
+        env:
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_STATE_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PULUMI_BACKEND_URL:-}" ]; then
+            echo "PULUMI_STATE_BUCKET secret is required"
+            exit 1
+          fi
+          pulumi login "$PULUMI_BACKEND_URL"
+          pulumi stack select prod
+          pulumi preview
