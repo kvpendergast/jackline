@@ -523,7 +523,7 @@ function ChatSettingsForm({
   onSaved: (message: string) => void;
 }) {
   const { tenantId } = useAuth();
-  const [provider, setProvider] = useState<ChatLlmProvider>("openrouter");
+  const [provider, setProvider] = useState<ChatLlmProvider>("anthropic");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -611,7 +611,13 @@ function ChatSettingsForm({
         <Input
           id="chat-model"
           required
-          placeholder="anthropic/claude-sonnet-4.6"
+          placeholder={
+            provider === "openrouter"
+              ? "anthropic/claude-sonnet-4.6"
+              : provider === "anthropic"
+                ? "claude-sonnet-4-6"
+                : "gpt-4.1"
+          }
           value={model}
           onChange={(e) => setModel(e.target.value)}
         />
