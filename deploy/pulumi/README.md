@@ -81,9 +81,10 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
-3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`), IAP tunnel, Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
-4. Enable **`iap.googleapis.com`** (required for `gcloud compute ssh --tunnel-through-iap`).
-5. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
+3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
+4. Enable **`iap.googleapis.com`** and **`oslogin.googleapis.com`** (IAP tunnel + OS Login SSH).
+5. The VM path creates a dedicated **`jackline-vm@…`** runtime SA (not the default Compute Engine SA) and attaches it to the instance. Set Pulumi config `deployServiceAccount` to your CI deploy SA email (CI does this automatically from `GCP_SERVICE_ACCOUNT`) so Pulumi grants `roles/iam.serviceAccountUser` on `jackline-vm` — required for OS Login and for attaching the SA at create/update time.
+6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
    **Settings → Environments → production**.
 
 | Secret / variable | Purpose |
