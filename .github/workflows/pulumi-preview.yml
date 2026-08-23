@@ -41,7 +41,6 @@ jobs:
       JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
       JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
       JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
-      JACKLINE_TENANCY: ${{ vars.JACKLINE_TENANCY || 'single' }}
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
     steps:
       - name: Checkout

@@ -18,7 +18,6 @@
 #   JACKLINE_VM_ZONE           (vm) → pulumi config zone
 #   JACKLINE_DOCS_DOMAIN       (vm)
 #   JACKLINE_CADDY_EMAIL       (vm)
-#   JACKLINE_TENANCY           default single
 #
 # Secret Manager naming:
 #   ${PREFIX}jacklineMasterKey  →  pulumi config set --secret jacklineMasterKey
@@ -45,7 +44,6 @@ echo "=== plain Pulumi config (path=${DEPLOY_PATH}) ==="
 pulumi config set gcp:project "${GCP_PROJECT_ID}"
 pulumi config set gcp:region "${REGION}"
 pulumi config set domain "${JACKLINE_DOMAIN}"
-pulumi config set tenancy "${JACKLINE_TENANCY:-single}"
 
 if [[ "${DEPLOY_PATH}" == "vm" ]]; then
   : "${JACKLINE_GIT_REPO:?JACKLINE_GIT_REPO is required for vm path}"

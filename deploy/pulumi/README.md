@@ -110,6 +110,7 @@ Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose I
 | `jackline-pulumi-jacklineMasterKey` | `jacklineMasterKey` |
 | `jackline-pulumi-betterAuthSecret` | `betterAuthSecret` |
 | `jackline-pulumi-postgresPassword` | `postgresPassword` |
+| `jackline-pulumi-tenancy` | `tenancy` (`single` or `multi`) |
 
 ```bash
 # example
