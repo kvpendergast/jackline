@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Render production Compose .env.prod for the VM from Secret Manager + GitHub vars.
+# Writes to path given as $1 (default: stdout). Does not log secret values.
+#
+# Required env:
+#   GCP_PROJECT_ID
+#   JACKLINE_DOMAIN
+#
+# Optional:
+#   JACKLINE_SECRET_PREFIX   default jackline-pulumi-
+#   JACKLINE_DOCS_DOMAIN
+#   JACKLINE_CADDY_EMAIL
+#   JACKLINE_TENANCY         default single (overridden by SM secret if present)
+set -euo pipefail
+
+: "${GCP_PROJECT_ID:?GCP_PROJECT_ID is required}"
+: "${JACKLINE_DOMAIN:?JACKLINE_DOMAIN is required}"
+
+PREFIX="${JACKLINE_SECRET_PREFIX:-jackline-pulumi-}"
+OUT="${1:-}"
+
+read_secret() {
+  local key="$1"
+  local id="${PREFIX}${key}"
+  gcloud secrets versions access latest --secret="${id}" --project="${GCP_PROJECT_ID}" 2>/dev/null || true
+}
+
+MASTER_KEY="$(read_secret jacklineMasterKey)"
+AUTH_SECRET="$(read_secret betterAuthSecret)"
+PG_PASS="$(read_secret postgresPassword)"
+TENANCY_SM="$(read_secret tenancy)"
+
+if [[ -z "${MASTER_KEY}" || -z "${AUTH_SECRET}" ]]; then
+  echo "error: missing required Secret Manager secrets ${PREFIX}jacklineMasterKey and/or ${PREFIX}betterAuthSecret" >&2
+  exit 1
+fi
+
+DOMAIN="${JACKLINE_DOMAIN}"
+DOCS_DOMAIN="${JACKLINE_DOCS_DOMAIN:-docs.${DOMAIN}}"
+TENANCY="${TENANCY_SM:-${JACKLINE_TENANCY:-single}}"
+PG_PASS="${PG_PASS:-jackline}"
+PUBLIC="https://${DOMAIN}"
+CADDY_GLOBAL=""
+if [[ -n "${JACKLINE_CADDY_EMAIL:-}" ]]; then
+  CADDY_GLOBAL="email ${JACKLINE_CADDY_EMAIL}"
+fi
+
+# shellcheck disable=SC2016
+render() {
+  cat <<EOF
+NODE_ENV=production
+LOG_LEVEL=info
+JACKLINE_TENANCY=${TENANCY}
+JACKLINE_MASTER_KEY=${MASTER_KEY}
+BETTER_AUTH_SECRET=${AUTH_SECRET}
+JACKLINE_SECRET_STORAGE_LOCATION=local
+POSTGRES_PASSWORD=${PG_PASS}
+JACKLINE_SITE_ADDRESS=${DOMAIN}
+JACKLINE_DOCS_SITE_ADDRESS=${DOCS_DOMAIN}
+JACKLINE_HTTP_PORT=80
+JACKLINE_HTTPS_PORT=443
+JACKLINE_CADDY_GLOBAL_OPTIONS=${CADDY_GLOBAL}
+WEB_ORIGIN=${PUBLIC}
+BETTER_AUTH_URL=${PUBLIC}
+JACKLINE_PUBLIC_API_URL=${PUBLIC}
+JACKLINE_PUBLIC_MCP_URL=${PUBLIC}/mcp
+API_HOST=0.0.0.0
+API_PORT=8080
+GATEWAY_HOST=0.0.0.0
+GATEWAY_PORT=8081
+EOF
+}
+
+if [[ -n "${OUT}" ]]; then
+  umask 077
+  render >"${OUT}"
+  chmod 600 "${OUT}"
+  echo "Wrote ${OUT}" >&2
+else
+  render
+fi
