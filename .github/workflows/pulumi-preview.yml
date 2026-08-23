@@ -1,7 +1,7 @@
 # pulumi preview on pull requests (no apply, no VM SSH).
 #
-# Uses the same per-repo WIF / Pulumi secrets as deploy-prod.yml.
-# Skips when those secrets are unset.
+# Same WIF + Secret Manager prefix config as deploy-prod.yml.
+# Jobs use environment: production (secrets + variables live on that Environment).
 name: Pulumi preview
 
 on:
@@ -28,32 +28,44 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && secrets.GCP_PROJECT_ID != '' }}
+    environment: production
     env:
       DEPLOY_PATH: ${{ vars.JACKLINE_DEPLOY_PATH || 'vm' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      JACKLINE_DOMAIN: ${{ vars.JACKLINE_DOMAIN }}
+      JACKLINE_GIT_REPO: ${{ vars.JACKLINE_GIT_REPO }}
+      JACKLINE_GIT_REF: ${{ vars.JACKLINE_GIT_REF || 'main' }}
+      JACKLINE_MACHINE_TYPE: ${{ vars.JACKLINE_MACHINE_TYPE }}
+      JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
+      JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
+      JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false
 
       - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
-        with:
-          pulumi-version: ^3.130.0
+        run: |
+          set -euo pipefail
+          curl -fsSL https://get.pulumi.com | sh -s -- --version 3.130.0
+          echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
 
       - name: Resolve deploy directory
         id: path
@@ -72,18 +84,6 @@ jobs:
         working-directory: ${{ steps.path.outputs.dir }}
         run: npm ci
 
-      - name: Restore Pulumi stack config
-        working-directory: ${{ steps.path.outputs.dir }}
-        env:
-          PULUMI_STACK_CONFIG: ${{ secrets.PULUMI_STACK_CONFIG }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PULUMI_STACK_CONFIG:-}" ]; then
-            echo "PULUMI_STACK_CONFIG secret is required"
-            exit 1
-          fi
-          printf '%s\n' "$PULUMI_STACK_CONFIG" > Pulumi.prod.yaml
-
       - name: Pulumi preview
         working-directory: ${{ steps.path.outputs.dir }}
         env:
@@ -94,6 +94,11 @@ jobs:
             echo "PULUMI_STATE_BUCKET secret is required"
             exit 1
           fi
+          if [ -z "${JACKLINE_DOMAIN:-}" ]; then
+            echo "GitHub variable JACKLINE_DOMAIN is required"
+            exit 1
+          fi
           pulumi login "$PULUMI_BACKEND_URL"
-          pulumi stack select prod
+          pulumi stack select prod --create
+          bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-pulumi-apply-config.sh"
           pulumi preview
