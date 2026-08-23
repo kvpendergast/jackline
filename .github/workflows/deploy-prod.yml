@@ -181,5 +181,5 @@ jobs:
             --quiet \
             --ssh-key-file="${KEY}" \
             --ssh-flag="-o StrictHostKeyChecking=no" \
-            --command="sudo GIT_SHA='${GITHUB_SHA}' bash -s" \
+            --command="sudo GIT_SHA='${GITHUB_SHA}' GIT_REPO='${JACKLINE_GIT_REPO}' GIT_REF='${JACKLINE_GIT_REF:-main}' bash -s" \
             < "${GITHUB_WORKSPACE}/deploy/scripts/remote-deploy.sh"
