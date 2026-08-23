@@ -58,18 +58,16 @@ export async function connectJacklineMcpTools(
 
   try {
     await client.connect(transport as unknown as Transport);
-    let listed: { tools: Array<{ name: string; description?: string; inputSchema?: unknown }> };
+    let listedTools: Awaited<ReturnType<typeof client.listTools>>["tools"] = [];
     try {
-      listed = await client.listTools();
+      listedTools = (await client.listTools()).tools;
     } catch (cause) {
       // Jackline registers tools/list only after at least one tool is granted.
-      if (isMcpMethodNotFound(cause)) {
-        listed = { tools: [] };
-      } else {
+      if (!isMcpMethodNotFound(cause)) {
         throw cause;
       }
     }
-    const tools = listed.tools.map((tool) => {
+    const tools = listedTools.map((tool) => {
       const def = toolDefinition({
         name: tool.name,
         description: tool.description ?? tool.name,
