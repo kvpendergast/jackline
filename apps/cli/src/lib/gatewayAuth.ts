@@ -6,7 +6,7 @@ import {
 } from "@jackline/shared";
 import { loadConfig, saveConfig } from "./config.js";
 import { getJacklinePaths, type JacklinePaths } from "./paths.js";
-import { getSecretPlaintext, putSecret } from "./secrets.js";
+import { deleteSecret, getSecretPlaintext, putSecret } from "./secrets.js";
 
 export type PersonalMcpClientConfig = {
   url: string;
@@ -140,6 +140,54 @@ export async function loadGatewayToken(
     );
   }
   return formatGatewayToken(secretId, stored.value);
+}
+
+/**
+ * Rotate the long-lived local gateway bearer token.
+ *
+ * Deletes the previously minted token secret (if present) and mints a fresh
+ * `jkl_…` token, updating config.yaml.
+ */
+export async function rotateGatewayToken(
+  paths?: JacklinePaths,
+): Promise<string> {
+  const p = paths ?? getJacklinePaths();
+  const config = await loadConfig(p);
+
+  const oldSecretId = config.gatewayTokenSecretId;
+  if (oldSecretId) {
+    // Best-effort: invalid tokens should already be harmless even if delete fails.
+    await deleteSecret(oldSecretId, p).catch(() => undefined);
+  }
+
+  return await mintGatewayToken(p);
+}
+
+/**
+ * Invalidate (kill) the current local gateway bearer token.
+ *
+ * This removes the stored gateway-token secret and clears
+ * `gatewayTokenSecretId` in config.yaml. `jackline serve` will re-mint a new
+ * token on next start / `jackline auth show --ensure`.
+ */
+export async function killGatewayToken(
+  paths?: JacklinePaths,
+): Promise<void> {
+  const p = paths ?? getJacklinePaths();
+  const config = await loadConfig(p);
+
+  const oldSecretId = config.gatewayTokenSecretId;
+  if (oldSecretId) {
+    await deleteSecret(oldSecretId, p).catch(() => undefined);
+  }
+
+  await saveConfig(
+    {
+      ...config,
+      gatewayTokenSecretId: undefined,
+    },
+    p,
+  );
 }
 
 /**

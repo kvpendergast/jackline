@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
@@ -14,10 +14,6 @@ function ssoSecretAad(tenantId: string): Uint8Array {
 
 export function ssoProviderId(tenantId: string): string {
   return `oidc-${tenantId}`;
-}
-
-export function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export function generateInviteToken(): string {
@@ -36,6 +32,26 @@ export function generateClientSecret(): string {
 /** Opaque OAuth2 access token for Jackline Admin API. */
 export function generateAccessToken(): string {
   return `jackline_at_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque MCP OAuth access token (gateway /mcp). */
+export function generateMcpOauthAccessToken(): string {
+  return `jkl_mcp_at_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque MCP OAuth refresh token. */
+export function generateMcpOauthRefreshToken(): string {
+  return `jkl_mcp_rt_${randomBytes(32).toString("base64url")}`;
+}
+
+/** MCP OAuth client_secret. */
+export function generateMcpOauthClientSecret(): string {
+  return `jkl_mcp_cs_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Authorization code (hashed at rest). */
+export function generateMcpOauthAuthorizationCode(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {

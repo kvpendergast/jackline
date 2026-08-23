@@ -18,6 +18,10 @@
 		reverse_proxy gateway:8081
 	}
 
+	handle /.well-known/* {
+		reverse_proxy api:8080
+	}
+
 	handle /api* {
 		reverse_proxy api:8080
 	}

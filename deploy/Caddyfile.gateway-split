@@ -13,6 +13,10 @@
 		reverse_proxy api:8080
 	}
 
+	handle /.well-known/* {
+		reverse_proxy api:8080
+	}
+
 	handle /scim* {
 		reverse_proxy api:8080
 	}

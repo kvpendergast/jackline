@@ -10,11 +10,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
-    "test": "echo \"no tests yet\"",
+    "test": "node --import tsx --test --test-force-exit \"src/**/*.test.ts\"",
     "lint": "echo \"lint later\""
   },
   "dependencies": {
     "neverthrow": "^8.2.0",
     "@jackline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "@types/node": "^26.1.1"
   }
 }

@@ -1,21 +1,31 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, gt } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { connections, db, secrets, type Connection } from "@jackline/db";
+import {
+  connections,
+  db,
+  mcpOauthAccessTokens,
+  secrets,
+  type Connection,
+} from "@jackline/db";
 import {
   ForbiddenError,
   GATEWAY_TOKEN_KIND,
   JacklineError,
-  parseGatewayToken,
   UnauthorizedError,
+  isMcpOauthAccessToken,
+  parseGatewayToken,
 } from "@jackline/shared";
+import { hashToken } from "@jackline/crypto";
 import { getSecretBox, secretAad } from "../secretBox.js";
 
 export type ResolvedGatewayAuth = {
   connection: Connection;
   tenantId: string;
-  secretId: string;
+  auth:
+    | { kind: "gateway_token"; secretId: string }
+    | { kind: "mcp_oauth"; accessTokenId: string; mcpClientId: string };
 };
 
 function safeEqualString(a: string, b: string): boolean {
@@ -34,20 +44,46 @@ function extractBearer(authorization: string | undefined): string | null {
   return match?.[1] ?? null;
 }
 
-/**
- * Authenticate a gateway bearer token and resolve its active connection.
- * Invalid/unknown credentials → Unauthorized (no existence leak).
- * Known credential on non-active connection → Forbidden.
- */
-export async function resolveConnectionFromAuthorization(
-  authorization: string | undefined,
+async function loadActiveConnection(
+  connectionId: string,
+  tenantId: string,
   log: Logger,
-): Promise<Result<ResolvedGatewayAuth, JacklineError>> {
-  const bearer = extractBearer(authorization);
-  if (!bearer) {
-    return err(new UnauthorizedError("Missing bearer token"));
+  logCtx: Record<string, string>,
+): Promise<Result<Connection, JacklineError>> {
+  const [connection] = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.id, connectionId),
+        eq(connections.tenantId, tenantId),
+      ),
+    )
+    .limit(1);
+
+  if (!connection) {
+    log.warn(logCtx, "gateway auth: connection missing");
+    return err(new UnauthorizedError("Invalid gateway token"));
   }
 
+  if (connection.status !== "active") {
+    log.info(
+      {
+        connectionId: connection.id,
+        status: connection.status,
+      },
+      "gateway auth: connection not active",
+    );
+    return err(new ForbiddenError(`Connection is ${connection.status}`));
+  }
+
+  return ok(connection);
+}
+
+async function resolveStaticGatewayToken(
+  bearer: string,
+  log: Logger,
+): Promise<Result<ResolvedGatewayAuth, JacklineError>> {
   const parsed = parseGatewayToken(bearer);
   if (parsed.isErr()) {
     return err(new UnauthorizedError("Invalid gateway token"));
@@ -102,38 +138,85 @@ export async function resolveConnectionFromAuthorization(
     return err(new UnauthorizedError("Invalid gateway token"));
   }
 
-  const [connection] = await db
+  const connectionResult = await loadActiveConnection(
+    row.connectionId,
+    row.tenantId,
+    log,
+    { secretId, connectionId: row.connectionId },
+  );
+  if (connectionResult.isErr()) return err(connectionResult.error);
+
+  return ok({
+    connection: connectionResult.value,
+    tenantId: connectionResult.value.tenantId,
+    auth: { kind: "gateway_token", secretId: row.id },
+  });
+}
+
+async function resolveMcpOauthAccessToken(
+  bearer: string,
+  log: Logger,
+): Promise<Result<ResolvedGatewayAuth, JacklineError>> {
+  const tokenHash = hashToken(bearer);
+  const now = new Date();
+
+  const [row] = await db
     .select()
-    .from(connections)
+    .from(mcpOauthAccessTokens)
     .where(
       and(
-        eq(connections.id, row.connectionId),
-        eq(connections.tenantId, row.tenantId),
+        eq(mcpOauthAccessTokens.tokenHash, tokenHash),
+        isNull(mcpOauthAccessTokens.revokedAt),
+        gt(mcpOauthAccessTokens.expiresAt, now),
       ),
     )
     .limit(1);
 
-  if (!connection) {
-    log.warn({ secretId, connectionId: row.connectionId }, "gateway auth: connection missing");
+  if (!row) {
+    log.warn("gateway auth: unknown or expired MCP OAuth access token");
     return err(new UnauthorizedError("Invalid gateway token"));
   }
 
-  if (connection.status !== "active") {
-    log.info(
-      {
-        connectionId: connection.id,
-        status: connection.status,
-      },
-      "gateway auth: connection not active",
-    );
-    return err(
-      new ForbiddenError(`Connection is ${connection.status}`),
-    );
-  }
+  const connectionResult = await loadActiveConnection(
+    row.connectionId,
+    row.tenantId,
+    log,
+    {
+      accessTokenId: row.id,
+      connectionId: row.connectionId,
+    },
+  );
+  if (connectionResult.isErr()) return err(connectionResult.error);
 
   return ok({
-    connection,
-    tenantId: connection.tenantId,
-    secretId: row.id,
+    connection: connectionResult.value,
+    tenantId: connectionResult.value.tenantId,
+    auth: {
+      kind: "mcp_oauth",
+      accessTokenId: row.id,
+      mcpClientId: row.clientId,
+    },
   });
+}
+
+/**
+ * Authenticate a gateway bearer (static `jkl_…` or MCP OAuth access token)
+ * and resolve its active connection.
+ * Invalid/unknown credentials → Unauthorized (no existence leak).
+ * Known credential on non-active connection → Forbidden.
+ */
+export async function resolveConnectionFromAuthorization(
+  authorization: string | undefined,
+  log: Logger,
+): Promise<Result<ResolvedGatewayAuth, JacklineError>> {
+  const bearer = extractBearer(authorization);
+  if (!bearer) {
+    return err(new UnauthorizedError("Missing bearer token"));
+  }
+
+  if (isMcpOauthAccessToken(bearer)) {
+    return resolveMcpOauthAccessToken(bearer, log);
+  }
+
+  return resolveStaticGatewayToken(bearer, log);
 }

@@ -18,6 +18,8 @@ import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
 import type {
   MintedGatewayCredential,
+  MintedMcpOauthClient,
+  PublicMcpOauthClient,
   PublicAuditEvent,
   PublicClient,
   PublicConnectionDetail,
@@ -28,6 +30,8 @@ import type {
   PublicUser,
   UpstreamCredentialStatus,
 } from "@jackline/shared";
+
+import { MCP_OAUTH_REDIRECT_PRESETS } from "@jackline/shared";
 
 export function ConnectionDetailPage() {
   const { id = "" } = useParams();
@@ -50,8 +54,20 @@ export function ConnectionDetailPage() {
   >([]);
   const [denies, setDenies] = useState<PublicAuditEvent[]>([]);
   const [minted, setMinted] = useState<MintedGatewayCredential | null>(null);
+  const [mcpOauthClients, setMcpOauthClients] = useState<PublicMcpOauthClient[]>(
+    [],
+  );
+  const [mcpOauthMinted, setMcpOauthMinted] = useState<MintedMcpOauthClient | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [createMcpOauthName, setCreateMcpOauthName] = useState("");
+  const [createMcpOauthPresetIds, setCreateMcpOauthPresetIds] = useState<
+    string[]
+  >(["cursor-desktop"]);
+  const [createMcpOauthCustomRedirectUris, setCreateMcpOauthCustomRedirectUris] =
+    useState("");
   const [attachRoleId, setAttachRoleId] = useState("");
   const [overrideToolId, setOverrideToolId] = useState("");
   const [overrideType, setOverrideType] = useState<"allow" | "deny">("deny");
@@ -72,6 +88,7 @@ export function ConnectionDetailPage() {
       rolePage,
       toolPage,
       creds,
+      mcpOauthClientsPage,
       effective,
       upstream,
       denyPage,
@@ -83,6 +100,7 @@ export function ConnectionDetailPage() {
       jacklineApi.listRoles(tenantId).catch(() => ({ items: [] as PublicRole[] })),
       jacklineApi.listTools(tenantId),
       jacklineApi.listCredentials(tenantId, id),
+      jacklineApi.listMcpOauthClients(tenantId, id),
       jacklineApi.listEffectiveTools(tenantId, id),
       jacklineApi.listUpstreamCredentials(tenantId, id),
       jacklineApi.listAuditEvents(tenantId, {
@@ -99,6 +117,7 @@ export function ConnectionDetailPage() {
     setRoles(rolePage.items.filter((r) => conn.roleIds.includes(r.id)));
     setTools(toolPage.items);
     setCredentials(creds);
+    setMcpOauthClients(mcpOauthClientsPage);
     setEffectiveTools(effective.items);
     setUpstreamCredentials(upstream.items);
     setDenies(denyPage.items);
@@ -205,6 +224,106 @@ export function ConnectionDetailPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Revoke failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function parseRedirectUris(raw: string): string[] {
+    return raw
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function toggleCreatePreset(presetId: string) {
+    setCreateMcpOauthPresetIds((prev) =>
+      prev.includes(presetId)
+        ? prev.filter((x) => x !== presetId)
+        : [...prev, presetId],
+    );
+  }
+
+  async function onCreateMcpOauthClient() {
+    if (!tenantId || !id) return;
+    setBusy(true);
+    setError(null);
+    setMcpOauthMinted(null);
+    try {
+      const name = createMcpOauthName.trim();
+      if (!name) {
+        setError("Client name is required");
+        return;
+      }
+
+      const customUris = parseRedirectUris(createMcpOauthCustomRedirectUris);
+      if (createMcpOauthPresetIds.length === 0 && customUris.length === 0) {
+        setError("Pick at least one redirect preset or provide a custom URL");
+        return;
+      }
+
+      const result = await jacklineApi.createMcpOauthClient(tenantId, id, {
+        name,
+        redirectPresets: createMcpOauthPresetIds as any,
+        redirectUris: customUris,
+      } as any);
+
+      setMcpOauthMinted(result);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Create failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRotateMcpOauthClientSecret(clientId: string) {
+    if (!tenantId || !id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await jacklineApi.rotateMcpOauthClientSecret(
+        tenantId,
+        id,
+        clientId,
+      );
+      setMcpOauthMinted(result);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Rotate failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRevokeMcpOauthClientSessions(clientId: string) {
+    if (!tenantId || !id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await jacklineApi.revokeMcpOauthClientSessions(tenantId, id, clientId);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kill sessions failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRevokeMcpOauthClient(clientId: string) {
+    if (!tenantId || !id) return;
+    const confirmed = window.confirm(
+      "Revoke this MCP OAuth client? This will kill active refresh/access tokens for the client.",
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await jacklineApi.revokeMcpOauthClient(tenantId, id, clientId);
+      setMcpOauthMinted(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Revoke client failed");
     } finally {
       setBusy(false);
     }
@@ -427,6 +546,157 @@ export function ConnectionDetailPage() {
                 No gateway token. Mint one to connect Cursor/Claude via Jackline.
               </p>
             )}
+          </div>
+        </section>
+
+        <section className="border border-border bg-card">
+          <div className="border-b border-border px-4 py-2.5">
+            <p className="section-label">MCP OAuth clients</p>
+          </div>
+          <div className="space-y-3 p-4">
+            {mcpOauthMinted ? (
+              <section className="space-y-2 border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Client secret (shown once)</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(mcpOauthMinted.clientSecret)
+                    }
+                  >
+                    Copy secret
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  client_id:{" "}
+                  <code className="font-mono text-[11px]">{mcpOauthMinted.clientId}</code>
+                </div>
+                <pre className="overflow-x-auto font-mono text-[11px] break-all whitespace-pre-wrap">
+                  {mcpOauthMinted.clientSecret}
+                </pre>
+                <p className="text-xs text-muted-foreground">Cursor MCP config</p>
+                <pre className="overflow-x-auto border border-border bg-card p-3 font-mono text-[10px] whitespace-pre-wrap">
+                  {JSON.stringify(mcpOauthMinted.mcp.cursor.auth, null, 2)}
+                </pre>
+                <p className="text-xs text-muted-foreground">Claude Code OAuth config</p>
+                <pre className="overflow-x-auto border border-border bg-card p-3 font-mono text-[10px] whitespace-pre-wrap">
+                  {JSON.stringify(mcpOauthMinted.mcp.claudeCode, null, 2)}
+                </pre>
+              </section>
+            ) : null}
+
+            {mcpOauthClients.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No MCP OAuth clients yet. Create one to let Cursor / Claude Code
+                refresh short-lived tokens automatically.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {mcpOauthClients.map((c) => (
+                  <div key={c.id} className="space-y-2 border border-border bg-background p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          client_id: <code className="font-mono">{c.id}</code>
+                        </p>
+                      </div>
+                      {c.revokedAt ? (
+                        <span className="text-xs text-deny">revoked</span>
+                      ) : (
+                        <span className="text-xs text-allow">active</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      redirects:{" "}
+                      <code className="font-mono">
+                        {c.redirectUris.join(", ")}
+                      </code>
+                    </div>
+                    {c.revokedAt ? null : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void onRotateMcpOauthClientSecret(c.id)}
+                        >
+                          Rotate secret
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void onRevokeMcpOauthClientSessions(c.id)}
+                        >
+                          Kill sessions
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void onRevokeMcpOauthClient(c.id)}
+                        >
+                          Revoke client
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="text-sm font-medium">Create a new client</div>
+              <div className="space-y-2">
+                <label className="block text-xs text-muted-foreground">
+                  Client name
+                  <input
+                    className="mt-1 w-full rounded border border-input bg-transparent px-2 py-1 text-sm font-mono"
+                    value={createMcpOauthName}
+                    onChange={(e) => setCreateMcpOauthName(e.target.value)}
+                    placeholder="e.g. cursor-desktop"
+                    disabled={busy}
+                  />
+                </label>
+
+                <div className="text-xs text-muted-foreground">Redirect presets</div>
+                <div className="flex flex-col gap-1">
+                  {MCP_OAUTH_REDIRECT_PRESETS.map((p) => (
+                    <label key={p.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={createMcpOauthPresetIds.includes(p.id)}
+                        onChange={() => toggleCreatePreset(p.id)}
+                        disabled={busy}
+                      />
+                      <span className="text-sm">{p.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <label className="block text-xs text-muted-foreground">
+                  Custom redirect URIs (one per line or comma)
+                  <textarea
+                    className="mt-1 w-full min-h-16 rounded border border-input bg-transparent px-2 py-1 text-sm font-mono"
+                    value={createMcpOauthCustomRedirectUris}
+                    onChange={(e) => setCreateMcpOauthCustomRedirectUris(e.target.value)}
+                    placeholder="http://127.0.0.1:12345/callback"
+                    disabled={busy}
+                  />
+                </label>
+
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void onCreateMcpOauthClient()}
+                >
+                  Create client
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
       </div>
