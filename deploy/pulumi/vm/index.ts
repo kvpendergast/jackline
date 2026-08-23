@@ -21,6 +21,8 @@ const tenancy = cfg.get("tenancy") ?? "single";
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
 const postgresPassword = cfg.getSecret("postgresPassword") ?? pulumi.output("jackline");
+// PAT for private github.com clone on first boot (optional; CI uses GITHUB_TOKEN via remote-deploy).
+const githubDeployToken = cfg.getSecret("githubDeployToken");
 // CI deploy SA (WIF). Used to grant actAs on the VM SA for OS Login / instance attach.
 const deployServiceAccount = cfg.get("deployServiceAccount");
 
@@ -99,9 +101,13 @@ const iapSsh = new gcp.compute.Firewall(
 // Ongoing app deploys use deploy/scripts/remote-deploy.sh via CI SSH.
 // ---------------------------------------------------------------------------
 const startupScript = pulumi
-  .all([masterKey, betterAuthSecret, postgresPassword])
-  .apply(([mk, bas, pg]) => {
+  .all([masterKey, betterAuthSecret, postgresPassword, githubDeployToken])
+  .apply(([mk, bas, pg, ghToken]) => {
     const caddyGlobal = caddyEmail ? `email ${caddyEmail}` : "";
+    const cloneRepo =
+      ghToken && gitRepo.startsWith("https://github.com/")
+        ? gitRepo.replace("https://github.com/", `https://x-access-token:${ghToken}@github.com/`)
+        : gitRepo;
     // Escape values for embedding in a shell single-quoted heredoc via printf %q-ish:
     // we write the env file with a Python one-liner to avoid shell injection.
     const envPayload = {
@@ -150,7 +156,7 @@ systemctl enable --now docker
 
 mkdir -p ${installRoot}
 if [ ! -d ${installRoot}/.git ]; then
-  git clone --depth 1 --branch "${gitRef}" "${gitRepo}" ${installRoot}
+  git clone --depth 1 --branch "${gitRef}" "${cloneRepo}" ${installRoot}
 else
   cd ${installRoot}
   git fetch --depth 1 origin "${gitRef}"

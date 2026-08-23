@@ -114,6 +114,7 @@ Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose I
 | `jackline-pulumi-betterAuthSecret` | `betterAuthSecret` |
 | `jackline-pulumi-postgresPassword` | `postgresPassword` |
 | `jackline-pulumi-tenancy` | `tenancy` (`single` or `multi`) |
+| `jackline-pulumi-githubDeployToken` | `githubDeployToken` (PAT with repo read — first-boot clone on private repos) |
 
 ```bash
 # example
@@ -124,6 +125,8 @@ echo -n "$(openssl rand -base64 32)" | \
 ```
 
 Add a new required Pulumi secret later by creating another `jackline-pulumi-<key>` in GCP — **no workflow edit**. Plain knobs (`domain`, `gitRepo`, …) stay GitHub **variables**.
+
+**Private GitHub repos:** CI passes `GITHUB_TOKEN` into `remote-deploy.sh` automatically. For first-boot startup clone, add `jackline-pulumi-githubDeployToken` (fine-grained PAT or classic token with `contents:read` on the repo).
 
 ## Layout
 
