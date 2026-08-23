@@ -16,12 +16,13 @@ import {
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
 import type {
+  ChatLlmProvider,
   CreateInviteBody,
   PublicInvite,
   PublicSsoConfig,
 } from "@jackline/shared";
 
-type Tab = "sso" | "scim" | "invites" | "admins";
+type Tab = "sso" | "scim" | "chat" | "invites" | "admins";
 
 export function SettingsPage() {
   const { tenantId, membership } = useAuth();
@@ -91,6 +92,7 @@ export function SettingsPage() {
         ? ([
             ["sso", "SSO / OIDC"],
             ["scim", "SCIM"],
+            ["chat", "Chat"],
           ] as const)
         : []),
       ["invites", "Invites"],
@@ -105,7 +107,7 @@ export function SettingsPage() {
         title="Settings"
         description={
           isFullAdmin
-            ? "SSO (OIDC), SCIM inbound sync, invites, and membership roles (full_admin / delegated_admin / member)."
+            ? "SSO, SCIM, Chat model, invites, and membership roles (full_admin / delegated_admin / member)."
             : `Team-scoped invites and membership for ${membership?.team ?? "your team"}.`
         }
       />
@@ -155,6 +157,10 @@ export function SettingsPage() {
           }}
           onError={setError}
         />
+      ) : null}
+
+      {tab === "chat" && isFullAdmin ? (
+        <ChatSettingsForm onError={setError} onSaved={setInfo} />
       ) : null}
 
       {tab === "invites" ? (
@@ -506,5 +512,141 @@ function InvitesPanel({
         </Table>
       </section>
     </div>
+  );
+}
+
+function ChatSettingsForm({
+  onError,
+  onSaved,
+}: {
+  onError: (message: string) => void;
+  onSaved: (message: string) => void;
+}) {
+  const { tenantId } = useAuth();
+  const [provider, setProvider] = useState<ChatLlmProvider>("openrouter");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKeySet, setApiKeySet] = useState(false);
+  const [apiKeyMasked, setApiKeyMasked] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    void jacklineApi
+      .getChatSettings(tenantId)
+      .then((data) => {
+        if (cancelled) return;
+        if (data.provider) setProvider(data.provider);
+        if (data.model) setModel(data.model);
+        if (data.baseUrl) setBaseUrl(data.baseUrl);
+        setApiKeySet(data.apiKeySet);
+        setApiKeyMasked(data.apiKeyMasked);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          onError(err instanceof ApiError ? err.message : "Failed to load Chat settings");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, onError]);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setBusy(true);
+    try {
+      const needsBase =
+        provider === "ollama" || provider === "openai_compatible";
+      const saved = await jacklineApi.updateChatSettings(tenantId, {
+        provider,
+        model,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        baseUrl: needsBase ? baseUrl : null,
+      });
+      setApiKey("");
+      setApiKeySet(saved.apiKeySet);
+      setApiKeyMasked(saved.apiKeyMasked);
+      onSaved("Chat settings saved.");
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading Chat settings…</p>;
+  }
+
+  const needsBase = provider === "ollama" || provider === "openai_compatible";
+
+  return (
+    <form className="max-w-lg space-y-3 border border-border bg-card p-4" onSubmit={(e) => void onSubmit(e)}>
+      <p className="text-sm text-muted-foreground">
+        Inference for in-product Chat. Tools still go through the Jackline Chat
+        client and gateway policy. The API key is stored with tenant secrets and
+        never sent to the browser after save.
+      </p>
+      <Field label="Provider">
+        <FieldSelect
+          value={provider}
+          onChange={(e) => setProvider(e.target.value as ChatLlmProvider)}
+        >
+          <option value="openrouter">openrouter</option>
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+          <option value="ollama">ollama</option>
+          <option value="openai_compatible">openai_compatible</option>
+        </FieldSelect>
+      </Field>
+      <Field label="Model" htmlFor="chat-model">
+        <Input
+          id="chat-model"
+          required
+          placeholder="anthropic/claude-sonnet-4.6"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        />
+      </Field>
+      {needsBase ? (
+        <Field label="Base URL" htmlFor="chat-base-url">
+          <Input
+            id="chat-base-url"
+            required
+            placeholder="http://127.0.0.1:11434/v1"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+          />
+        </Field>
+      ) : null}
+      <Field label="API key" htmlFor="chat-api-key">
+        <Input
+          id="chat-api-key"
+          type="password"
+          autoComplete="off"
+          placeholder={
+            apiKeySet
+              ? (apiKeyMasked ?? "Saved — paste to replace")
+              : provider === "ollama"
+                ? "Optional for Ollama"
+                : "Paste provider API key"
+          }
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          required={!apiKeySet && provider !== "ollama"}
+        />
+      </Field>
+      <Button type="submit" disabled={busy}>
+        {busy ? "Saving…" : "Save Chat settings"}
+      </Button>
+    </form>
   );
 }

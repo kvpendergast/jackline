@@ -16,6 +16,8 @@ export const PublicClientSchema = z.strictObject({
   apiRole: MembershipRoleSchema,
   apiTeam: z.string().nullable(),
   clientSecretRotatedAt: z.iso.datetime().nullable(),
+  /** First-party system client key; null for user-created clients. */
+  systemKey: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

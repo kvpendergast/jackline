@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
+import { JACKLINE_CHAT_SYSTEM_KEY } from "@jackline/shared";
 import type {
   PublicAuditEvent,
   PublicClient,
@@ -49,6 +50,7 @@ export function DashboardPage() {
   const [roles, setRoles] = useState<PublicRole[]>([]);
   const [denials, setDenials] = useState<PublicAuditEvent[]>([]);
   const [clients, setClients] = useState<PublicClient[]>([]);
+  const [chatConfigured, setChatConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [checklistDismissed, setChecklistDismissed] = useState(false);
@@ -89,6 +91,12 @@ export function DashboardPage() {
         setRoles(rolePage.items);
         setDenials(denyPage.items);
         setClients(clientPage.items);
+        try {
+          const chatSettings = await jacklineApi.getChatSettings(tenantId);
+          if (!cancelled) setChatConfigured(chatSettings.configured);
+        } catch {
+          if (!cancelled) setChatConfigured(false);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : "Failed to load");
@@ -147,13 +155,25 @@ export function DashboardPage() {
         to: "/clients",
       },
       {
-        id: "connection",
-        label: "Create a connection and mint a credential",
-        done: connections.length > 0,
+        id: "chat-llm",
+        label: "Configure Chat (Settings → Chat)",
+        done: chatConfigured,
+        to: "/settings",
+      },
+      {
+        id: "chat-roles",
+        label: "Grant roles on the Jackline Chat connection",
+        done: (() => {
+          const chatClient = clients.find(
+            (c) => c.systemKey === JACKLINE_CHAT_SYSTEM_KEY,
+          );
+          if (!chatClient) return false;
+          return connections.some((c) => c.clientId === chatClient.id);
+        })(),
         to: "/connections",
       },
     ],
-    [servers, tools, roles, clients, connections],
+    [servers, tools, roles, clients, connections, chatConfigured],
   );
 
   const checklistComplete = checklist.every((item) => item.done);

@@ -57,6 +57,11 @@ export const secrets = pgTable(
     uniqueIndex("secrets_connection_kind_unique")
       .on(t.tenantId, t.connectionId, t.kind)
       .where(sql`${t.connectionId} is not null`),
+    uniqueIndex("secrets_tenant_level_kind_unique")
+      .on(t.tenantId, t.kind)
+      .where(
+        sql`${t.serverId} is null and ${t.userId} is null and ${t.connectionId} is null`,
+      ),
   ],
 );
 

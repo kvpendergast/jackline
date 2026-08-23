@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { useTheme } from "@/components/theme-provider";
+import { ChatDock } from "@/components/chat/ChatDock";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -268,6 +269,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="flex h-14 items-center justify-between border-b border-border bg-card px-6">
           <div className="section-label">Policy gateway · self-hosted</div>
           <div className="flex items-center gap-3 text-sm">
+            <ChatDock />
             <Button
               type="button"
               variant="outline"

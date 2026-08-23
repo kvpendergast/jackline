@@ -149,3 +149,19 @@ export {
   type PublicNotification,
   PublicNotificationSchema,
 } from './notification.js';
+export {
+  JACKLINE_CHAT_SYSTEM_KEY,
+  JACKLINE_CHAT_CLIENT_NAME,
+  LLM_API_KEY_KIND,
+  ChatLlmProviderSchema,
+  type ChatLlmProvider,
+  ChatReasoningEffortSchema,
+  ChatReasoningSummarySchema,
+  PublicChatSessionSchema,
+  PublicChatSettingsSchema,
+  UpdateChatSettingsBodySchema,
+  type PublicChatSession,
+  type PublicChatSettings,
+  type UpdateChatSettingsBody,
+  maskSecretLast4,
+} from './chat.js';

@@ -19,7 +19,8 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Control-plane API (`@jackline/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
 | Request context + structured logging | Done |
-| Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Servers quick-add catalog, connections, access requests, audit |
+| Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Chat drawer, Servers quick-add catalog, connections, access requests, audit |
+| In-product Chat | TanStack AI on the API; tools via existing `/mcp` gateway; Settings → Chat (full_admin) |
 | Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry |
 | MCP gateway (`@jackline/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
@@ -150,6 +151,14 @@ API listens on `http://127.0.0.1:8080` by default.
 - Jackline v1: `/api/v1/*`
 - OAuth2 token (client_credentials): `POST /api/v1/oauth/token`
 - Docs site (Zudoku): `pnpm docs:dev` → http://127.0.0.1:3000 (exports OpenAPI via `pnpm openapi:export`)
+
+## In-product Chat
+
+The admin UI Chat drawer is a first-party **Jackline Chat** client (`systemKey: jackline_chat`). Each member gets their own connection and `jkl_…` token (never sent to the browser). The API runs a TanStack AI `chat()` loop and calls tools through the existing MCP gateway (`/mcp`), so policy and audit match Cursor.
+
+A full admin sets provider, model, and API key in **Settings → Chat** (stored in `chat_settings` + tenant secret `kind: llm_api_key`). LLM keys are not required at deploy. Grant roles on the Jackline Chat connection to expose tools; the default catalog is empty.
+
+When the API and gateway are on different hosts (Compose/K8s), set `JACKLINE_INTERNAL_MCP_URL` to the gateway’s MCP URL on the private network (for example `http://gateway:8081/mcp`). Local processes default to `http://127.0.0.1:${GATEWAY_PORT}/mcp`.
 
 ## Smoke test
 

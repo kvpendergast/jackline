@@ -9,7 +9,7 @@ Jackline ships as separate containers (**api**, **gateway**, **web**, **docs**, 
 **Default:** one origin via Caddy (admin UI + API + MCP together — simplest cookies/CORS).  
 **Optional:** split the gateway for scale/exposure, or skip Caddy and use your own proxy.
 
-Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `JACKLINE_PUBLIC_API_URL`, and `JACKLINE_PUBLIC_MCP_URL` to whatever browsers and MCP clients actually call. Cursor should use `JACKLINE_PUBLIC_MCP_URL`.
+Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `JACKLINE_PUBLIC_API_URL`, and `JACKLINE_PUBLIC_MCP_URL` to whatever browsers and MCP clients actually call. Cursor should use `JACKLINE_PUBLIC_MCP_URL`. In-product Chat on the API uses `JACKLINE_INTERNAL_MCP_URL` (Compose default `http://gateway:8081/mcp`) so the model loop can reach `/mcp` on the Docker network.
 
 ## Production (recommended default)
 

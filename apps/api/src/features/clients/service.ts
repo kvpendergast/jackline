@@ -87,6 +87,7 @@ function toPublicClient(row: ClientRow): PublicClient {
     apiRole,
     apiTeam: row.apiTeam ?? null,
     clientSecretRotatedAt: row.clientSecretRotatedAt?.toISOString() ?? null,
+    systemKey: row.systemKey ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -368,6 +369,10 @@ async function update(
   const existing = await assertCanManageClient(tenantId, actor, clientId);
   if (existing.isErr()) return err(existing.error);
 
+  if (existing.value.systemKey) {
+    return err(new BadRequestError("System clients cannot be renamed or retyped"));
+  }
+
   if (actor.role !== "full_admin") {
     if (input.kind === "service") {
       return err(new ForbiddenError("Only full_admin can set service clients"));
@@ -432,6 +437,10 @@ async function remove(
 ): Promise<Result<PublicClient, JacklineError>> {
   const existing = await assertCanManageClient(tenantId, actor, clientId);
   if (existing.isErr()) return err(existing.error);
+
+  if (existing.value.systemKey) {
+    return err(new BadRequestError("System clients cannot be deleted"));
+  }
 
   const [row] = await db
     .delete(clients)

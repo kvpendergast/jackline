@@ -34,6 +34,11 @@ export const EnvSchema = z.object({
    */
   JACKLINE_PUBLIC_MCP_URL: z.string().url().optional(),
   /**
+   * API→gateway MCP URL (in-process Chat). Defaults to
+   * http://127.0.0.1:${GATEWAY_PORT}/mcp. Compose: http://gateway:8081/mcp.
+   */
+  JACKLINE_INTERNAL_MCP_URL: z.string().url().optional(),
+  /**
    * Extra browser origins allowed for CORS + Better Auth (comma-separated).
    * Use when the admin UI is on a different host than WEB_ORIGIN alone covers,
    * or when you need additional preview/staging origins.

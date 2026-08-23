@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
-import type { ClientKind, PublicClient } from "@jackline/shared";
+import { JACKLINE_CHAT_SYSTEM_KEY, type ClientKind, type PublicClient } from "@jackline/shared";
 
 export function ClientsPage() {
   const { tenantId } = useAuth();
@@ -130,8 +130,15 @@ export function ClientsPage() {
             {items.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="font-medium">{row.name}</div>
-                  <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                    </div>
+                    {row.systemKey === JACKLINE_CHAT_SYSTEM_KEY ? (
+                      <KindBadge kind="system" />
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <KindBadge kind={row.kind} />

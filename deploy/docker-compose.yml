@@ -53,6 +53,7 @@ services:
       API_PORT: 8080
       BETTER_AUTH_URL: http://127.0.0.1:8080
       WEB_ORIGIN: http://127.0.0.1:5173
+      JACKLINE_INTERNAL_MCP_URL: http://gateway:8081/mcp
     ports:
       - "8080:8080"
     depends_on:

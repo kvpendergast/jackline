@@ -19,6 +19,7 @@ const ENV_KEYS = [
   "BETTER_AUTH_URL",
   "JACKLINE_PUBLIC_API_URL",
   "JACKLINE_PUBLIC_MCP_URL",
+  "JACKLINE_INTERNAL_MCP_URL",
   "JACKLINE_ADDITIONAL_ORIGINS",
   "JACKLINE_OIDC_ISSUER",
   "JACKLINE_OIDC_CLIENT_ID",
@@ -59,6 +60,14 @@ export function publicApiBaseUrl(env: Env): string {
 export function publicMcpUrl(env: Env): string {
   if (env.JACKLINE_PUBLIC_MCP_URL) {
     return env.JACKLINE_PUBLIC_MCP_URL.replace(/\/$/, "");
+  }
+  return `http://127.0.0.1:${env.GATEWAY_PORT}/mcp`;
+}
+
+/** MCP URL the API uses to call the gateway (Chat agent loop). */
+export function internalMcpUrl(env: Env): string {
+  if (env.JACKLINE_INTERNAL_MCP_URL) {
+    return env.JACKLINE_INTERNAL_MCP_URL.replace(/\/$/, "");
   }
   return `http://127.0.0.1:${env.GATEWAY_PORT}/mcp`;
 }
