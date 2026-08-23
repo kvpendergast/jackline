@@ -126,7 +126,7 @@ echo -n "$(openssl rand -base64 32)" | \
 
 Add a new required Pulumi secret later by creating another `jackline-pulumi-<key>` in GCP — **no workflow edit**. Plain knobs (`domain`, `gitRepo`, …) stay GitHub **variables**.
 
-**Private GitHub repos:** CI passes `GITHUB_TOKEN` into `remote-deploy.sh` automatically. For first-boot startup clone, add `jackline-pulumi-githubDeployToken` (fine-grained PAT or classic token with `contents:read` on the repo).
+**Private GitHub repos / incomplete first boot:** Deploy CI renders `.env.prod` from Secret Manager (`ci-render-env-prod.sh`), scp’s it over IAP, and runs `remote-deploy.sh` with a short-lived `GITHUB_TOKEN` file (not persisted in git remotes). First-boot startup can still embed `jackline-pulumi-githubDeployToken` for an unattended private clone, but CI no longer depends on startup having succeeded.
 
 ## Layout
 
