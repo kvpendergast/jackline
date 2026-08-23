@@ -128,11 +128,46 @@ jobs:
 
       - name: Deploy app on VM
         if: ${{ env.DEPLOY_PATH == 'vm' }}
+        working-directory: ${{ steps.path.outputs.dir }}
+        env:
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_STATE_BUCKET }}
         run: |
           set -euo pipefail
-          gcloud compute ssh "${JACKLINE_VM_NAME}" \
+          export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+
+          pulumi login "$PULUMI_BACKEND_URL"
+          pulumi stack select prod
+
+          VM_NAME="$(pulumi stack output instanceName)"
+          VM_ZONE="$(pulumi stack output instanceZone)"
+          echo "VM target: ${VM_NAME} (${VM_ZONE})"
+
+          echo "Waiting for instance to reach RUNNING..."
+          for i in $(seq 1 36); do
+            status="$(gcloud compute instances describe "${VM_NAME}" \
+              --project="${GCP_PROJECT_ID}" \
+              --zone="${VM_ZONE}" \
+              --format='value(status)' 2>/dev/null || true)"
+            if [ "${status}" = "RUNNING" ]; then
+              echo "Instance is RUNNING"
+              break
+            fi
+            if [ "${i}" -eq 36 ]; then
+              echo "Instance not RUNNING after 6 minutes (last status: ${status:-missing})"
+              gcloud compute instances list --project="${GCP_PROJECT_ID}" --filter="name=${VM_NAME}" || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          # Startup script bootstraps on first create; give it a head start before compose rebuild.
+          sleep 30
+
+          gcloud compute ssh "${VM_NAME}" \
             --project="${GCP_PROJECT_ID}" \
-            --zone="${JACKLINE_VM_ZONE}" \
+            --zone="${VM_ZONE}" \
             --tunnel-through-iap \
+            --quiet \
+            --ssh-flag="-o StrictHostKeyChecking=no" \
             --command="sudo GIT_SHA='${GITHUB_SHA}' bash -s" \
-            < deploy/scripts/remote-deploy.sh
+            < "${GITHUB_WORKSPACE}/deploy/scripts/remote-deploy.sh"
