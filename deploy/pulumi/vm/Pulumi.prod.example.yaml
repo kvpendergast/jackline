@@ -9,6 +9,8 @@ config:
   jackline-vm:machineType: e2-small
   jackline-vm:gitRepo: https://github.com/YOUR_ORG_OR_USER/jackline.git
   jackline-vm:gitRef: main
+  # CI deploy SA (WIF). Grants actAs on the dedicated jackline-vm SA for OS Login / instance attach.
+  # jackline-vm:deployServiceAccount: jackline-deploy@your-gcp-project-id.iam.gserviceaccount.com
   # jackline-vm:caddyEmail: you@example.com
   # Set secrets with: pulumi config set --secret <key> <value>
   # jackline-vm:jacklineMasterKey: <openssl rand -base64 32>
@@ -17,3 +19,4 @@ config:
   #
   # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output.
   # First boot runs compose; later deploys use deploy/scripts/remote-deploy.sh (CI).
+  # Changing the VM service account stops/starts the instance once.

@@ -61,6 +61,10 @@ if [[ "${DEPLOY_PATH}" == "vm" ]]; then
   if [[ -n "${JACKLINE_CADDY_EMAIL:-}" ]]; then
     pulumi config set caddyEmail "${JACKLINE_CADDY_EMAIL}"
   fi
+  # WIF deploy SA — Pulumi grants it serviceAccountUser on jackline-vm for OS Login / attach.
+  if [[ -n "${GCP_SERVICE_ACCOUNT:-}" ]]; then
+    pulumi config set deployServiceAccount "${GCP_SERVICE_ACCOUNT}"
+  fi
 fi
 
 echo "=== Secret Manager secrets (prefix=${PREFIX}) ==="

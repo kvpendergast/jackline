@@ -21,6 +21,8 @@ const tenancy = cfg.get("tenancy") ?? "single";
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
 const postgresPassword = cfg.getSecret("postgresPassword") ?? pulumi.output("jackline");
+// CI deploy SA (WIF). Used to grant actAs on the VM SA for OS Login / instance attach.
+const deployServiceAccount = cfg.get("deployServiceAccount");
 
 const publicBaseUrl = `https://${domain}`;
 const docsBaseUrl = `https://${docsDomain}`;
@@ -34,6 +36,33 @@ const computeApi = new gcp.projects.Service("compute", {
   service: "compute.googleapis.com",
   disableOnDestroy: false,
 });
+
+const iamApi = new gcp.projects.Service("iam", {
+  service: "iam.googleapis.com",
+  disableOnDestroy: false,
+});
+
+// ---------------------------------------------------------------------------
+// VM service account (not the default Compute Engine SA)
+// ---------------------------------------------------------------------------
+const vmSa = new gcp.serviceaccount.Account(
+  "jackline-vm",
+  {
+    accountId: "jackline-vm",
+    displayName: "Jackline VM runtime",
+    description: "Identity attached to the Jackline Compose VM (least privilege).",
+  },
+  { dependsOn: [iamApi] },
+);
+
+// Allow CI / operator deploy SA to attach this SA to the instance and SSH via OS Login.
+if (deployServiceAccount) {
+  new gcp.serviceaccount.IAMMember("jackline-vm-deploy-act-as", {
+    serviceAccountId: vmSa.name,
+    role: "roles/iam.serviceAccountUser",
+    member: `serviceAccount:${deployServiceAccount}`,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Firewall: HTTP/HTTPS to tagged VMs
@@ -176,13 +205,21 @@ const instance = new gcp.compute.Instance(
       "enable-oslogin": "TRUE",
       "startup-script": startupScript,
     },
+    serviceAccount: {
+      email: vmSa.email,
+      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring agents.
+      scopes: [
+        "https://www.googleapis.com/auth/logging.write",
+        "https://www.googleapis.com/auth/monitoring.write",
+      ],
+    },
     allowStoppingForUpdate: true,
     labels: {
       app: "jackline",
       path: "vm",
     },
   },
-  { dependsOn: [computeApi, firewall, iapSsh] },
+  { dependsOn: [computeApi, firewall, iapSsh, vmSa] },
 );
 
 const publicIp = instance.networkInterfaces.apply((nis) => {
@@ -192,6 +229,7 @@ const publicIp = instance.networkInterfaces.apply((nis) => {
 
 export const instanceName = instance.name;
 export const instanceZone = zone;
+export const vmServiceAccount = vmSa.email;
 export { publicIp };
 export const appUrl = publicBaseUrl;
 export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
