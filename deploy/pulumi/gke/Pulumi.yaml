@@ -1,0 +1,3 @@
+name: jackline-gke
+runtime: nodejs
+description: Jackline on GKE Autopilot (advanced / higher cost path)

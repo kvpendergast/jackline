@@ -1,0 +1,110 @@
+# Jackline on GCP (Pulumi)
+
+Hobbyist-first deploy paths for Jackline on Google Cloud.
+
+| Path | Who it's for | Cost shape |
+| --- | --- | --- |
+| **[`vm/`](vm/)** (default) | Weekend demos, personal instances | One small VM (+ disk). Fixed machine = **compute bill stays flat** under bot traffic. |
+| **[`gke/`](gke/)** (advanced) | Learning Kubernetes / Autopilot | Autopilot + global HTTP LB keep burning while up. **Not** the overnight hobbyist default. |
+
+Budgets only **alert** — they do not hard-cap spend. Prefer architecture that bounds cost (`vm/`), and `pulumi destroy` (or stop the VM) when idle.
+
+## Quick start (VM — recommended)
+
+```bash
+cd deploy/pulumi/vm
+npm install
+pulumi login gs://YOUR_PULUMI_STATE_BUCKET   # or pulumi login for Pulumi Cloud
+pulumi stack init prod                       # once
+cp Pulumi.prod.example.yaml Pulumi.prod.yaml # then edit; file is gitignored
+pulumi config set gcp:project YOUR_PROJECT
+pulumi config set domain jackline.example.com
+pulumi config set --secret jacklineMasterKey "$(openssl rand -base64 32)"
+pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
+# optional: pulumi config set machineType e2-medium
+# optional: pulumi config set caddyEmail you@example.com
+pulumi up
+```
+
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the `publicIp` output. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS.
+
+**Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy.
+
+```bash
+# after pulumi up
+gcloud compute ssh jackline --zone=ZONE --command='sudo GIT_SHA=main bash -s' \
+  < ../scripts/remote-deploy.sh
+```
+
+## GKE (advanced)
+
+```bash
+cd deploy/pulumi/gke
+npm install
+# Local Docker required (image builds during pulumi up)
+pulumi login gs://YOUR_PULUMI_STATE_BUCKET
+pulumi stack select prod   # or init
+cp Pulumi.prod.example.yaml Pulumi.prod.yaml
+# configure domain + secrets; reserved global IP name jackline-ip by default
+pulumi up
+```
+
+Expect higher idle cost (Autopilot + LB). Destroy when not demoing publicly.
+
+If you previously used project name `jackline-infra`, config keys in `Pulumi.prod.yaml` must use the `jackline-gke:` prefix (matching [`Pulumi.yaml`](gke/Pulumi.yaml)). Create a fresh `prod` stack under the new project name after destroy, or migrate state carefully.
+
+## Cost / abuse notes
+
+- **VM:** bot traffic saturates CPU/RAM; bill stays roughly machine-sized (egress can still grow if scraped). Primary safety: fixed size + destroy/stop when idle.
+- **GKE:** day-scale bills are often dominated by Autopilot, then load balancing. Removing the Ingress alone does not stop Autopilot burn.
+- Illustration only (one partial day on Autopilot): ~72% GKE / ~10% LB of ~$1.22 — not a guarantee for your project.
+
+## Secrets hygiene
+
+- Personal `Pulumi.*.yaml` stack files are **gitignored**. Commit only `Pulumi.*.example.yaml`.
+- Prefer secrets in Pulumi config (`--secret`), GitHub Actions secrets, or GCP Secret Manager — never in git.
+- VM startup script embeds app secrets in **instance metadata** (readable with `compute.instances.get`). Restrict who can read instances; rotate keys if metadata leaked.
+
+## CI/CD (merge to `main`)
+
+Workflows:
+
+- [`.github/workflows/deploy-prod.yml`](../../.github/workflows/deploy-prod.yml) — `pulumi up` on push to `main`; VM path then SSH-runs `remote-deploy.sh`
+- [`.github/workflows/pulumi-preview.yml`](../../.github/workflows/pulumi-preview.yml) — `pulumi preview` on PRs that touch deploy paths
+
+Isolation is **per-repo configuration**: forks do not inherit your GitHub secrets, so their merges cannot deploy to your GCP.
+
+### How CI authenticates to GCP (WIF)
+
+CI does **not** use your personal `gcloud` login or a long-lived JSON key.
+
+1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
+2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
+3. Grant the SA: Compute (and OS Login / IAP tunnel for VM SSH), Pulumi state bucket R/W, KMS decrypt if used, Artifact Registry for GKE, Secret Manager if used.
+4. Put in GitHub → **Settings → Secrets and variables → Actions**:
+
+| Secret / variable | Purpose |
+| --- | --- |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/…/locations/global/workloadIdentityPools/…/providers/…` |
+| `GCP_SERVICE_ACCOUNT` | Deploy SA email |
+| `GCP_PROJECT_ID` | GCP project id |
+| `PULUMI_STATE_BUCKET` | e.g. `gs://your-pulumi-state` |
+| `PULUMI_STACK_CONFIG` | Full contents of your `Pulumi.prod.yaml` |
+| `PULUMI_CONFIG_PASSPHRASE` | Only if the stack uses passphrase encryption |
+| `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
+| `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
+
+Workflows **skip** when WIF secrets are unset (safe for forks that do not self-host via CI).
+
+Enable **IAP** tunnel access for the deploy SA (`roles/iap.tunnelResourceAccessor`) so Actions can `gcloud compute ssh --tunnel-through-iap` without opening SSH to the world.
+
+## Layout
+
+```text
+deploy/pulumi/
+  README.md          ← you are here
+  vm/                ← hobbyist default
+  gke/               ← advanced Autopilot path
+deploy/scripts/
+  remote-deploy.sh   ← VM app update (CI + manual)
+```

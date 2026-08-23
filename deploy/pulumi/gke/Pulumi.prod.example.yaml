@@ -1,0 +1,16 @@
+config:
+  gcp:project: your-gcp-project-id
+  gcp:region: us-central1
+  jackline-gke:domain: jackline.example.com
+  jackline-gke:tenancy: single
+  # Set secrets with: pulumi config set --secret <key> <value>
+  # jackline-gke:jacklineMasterKey: <openssl rand -base64 32>
+  # jackline-gke:betterAuthSecret: <openssl rand -base64 32>
+  # jackline-gke:postgresPassword: <strong-password>
+  #
+  # Prerequisites:
+  # - Reserved global IP named jackline-ip (or change staticIpName in index.ts)
+  # - DNS A record for domain → that IP
+  # - Local Docker for image builds during pulumi up
+  #
+  # Cost: Autopilot + global LB burn while running. Prefer deploy/pulumi/vm for hobbyists.

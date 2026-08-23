@@ -1,0 +1,19 @@
+config:
+  gcp:project: your-gcp-project-id
+  gcp:region: us-central1
+  # Zone for the VM (defaults to us-central1-a if unset)
+  # jackline-vm:zone: us-central1-a
+  jackline-vm:domain: jackline.example.com
+  # Optional docs host (defaults to docs.<domain>)
+  # jackline-vm:docsDomain: docs.jackline.example.com
+  jackline-vm:machineType: e2-small
+  jackline-vm:gitRepo: https://github.com/kvpendergast/jackline.git
+  jackline-vm:gitRef: main
+  # jackline-vm:caddyEmail: you@example.com
+  # Set secrets with: pulumi config set --secret <key> <value>
+  # jackline-vm:jacklineMasterKey: <openssl rand -base64 32>
+  # jackline-vm:betterAuthSecret: <openssl rand -base64 32>
+  # jackline-vm:postgresPassword: jackline
+  #
+  # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output.
+  # First boot runs compose; later deploys use deploy/scripts/remote-deploy.sh (CI).
