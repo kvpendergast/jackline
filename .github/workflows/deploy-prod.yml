@@ -20,8 +20,7 @@
 # (e.g. jackline-pulumi-jacklineMasterKey). CI lists that prefix and
 # `pulumi config set --secret` — add/rotate in GCP only.
 #
-# Skip when JACKLINE_CI_DEPLOY_ENABLED is not true (forks / pre-bootstrap).
-# Note: GitHub does not allow `secrets` in job-level if: conditions.
+# Jobs use environment: production (secrets + variables live on that Environment).
 name: Deploy prod
 
 on:
@@ -47,7 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
-    if: ${{ vars.JACKLINE_CI_DEPLOY_ENABLED == 'true' }}
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}

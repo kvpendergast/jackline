@@ -1,8 +1,7 @@
 # pulumi preview on pull requests (no apply, no VM SSH).
 #
 # Same WIF + Secret Manager prefix config as deploy-prod.yml.
-# Skip when JACKLINE_CI_DEPLOY_ENABLED is not true (forks / pre-bootstrap).
-# Note: GitHub does not allow `secrets` in job-level if: conditions.
+# Jobs use environment: production (secrets + variables live on that Environment).
 name: Pulumi preview
 
 on:
@@ -30,7 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
-    if: ${{ vars.JACKLINE_CI_DEPLOY_ENABLED == 'true' }}
     env:
       DEPLOY_PATH: ${{ vars.JACKLINE_DEPLOY_PATH || 'vm' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
