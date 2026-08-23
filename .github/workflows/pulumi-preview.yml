@@ -97,6 +97,6 @@ jobs:
             exit 1
           fi
           pulumi login "$PULUMI_BACKEND_URL"
-          pulumi stack select prod
+          pulumi stack select prod --create
           bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-pulumi-apply-config.sh"
           pulumi preview
