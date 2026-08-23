@@ -17,6 +17,8 @@ config:
   # jackline-vm:betterAuthSecret: <openssl rand -base64 32>
   # jackline-vm:postgresPassword: jackline
   #
-  # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output.
+  # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output
+  # (regional static address jackline-vm-ip by default — not the old global GKE jackline-ip).
+  # Optional: jackline-vm:staticIpName: my-custom-ip-name
   # First boot runs compose; later deploys use deploy/scripts/remote-deploy.sh (CI).
-  # Changing the VM service account stops/starts the instance once.
+  # Changing the VM service account or external IP may stop/start the instance once.

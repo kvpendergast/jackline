@@ -180,6 +180,21 @@ echo "=== Jackline bootstrap complete ==="
   });
 
 // ---------------------------------------------------------------------------
+// Regional static external IP (DNS-stable; VMs cannot use global LB addresses)
+// ---------------------------------------------------------------------------
+const addressName = cfg.get("staticIpName") ?? "jackline-vm-ip";
+const staticIp = new gcp.compute.Address(
+  "jackline-vm-ip",
+  {
+    name: addressName,
+    region,
+    addressType: "EXTERNAL",
+    description: "Jackline VM public IP — point DNS A/AAAA here",
+  },
+  { dependsOn: [computeApi] },
+);
+
+// ---------------------------------------------------------------------------
 // Compute Engine instance
 // ---------------------------------------------------------------------------
 const image = gcp.compute.getImageOutput({
@@ -204,7 +219,12 @@ const instance = new gcp.compute.Instance(
     networkInterfaces: [
       {
         network: "default",
-        accessConfigs: [{}], // ephemeral external IP
+        accessConfigs: [
+          {
+            natIp: staticIp.address,
+            networkTier: "PREMIUM",
+          },
+        ],
       },
     ],
     metadata: {
@@ -225,17 +245,13 @@ const instance = new gcp.compute.Instance(
       path: "vm",
     },
   },
-  { dependsOn: [computeApi, firewall, iapSsh, vmSa] },
+  { dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp] },
 );
-
-const publicIp = instance.networkInterfaces.apply((nis) => {
-  const ac = nis[0]?.accessConfigs?.[0];
-  return ac?.natIp ?? "";
-});
 
 export const instanceName = instance.name;
 export const instanceZone = zone;
 export const vmServiceAccount = vmSa.email;
-export { publicIp };
+export const publicIp = staticIp.address;
+export const staticIpName = staticIp.name;
 export const appUrl = publicBaseUrl;
 export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
