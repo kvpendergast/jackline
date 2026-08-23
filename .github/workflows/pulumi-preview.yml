@@ -29,6 +29,7 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     if: ${{ vars.JACKLINE_CI_DEPLOY_ENABLED == 'true' }}
     env:
       DEPLOY_PATH: ${{ vars.JACKLINE_DEPLOY_PATH || 'vm' }}

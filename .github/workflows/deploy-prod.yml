@@ -46,6 +46,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: production
     if: ${{ vars.JACKLINE_CI_DEPLOY_ENABLED == 'true' }}
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}

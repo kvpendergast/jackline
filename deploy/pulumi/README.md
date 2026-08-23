@@ -82,7 +82,8 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
 3. Grant the SA: Compute (and OS Login / IAP tunnel for VM SSH), Pulumi state bucket R/W, KMS decrypt if used, Artifact Registry for GKE, **Secret Manager Secret Accessor** (+ list).
-4. Put in GitHub → **Settings → Secrets and variables → Actions**:
+4. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
+   **Settings → Environments → production**.
 
 | Secret / variable | Purpose |
 | --- | --- |
