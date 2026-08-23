@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
@@ -20,6 +19,7 @@ import {
 } from "@jackline/shared";
 import { fromDbWriteError as mapDbWrite } from "../../lib/db/fromDbWriteError.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import { connectionServices } from "../connections/service.js";
 
 export type JacklineChatBinding = {
   client: Client;
@@ -142,65 +142,6 @@ async function loadGatewayToken(
   return ok(formatGatewayToken(row.id, secret));
 }
 
-async function mintGatewayTokenForConnection(
-  log: Logger,
-  tenantId: string,
-  connectionId: string,
-): Promise<Result<string, JacklineError>> {
-  const boxResult = getSecretBox();
-  if (boxResult.isErr()) return err(boxResult.error);
-
-  const secret = randomBytes(32).toString("base64url");
-  const kind = GATEWAY_TOKEN_KIND;
-  const aad = secretAad({
-    tenantId,
-    kind,
-    serverId: null,
-    userId: null,
-    connectionId,
-  });
-  const encrypted = boxResult.value.encrypt(
-    new TextEncoder().encode(secret),
-    aad,
-  );
-  if (encrypted.isErr()) return err(encrypted.error);
-
-  try {
-    const [row] = await db
-      .insert(secrets)
-      .values({
-        kind,
-        name: "Jackline Chat",
-        ciphertext: encrypted.value.ciphertext,
-        nonce: encrypted.value.nonce,
-        keyVersion: encrypted.value.keyVersion,
-        meta: {},
-        serverId: null,
-        userId: null,
-        connectionId,
-        tenantId,
-      })
-      .returning();
-    if (!row) {
-      return err(new SetupError("Failed to mint Chat gateway credential"));
-    }
-    log.info(
-      { tenantId, connectionId, secretId: row.id },
-      "minted Jackline Chat gateway token",
-    );
-    return ok(formatGatewayToken(row.id, secret));
-  } catch (cause) {
-    const existing = await loadGatewayToken(tenantId, connectionId);
-    if (existing.isOk() && existing.value) return ok(existing.value);
-    return err(
-      mapDbWrite(
-        cause,
-        "A gateway credential already exists for this connection; revoke it first to rotate",
-      ),
-    );
-  }
-}
-
 export async function ensureJacklineChatConnection(
   log: Logger,
   tenantId: string,
@@ -267,13 +208,15 @@ export async function ensureJacklineChatConnection(
 
   let gatewayToken = tokenResult.value;
   if (!gatewayToken) {
-    const minted = await mintGatewayTokenForConnection(
+    const minted = await connectionServices.mintCredential(
       log,
       tenantId,
+      { userId, role: "member", team: null },
       connection.id,
+      { name: "Jackline Chat" },
     );
     if (minted.isErr()) return err(minted.error);
-    gatewayToken = minted.value;
+    gatewayToken = minted.value.token;
   }
 
   return ok({ client, connection, gatewayToken });

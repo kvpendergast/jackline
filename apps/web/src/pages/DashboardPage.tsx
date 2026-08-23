@@ -162,7 +162,7 @@ export function DashboardPage() {
       },
       {
         id: "chat-roles",
-        label: "Grant roles on the Jackline Chat connection",
+        label: "Grant tools to Jackline Chat",
         done: (() => {
           const chatClient = clients.find(
             (c) => c.systemKey === JACKLINE_CHAT_SYSTEM_KEY,

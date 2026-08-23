@@ -4,6 +4,9 @@ export const JACKLINE_CHAT_SYSTEM_KEY = "jackline_chat" as const;
 export const JACKLINE_CHAT_CLIENT_NAME = "Jackline Chat" as const;
 export const LLM_API_KEY_KIND = "llm_api_key" as const;
 
+export const CHAT_NOT_CONFIGURED =
+  "Chat is not configured; a full admin must set provider and API key in Settings";
+
 export const ChatLlmProviderSchema = z.enum([
   "openrouter",
   "openai",

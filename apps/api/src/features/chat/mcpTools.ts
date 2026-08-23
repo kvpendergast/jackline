@@ -8,6 +8,20 @@ import { JacklineError, SetupError } from "@jackline/shared";
 
 const passthroughArgs = z.object({}).passthrough();
 
+export function policyDeniedMessage(toolName: string, detail: string): string {
+  const trimmed = detail.trim();
+  if (
+    trimmed &&
+    /denied|forbidden|not allowed|policy/i.test(trimmed) &&
+    trimmed.includes(toolName)
+  ) {
+    return trimmed;
+  }
+  return trimmed
+    ? `policy denied \`${toolName}\`: ${trimmed}`
+    : `policy denied \`${toolName}\``;
+}
+
 function inputSchemaFor(schema: unknown): z.ZodType {
   if (schema == null || typeof schema !== "object") return passthroughArgs;
   try {
@@ -58,8 +72,8 @@ export async function connectJacklineMcpTools(
                   part.type === "text" ? part.text : JSON.stringify(part),
                 )
                 .join("\n")
-            : "Tool failed";
-          throw new Error(text);
+            : "";
+          throw new Error(policyDeniedMessage(tool.name, text));
         }
         if (result.structuredContent != null) {
           return result.structuredContent;

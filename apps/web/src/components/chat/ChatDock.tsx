@@ -6,18 +6,34 @@ import {
   MessageSquare,
   X,
 } from "lucide-react";
+import { Link } from "react-router-dom";
+import type { UIMessage } from "@tanstack/ai-react";
+import type { PublicChatSession } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
 import { cn } from "@/lib/utils";
-import type { UIMessage } from "@tanstack/ai-react";
-import type { PublicChatSession } from "@jackline/shared";
-import { Link } from "react-router-dom";
 
 type Layout = "closed" | "drawer" | "expanded";
+
+function partContent(part: unknown): string {
+  if (part && typeof part === "object" && "content" in part) {
+    const value = (part as { content?: unknown }).content;
+    return typeof value === "string" ? value : "";
+  }
+  return "";
+}
+
+function partInput(part: unknown): unknown {
+  if (!part || typeof part !== "object") return undefined;
+  if ("input" in part) return (part as { input?: unknown }).input;
+  if ("arguments" in part) return (part as { arguments?: unknown }).arguments;
+  return undefined;
+}
 
 function ChatTranscript({ messages }: { messages: UIMessage[] }) {
   return (
@@ -27,13 +43,11 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
           key={message.id}
           className={cn(
             "max-w-[95%] border border-border p-3 text-sm",
-            message.role === "user"
-              ? "ml-auto bg-secondary"
-              : "bg-card",
+            message.role === "user" ? "ml-auto bg-secondary" : "bg-card",
           )}
         >
           <div className="section-label mb-1">
-            {message.role === "user" ? "You" : "Jackline Chat"}
+            {message.role === "user" ? "You" : "Jackline"}
           </div>
           {message.parts.map((part, idx) => {
             if (part.type === "thinking") {
@@ -43,7 +57,7 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
                     Thinking
                   </summary>
                   <pre className="mt-2 whitespace-pre-wrap font-sans text-xs italic">
-                    {"content" in part ? part.content : ""}
+                    {partContent(part)}
                   </pre>
                 </details>
               );
@@ -51,7 +65,7 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
             if (part.type === "text") {
               return (
                 <p key={idx} className="whitespace-pre-wrap">
-                  {"content" in part ? part.content : ""}
+                  {partContent(part)}
                 </p>
               );
             }
@@ -61,6 +75,7 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
                 typeof part.output === "object" &&
                 part.output != null &&
                 "isError" in part.output;
+              const args = partInput(part);
               return (
                 <div
                   key={idx}
@@ -68,22 +83,22 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span>{part.name}</span>
-                    <span
-                      className={cn(
-                        "uppercase tracking-wider",
-                        failed ? "text-deny" : "text-allow",
-                      )}
-                    >
+                    <Badge variant={failed ? "deny" : "allow"}>
                       {failed
                         ? "deny"
                         : part.state === "input-complete"
                           ? "complete"
-                          : part.state ?? "running"}
-                    </span>
+                          : (part.state ?? "running")}
+                    </Badge>
                   </div>
-                  <div className="mt-1 text-[10px] text-muted-foreground">
-                    via Jackline gateway
-                  </div>
+                  {args != null ? (
+                    <>
+                      <div className="section-label mt-2">Args</div>
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
+                        {JSON.stringify(args, null, 2)}
+                      </pre>
+                    </>
+                  ) : null}
                 </div>
               );
             }
@@ -146,7 +161,9 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
   const toolsAllowed = (session?.tools ?? []).filter((t) => t.allowed);
   const servers = [...new Set(toolsAllowed.map((t) => t.serverName))];
   const llmReady = Boolean(session?.llm.configured);
-  const canSend = llmReady && !isLoading;
+  const canSend = llmReady && toolsAllowed.length > 0 && !isLoading;
+  const settingsHint =
+    error instanceof ApiError && error.code === "BAD_REQUEST";
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -157,14 +174,12 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
   }
 
   const panel = (
-    <div className="flex h-full min-h-0 flex-col bg-card">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+    <div className="lattice-bg flex h-full min-h-0 flex-col bg-background">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
         <div>
           <div className="text-sm font-medium">Chat</div>
           <div className="section-label mt-0.5">
-            {session?.llm.provider && session.llm.model
-              ? `${session.llm.provider} · ${session.llm.model}`
-              : "Through your Jackline connection"}
+            Your tools, through Jackline policy
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -201,17 +216,12 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-border px-4 py-2">
-        <span className="border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          {toolsAllowed.length} tools
-        </span>
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-4 py-2">
+        <span className="section-label">{toolsAllowed.length} tools</span>
         {servers.slice(0, 6).map((name) => (
-          <span
-            key={name}
-            className="border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider"
-          >
+          <Badge key={name} variant="outline">
             {name}
-          </span>
+          </Badge>
         ))}
       </div>
 
@@ -223,8 +233,13 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
           {error ? (
             <p className="text-sm text-deny">{error.message}</p>
           ) : null}
+          {settingsHint && isFullAdmin ? (
+            <Button asChild className="mb-4" size="sm">
+              <Link to="/settings">Open Settings</Link>
+            </Button>
+          ) : null}
           {!llmReady ? (
-            <div className="border border-border p-4 text-sm">
+            <div className="border border-border bg-card p-4 text-sm">
               <div className="font-medium">Chat is not configured</div>
               <p className="mt-1 text-muted-foreground">
                 {isFullAdmin
@@ -237,18 +252,16 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
                 </Button>
               ) : null}
             </div>
-          ) : (
-            <>
-          {toolsAllowed.length === 0 ? (
-            <div className="mb-4 border border-border p-4 text-sm">
-              <div className="font-medium">No tools on this connection</div>
-              <p className="mt-1 text-muted-foreground">
-                Grant roles on the Jackline Chat connection. This catalog is
-                the same policy Cursor would see. You can still send a
-                message; the model has no Jackline tools until then.
+          ) : toolsAllowed.length === 0 ? (
+            <div className="mx-auto mt-10 max-w-md border border-border bg-card p-6 text-center">
+              <MessageSquare className="mx-auto size-6 text-muted-foreground" />
+              <div className="mt-3 font-medium">No tools on this connection</div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                This chat uses the Jackline Chat client. It can only see and use
+                tools that have been granted to your roles for this connection.
               </p>
-              <div className="mt-3 flex gap-2">
-                <Button asChild size="sm" variant="outline">
+              <div className="mt-4 flex justify-center gap-2">
+                <Button asChild size="sm">
                   <Link to="/access-requests">Request access</Link>
                 </Button>
                 <Button asChild size="sm" variant="outline">
@@ -256,28 +269,27 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
                 </Button>
               </div>
             </div>
-          ) : null}
-          {messages.length === 0 ? (
+          ) : messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Ask your tools. Calls go through the Jackline gateway.
             </p>
           ) : (
             <ChatTranscript messages={messages} />
           )}
-            </>
-          )}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
       <form
-        className="flex shrink-0 gap-2 border-t border-border p-3"
+        className="flex shrink-0 gap-2 border-t border-border bg-card p-3"
         onSubmit={onSubmit}
       >
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask your tools…"
+          placeholder={
+            toolsAllowed.length === 0 ? "Send a message…" : "Ask your tools…"
+          }
           disabled={!canSend && !isLoading}
         />
         {isLoading ? (
@@ -290,6 +302,9 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
           </Button>
         )}
       </form>
+      <div className="section-label border-t border-border bg-card px-3 py-1.5 text-center">
+        client: Jackline Chat
+      </div>
     </div>
   );
 

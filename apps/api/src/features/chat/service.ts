@@ -11,8 +11,9 @@ import {
   getConfig,
   internalMcpUrl,
   JACKLINE_CHAT_SYSTEM_KEY,
-  JacklineError,
   LLM_API_KEY_KIND,
+  CHAT_NOT_CONFIGURED,
+  JacklineError,
   maskSecretLast4,
   type PublicChatSession,
   type PublicChatSettings,
@@ -27,9 +28,6 @@ export type ChatActor = {
   userId: string;
   role: string;
 };
-
-const CHAT_NOT_CONFIGURED =
-  "Chat is not configured; a full admin must set provider and API key in Settings";
 
 function isFullAdmin(role: string): boolean {
   return role === "full_admin";
@@ -350,5 +348,3 @@ export const chatServices = {
   getSession,
   resolveRun,
 } as const;
-
-export { CHAT_NOT_CONFIGURED };

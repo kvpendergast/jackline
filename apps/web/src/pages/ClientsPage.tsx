@@ -71,7 +71,7 @@ export function ClientsPage() {
       <PageHeader
         eyebrow="Front door"
         title="Clients"
-        description="Interactive harnesses (Cursor, Claude) or service clients for the public Admin API (OAuth2 client_credentials)."
+        description="Manage OAuth clients and in-product integrations. The Jackline Chat client is system-managed and cannot be deleted or renamed."
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -109,6 +109,9 @@ export function ClientsPage() {
                 Kind
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Owner
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 API credentials
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
@@ -122,7 +125,7 @@ export function ClientsPage() {
           <TableBody>
             {!loading && items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
+                <TableCell colSpan={6} className="text-muted-foreground">
                   No clients yet.
                 </TableCell>
               </TableRow>
@@ -142,6 +145,9 @@ export function ClientsPage() {
                 </TableCell>
                 <TableCell>
                   <KindBadge kind={row.kind} />
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {row.ownerUserId ? row.ownerUserId.slice(0, 8) + "…" : "Org"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {row.kind !== "service"

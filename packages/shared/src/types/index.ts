@@ -153,6 +153,7 @@ export {
   JACKLINE_CHAT_SYSTEM_KEY,
   JACKLINE_CHAT_CLIENT_NAME,
   LLM_API_KEY_KIND,
+  CHAT_NOT_CONFIGURED,
   ChatLlmProviderSchema,
   type ChatLlmProvider,
   ChatReasoningEffortSchema,
