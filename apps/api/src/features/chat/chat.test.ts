@@ -8,7 +8,7 @@ import {
   UpdateChatSettingsBodySchema,
 } from "@jackline/shared";
 import { createChatAdapter } from "./adapter.js";
-import { policyDeniedMessage } from "./mcpTools.js";
+import { isMcpMethodNotFound, policyDeniedMessage } from "./mcpTools.js";
 
 describe("maskSecretLast4", () => {
   it("hides short secrets entirely", () => {
@@ -65,6 +65,16 @@ describe("policyDeniedMessage", () => {
       policyDeniedMessage("linear__list_issues", ""),
       "policy denied `linear__list_issues`",
     );
+  });
+});
+
+describe("isMcpMethodNotFound", () => {
+  it("treats an empty Jackline catalog as not-found, not a crash", () => {
+    assert.equal(
+      isMcpMethodNotFound(new Error("MCP error -32601: Method not found")),
+      true,
+    );
+    assert.equal(isMcpMethodNotFound(new Error("ECONNREFUSED")), false);
   });
 });
 

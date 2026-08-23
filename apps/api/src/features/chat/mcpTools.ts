@@ -38,6 +38,11 @@ export type ConnectedJacklineMcp = {
   close: () => Promise<void>;
 };
 
+export function isMcpMethodNotFound(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return message.includes("-32601") || /method not found/i.test(message);
+}
+
 export async function connectJacklineMcpTools(
   mcpUrl: string,
   gatewayToken: string,
@@ -53,7 +58,17 @@ export async function connectJacklineMcpTools(
 
   try {
     await client.connect(transport as unknown as Transport);
-    const listed = await client.listTools();
+    let listed: { tools: Array<{ name: string; description?: string; inputSchema?: unknown }> };
+    try {
+      listed = await client.listTools();
+    } catch (cause) {
+      // Jackline registers tools/list only after at least one tool is granted.
+      if (isMcpMethodNotFound(cause)) {
+        listed = { tools: [] };
+      } else {
+        throw cause;
+      }
+    }
     const tools = listed.tools.map((tool) => {
       const def = toolDefinition({
         name: tool.name,
