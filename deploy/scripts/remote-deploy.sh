@@ -6,18 +6,31 @@
 #   GIT_REPO       Clone URL if ROOT is not yet a git checkout (required then)
 #   GIT_SHA        Commit to check out (preferred in CI)
 #   GIT_REF        Branch/ref when GIT_SHA is unset (default: main)
+#   GITHUB_TOKEN   Optional — required for private github.com clones/fetches
 set -euo pipefail
 
 ROOT="${JACKLINE_ROOT:-/opt/jackline}"
 REF="${GIT_REF:-main}"
 
+configure_github_auth() {
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    # Rewrite https://github.com/… for clone/fetch (token is masked in GitHub Actions logs).
+    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+  fi
+}
+
 echo "=== remote-deploy $(date -u) root=${ROOT} ==="
+
+configure_github_auth
 
 if [[ ! -d "${ROOT}/.git" ]]; then
   if [[ -z "${GIT_REPO:-}" ]]; then
     echo "error: ${ROOT} is not a git checkout and GIT_REPO is unset" >&2
     echo "Set GIT_REPO (e.g. https://github.com/org/jackline.git) or wait for VM startup bootstrap." >&2
     exit 1
+  fi
+  if [[ -z "${GITHUB_TOKEN:-}" && "${GIT_REPO}" == https://github.com/* ]]; then
+    echo "warning: GITHUB_TOKEN unset — private github.com repos will fail to clone" >&2
   fi
   echo "Bootstrapping ${ROOT} from ${GIT_REPO}"
   mkdir -p "$(dirname "${ROOT}")"
@@ -32,7 +45,6 @@ git fetch --prune origin
 
 if [[ -n "${GIT_SHA:-}" ]]; then
   echo "Checking out ${GIT_SHA}"
-  # Shallow clones may not have the SHA; fetch it explicitly.
   git fetch --depth 1 origin "${GIT_SHA}" 2>/dev/null \
     || git fetch origin "${GIT_SHA}" 2>/dev/null \
     || true
