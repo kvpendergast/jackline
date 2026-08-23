@@ -7,7 +7,7 @@ config:
   # Optional docs host (defaults to docs.<domain>)
   # jackline-vm:docsDomain: docs.jackline.example.com
   jackline-vm:machineType: e2-small
-  jackline-vm:gitRepo: https://github.com/kvpendergast/jackline.git
+  jackline-vm:gitRepo: https://github.com/YOUR_ORG_OR_USER/jackline.git
   jackline-vm:gitRef: main
   # jackline-vm:caddyEmail: you@example.com
   # Set secrets with: pulumi config set --secret <key> <value>

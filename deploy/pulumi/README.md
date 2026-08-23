@@ -19,6 +19,7 @@ pulumi stack init prod                       # once
 cp Pulumi.prod.example.yaml Pulumi.prod.yaml # then edit; file is gitignored
 pulumi config set gcp:project YOUR_PROJECT
 pulumi config set domain jackline.example.com
+pulumi config set gitRepo https://github.com/YOUR_ORG_OR_USER/jackline.git
 pulumi config set --secret jacklineMasterKey "$(openssl rand -base64 32)"
 pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 # optional: pulumi config set machineType e2-medium
