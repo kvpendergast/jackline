@@ -14,11 +14,13 @@ set -euo pipefail
 ROOT="${JACKLINE_ROOT:-/opt/jackline}"
 REF="${GIT_REF:-main}"
 TOKEN=""
+ASKPASS=""
 
 cleanup() {
-  if [[ -n "${TOKEN}" ]]; then
-    unset TOKEN GITHUB_TOKEN || true
+  if [[ -n "${ASKPASS}" && -f "${ASKPASS}" ]]; then
+    shred -u "${ASKPASS}" 2>/dev/null || rm -f "${ASKPASS}"
   fi
+  unset TOKEN GITHUB_TOKEN GIT_ASKPASS GIT_TERMINAL_PROMPT || true
   if [[ -n "${GITHUB_TOKEN_FILE:-}" && -f "${GITHUB_TOKEN_FILE}" ]]; then
     shred -u "${GITHUB_TOKEN_FILE}" 2>/dev/null || rm -f "${GITHUB_TOKEN_FILE}"
   fi
@@ -27,25 +29,54 @@ trap cleanup EXIT
 
 load_token() {
   if [[ -n "${GITHUB_TOKEN_FILE:-}" && -f "${GITHUB_TOKEN_FILE}" ]]; then
-    TOKEN="$(tr -d '\n' <"${GITHUB_TOKEN_FILE}")"
+    TOKEN="$(tr -d '\r\n' <"${GITHUB_TOKEN_FILE}")"
   elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    TOKEN="${GITHUB_TOKEN}"
+    TOKEN="$(printf '%s' "${GITHUB_TOKEN}" | tr -d '\r\n')"
   fi
-}
-
-# Authenticated github.com URL for a single git invocation (token not stored in remotes).
-auth_github_url() {
-  local url="$1"
-  if [[ -n "${TOKEN}" && "${url}" == https://github.com/* ]]; then
-    printf '%s\n' "${url/https:\/\/github.com\//https:\/\/x-access-token:${TOKEN}@github.com\/}"
-  else
-    printf '%s\n' "${url}"
-  fi
-}
-
-git_fetch_auth() {
   if [[ -n "${TOKEN}" ]]; then
-    git -c "http.extraHeader=Authorization: Bearer ${TOKEN}" "$@"
+    echo "GitHub token loaded (${#TOKEN} chars)"
+  else
+    echo "warning: no GitHub token available for private repo fetch" >&2
+  fi
+}
+
+# Remove leftover credential rewrites from earlier deploys (expired tokens → "invalid credentials").
+sanitize_git_config() {
+  local key
+  while IFS= read -r key; do
+    [[ -z "${key}" ]] && continue
+    git config --global --unset-all "${key}" 2>/dev/null || true
+  done < <(git config --global --get-regexp '^url\..*\.insteadof$' 2>/dev/null | awk '{print $1}' || true)
+
+  # Drop any helper that might inject stale creds.
+  git config --global --unset-all credential.helper 2>/dev/null || true
+}
+
+# Prefer GIT_ASKPASS so the token never lands in remotes or insteadOf config.
+setup_askpass() {
+  if [[ -z "${TOKEN}" ]]; then
+    return 0
+  fi
+  ASKPASS="$(mktemp)"
+  chmod 700 "${ASKPASS}"
+  cat >"${ASKPASS}" <<'EOF'
+#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\n' "x-access-token" ;;
+  *Password*) printf '%s\n' "${JACKLINE_GIT_PASSWORD}" ;;
+  *) printf '%s\n' "${JACKLINE_GIT_PASSWORD}" ;;
+esac
+EOF
+  chmod 700 "${ASKPASS}"
+  export JACKLINE_GIT_PASSWORD="${TOKEN}"
+  export GIT_ASKPASS="${ASKPASS}"
+  export GIT_TERMINAL_PROMPT=0
+}
+
+git_auth() {
+  if [[ -n "${TOKEN}" ]]; then
+    # Disable interactive prompts; ASKPASS supplies x-access-token + token.
+    GIT_ASKPASS="${ASKPASS}" GIT_TERMINAL_PROMPT=0 git -c credential.helper= "$@"
   else
     git "$@"
   fi
@@ -73,6 +104,8 @@ ensure_docker() {
 echo "=== remote-deploy $(date -u) root=${ROOT} ==="
 
 load_token
+sanitize_git_config
+setup_askpass
 ensure_docker
 
 if [[ ! -d "${ROOT}/.git" ]]; then
@@ -87,12 +120,18 @@ if [[ ! -d "${ROOT}/.git" ]]; then
   echo "Bootstrapping ${ROOT} from ${GIT_REPO}"
   mkdir -p "$(dirname "${ROOT}")"
   rm -rf "${ROOT}"
-  git clone "$(auth_github_url "${GIT_REPO}")" "${ROOT}"
-  # Never leave credentials in the remote URL.
-  git -C "${ROOT}" remote set-url origin "${GIT_REPO}"
+  git_auth clone "${GIT_REPO}" "${ROOT}"
 fi
 
 cd "${ROOT}"
+
+# Always pin a clean origin URL (no embedded credentials from prior runs).
+if [[ -n "${GIT_REPO:-}" ]]; then
+  git remote set-url origin "${GIT_REPO}"
+elif git remote get-url origin >/dev/null 2>&1; then
+  clean="$(git remote get-url origin | sed -E 's#https://[^@]+@github.com/#https://github.com/#')"
+  git remote set-url origin "${clean}"
+fi
 
 if [[ -n "${ENV_PROD_SRC:-}" ]]; then
   if [[ ! -f "${ENV_PROD_SRC}" ]]; then
@@ -104,18 +143,18 @@ if [[ -n "${ENV_PROD_SRC:-}" ]]; then
   echo "Installed .env.prod from CI-rendered file"
 fi
 
-git remote -v
-git_fetch_auth fetch --prune origin
+echo "origin=$(git remote get-url origin)"
+git_auth fetch --prune origin
 
 if [[ -n "${GIT_SHA:-}" ]]; then
   echo "Checking out ${GIT_SHA}"
-  git_fetch_auth fetch --depth 1 origin "${GIT_SHA}" 2>/dev/null \
-    || git_fetch_auth fetch origin "${GIT_SHA}" 2>/dev/null \
+  git_auth fetch --depth 1 origin "${GIT_SHA}" 2>/dev/null \
+    || git_auth fetch origin "${GIT_SHA}" 2>/dev/null \
     || true
   git checkout -f "${GIT_SHA}"
 else
   echo "Checking out origin/${REF}"
-  git_fetch_auth fetch origin "${REF}"
+  git_auth fetch origin "${REF}"
   git checkout -f "origin/${REF}"
 fi
 
