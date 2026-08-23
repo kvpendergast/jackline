@@ -161,7 +161,7 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
   const toolsAllowed = (session?.tools ?? []).filter((t) => t.allowed);
   const servers = [...new Set(toolsAllowed.map((t) => t.serverName))];
   const llmReady = Boolean(session?.llm.configured);
-  const canSend = llmReady && toolsAllowed.length > 0 && !isLoading;
+  const canSend = llmReady && !isLoading;
   const settingsHint =
     error instanceof ApiError && error.code === "BAD_REQUEST";
 
@@ -252,29 +252,34 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
                 </Button>
               ) : null}
             </div>
-          ) : toolsAllowed.length === 0 ? (
-            <div className="mx-auto mt-10 max-w-md border border-border bg-card p-6 text-center">
-              <MessageSquare className="mx-auto size-6 text-muted-foreground" />
-              <div className="mt-3 font-medium">No tools on this connection</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                This chat uses the Jackline Chat client. It can only see and use
-                tools that have been granted to your roles for this connection.
-              </p>
-              <div className="mt-4 flex justify-center gap-2">
-                <Button asChild size="sm">
-                  <Link to="/access-requests">Request access</Link>
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/my-access">Open My Access</Link>
-                </Button>
-              </div>
-            </div>
-          ) : messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Ask your tools. Calls go through the Jackline gateway.
-            </p>
           ) : (
-            <ChatTranscript messages={messages} />
+            <>
+              {toolsAllowed.length === 0 ? (
+                <div className="mb-4 border border-border bg-card p-4 text-sm">
+                  <div className="font-medium">No tools on this connection</div>
+                  <p className="mt-1 text-muted-foreground">
+                    This chat uses the Jackline Chat client. It can only see and
+                    use tools that have been granted to your roles for this
+                    connection. You can still talk to the model.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button asChild size="sm">
+                      <Link to="/access-requests">Request access</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/my-access">Open My Access</Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {messages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Ask your tools. Calls go through the Jackline gateway.
+                </p>
+              ) : (
+                <ChatTranscript messages={messages} />
+              )}
+            </>
           )}
           <div ref={bottomRef} />
         </div>
