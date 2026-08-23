@@ -81,7 +81,7 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
-3. Grant the SA: Compute (and OS Login / IAP tunnel for VM SSH), Pulumi state bucket R/W, KMS decrypt if used, Artifact Registry for GKE, Secret Manager if used.
+3. Grant the SA: Compute (and OS Login / IAP tunnel for VM SSH), Pulumi state bucket R/W, KMS decrypt if used, Artifact Registry for GKE, **Secret Manager Secret Accessor** (+ list).
 4. Put in GitHub → **Settings → Secrets and variables → Actions**:
 
 | Secret / variable | Purpose |
@@ -90,14 +90,36 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `GCP_SERVICE_ACCOUNT` | Deploy SA email |
 | `GCP_PROJECT_ID` | GCP project id |
 | `PULUMI_STATE_BUCKET` | e.g. `gs://your-pulumi-state` |
-| `PULUMI_STACK_CONFIG` | Full contents of your `Pulumi.prod.yaml` |
 | `PULUMI_CONFIG_PASSPHRASE` | Only if the stack uses passphrase encryption |
+| `JACKLINE_DOMAIN` (variable) | App hostname |
+| `JACKLINE_GIT_REPO` (variable) | Git URL the VM clones (required for `vm`) |
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
 | `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
+| `JACKLINE_SECRET_PREFIX` (variable) | Default `jackline-pulumi-` |
 
 Workflows **skip** when WIF secrets are unset (safe for forks that do not self-host via CI).
 
 Enable **IAP** tunnel access for the deploy SA (`roles/iap.tunnelResourceAccessor`) so Actions can `gcloud compute ssh --tunnel-through-iap` without opening SSH to the world.
+
+### App / Pulumi secrets (Secret Manager prefix)
+
+Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose IDs start with the prefix (default `jackline-pulumi-`). CI runs [`deploy/scripts/ci-pulumi-apply-config.sh`](../scripts/ci-pulumi-apply-config.sh), which lists that prefix and runs `pulumi config set --secret <key>` for each.
+
+| Secret Manager ID | Pulumi config key |
+| --- | --- |
+| `jackline-pulumi-jacklineMasterKey` | `jacklineMasterKey` |
+| `jackline-pulumi-betterAuthSecret` | `betterAuthSecret` |
+| `jackline-pulumi-postgresPassword` | `postgresPassword` |
+
+```bash
+# example
+echo -n "$(openssl rand -base64 32)" | \
+  gcloud secrets create jackline-pulumi-jacklineMasterKey \
+    --data-file=- --replication-policy=automatic
+# rotate later: gcloud secrets versions add jackline-pulumi-jacklineMasterKey --data-file=-
+```
+
+Add a new required Pulumi secret later by creating another `jackline-pulumi-<key>` in GCP — **no workflow edit**. Plain knobs (`domain`, `gitRepo`, …) stay GitHub **variables**.
 
 ## Layout
 
@@ -107,5 +129,6 @@ deploy/pulumi/
   vm/                ← hobbyist default
   gke/               ← advanced Autopilot path
 deploy/scripts/
-  remote-deploy.sh   ← VM app update (CI + manual)
+  remote-deploy.sh              ← VM app update (CI + manual)
+  ci-pulumi-apply-config.sh     ← vars + SM prefix → pulumi config
 ```
