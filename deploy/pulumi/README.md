@@ -82,8 +82,21 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
 3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`), IAP tunnel, Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
-4. Enable **`iap.googleapis.com`** (required for `gcloud compute ssh --tunnel-through-iap`).
-5. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
+4. Enable **`iap.googleapis.com`** and **`oslogin.googleapis.com`** (IAP tunnel + OS Login SSH).
+5. If the VM uses the default Compute Engine SA (usual), grant the deploy SA **`roles/iam.serviceAccountUser` on that SA** (required for OS Login when the VM has an attached service account):
+
+```bash
+PROJECT=mesh-505410
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+DEPLOY_SA=jackline-deploy@${PROJECT}.iam.gserviceaccount.com
+COMPUTE_SA=${PROJECT_NUMBER}-compute@developer.gserviceaccount.com
+
+gcloud iam service-accounts add-iam-policy-binding "$COMPUTE_SA" \
+  --member="serviceAccount:${DEPLOY_SA}" \
+  --role="roles/iam.serviceAccountUser"
+```
+
+6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
    **Settings → Environments → production**.
 
 | Secret / variable | Purpose |
