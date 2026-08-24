@@ -27,7 +27,7 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS.
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** (remote-deploy recreates Caddy so ACME retries).
 
 **Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy.
 

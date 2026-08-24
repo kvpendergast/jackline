@@ -166,4 +166,30 @@ fi
 
 docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 
+# Force Caddy to retry Let's Encrypt after DNS/IP changes. A plain `up` leaves a
+# running caddy container alone, which can stick with a failed cert obtain from
+# when the A record still pointed elsewhere (TLS then fails with ERR_SSL_PROTOCOL_ERROR).
+echo "Restarting Caddy to refresh ACME certificates…"
+docker compose -f deploy/compose.prod.yml --env-file .env.prod up -d --force-recreate --no-deps caddy
+
+SITE_HOST="$(grep -E '^JACKLINE_SITE_ADDRESS=' .env.prod | head -1 | cut -d= -f2- | tr -d '\r' || true)"
+if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
+  echo "Waiting for TLS on ${SITE_HOST}…"
+  ok=0
+  for _ in $(seq 1 30); do
+    if echo | openssl s_client -connect "127.0.0.1:443" -servername "${SITE_HOST}" 2>/dev/null \
+      | grep -q 'BEGIN CERTIFICATE'; then
+      ok=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ "${ok}" -ne 1 ]]; then
+    echo "warning: TLS not ready for ${SITE_HOST} after ~60s — dumping Caddy logs" >&2
+    docker compose -f deploy/compose.prod.yml --env-file .env.prod logs --tail=80 caddy >&2 || true
+  else
+    echo "TLS handshake OK for ${SITE_HOST}"
+  fi
+fi
+
 echo "=== remote-deploy complete ==="
