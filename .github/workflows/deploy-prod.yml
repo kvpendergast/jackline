@@ -1,19 +1,26 @@
 # Deploy Jackline to GCP on push to main (Pulumi + optional VM compose update).
 #
-# Prerequisites (per-repo GitHub Secrets / Variables — not inherited by forks):
-#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/.../workloadIdentityPools/.../providers/...
-#   GCP_SERVICE_ACCOUNT             deploy SA email
-#   GCP_PROJECT_ID
-#   PULUMI_STATE_BUCKET             e.g. gs://your-pulumi-state
-#   PULUMI_STACK_CONFIG             contents of gitignored Pulumi.prod.yaml (recommended)
-#   PULUMI_CONFIG_PASSPHRASE        only if the stack uses passphrase encryption
+# Prerequisites (per-repo — not inherited by forks):
+#   Secrets:
+#     GCP_WORKLOAD_IDENTITY_PROVIDER
+#     GCP_SERVICE_ACCOUNT
+#     GCP_PROJECT_ID
+#     PULUMI_STATE_BUCKET             e.g. gs://your-pulumi-state
+#     PULUMI_CONFIG_PASSPHRASE        only if stack uses passphrase encryption
+#   Variables (plain config — change these without touching this workflow):
+#     JACKLINE_DOMAIN                 required
+#     JACKLINE_GIT_REPO               required for vm path
+#     JACKLINE_GIT_REF                default main
+#     JACKLINE_DEPLOY_PATH            vm (default) | gke
+#     JACKLINE_VM_ZONE / JACKLINE_VM_NAME
+#     JACKLINE_SECRET_PREFIX          default jackline-pulumi-
+#     GCP_REGION, JACKLINE_MACHINE_TYPE, JACKLINE_DOCS_DOMAIN, …
 #
-# Optional Variables:
-#   JACKLINE_DEPLOY_PATH            vm (default) | gke
-#   JACKLINE_VM_ZONE                default us-central1-a
-#   JACKLINE_VM_NAME                default jackline
+# App/Pulumi secrets live in GCP Secret Manager as ${PREFIX}<pulumiKey>
+# (e.g. jackline-pulumi-jacklineMasterKey). CI lists that prefix and
+# `pulumi config set --secret` — add/rotate in GCP only.
 #
-# Skip: job no-ops when WIF secrets are unset (forks / pre-bootstrap).
+# Jobs use environment: production (secrets + variables live on that Environment).
 name: Deploy prod
 
 on:
@@ -38,32 +45,45 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && secrets.GCP_PROJECT_ID != '' }}
+    environment: production
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      JACKLINE_DOMAIN: ${{ vars.JACKLINE_DOMAIN }}
+      JACKLINE_GIT_REPO: ${{ vars.JACKLINE_GIT_REPO }}
+      JACKLINE_GIT_REF: ${{ vars.JACKLINE_GIT_REF || 'main' }}
+      JACKLINE_MACHINE_TYPE: ${{ vars.JACKLINE_MACHINE_TYPE }}
+      JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_VM_NAME: ${{ vars.JACKLINE_VM_NAME || 'jackline' }}
+      JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
+      JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
+      JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false
 
       - name: Install Pulumi CLI
-        uses: pulumi/setup-pulumi@v2
-        with:
-          pulumi-version: ^3.130.0
+        run: |
+          set -euo pipefail
+          curl -fsSL https://get.pulumi.com | sh -s -- --version 3.130.0
+          echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
 
       - name: Resolve deploy directory
         id: path
@@ -83,21 +103,9 @@ jobs:
         working-directory: ${{ steps.path.outputs.dir }}
         run: npm ci
 
-      - name: Restore Pulumi stack config
-        working-directory: ${{ steps.path.outputs.dir }}
-        env:
-          PULUMI_STACK_CONFIG: ${{ secrets.PULUMI_STACK_CONFIG }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PULUMI_STACK_CONFIG:-}" ]; then
-            echo "PULUMI_STACK_CONFIG secret is required (contents of Pulumi.prod.yaml)"
-            exit 1
-          fi
-          printf '%s\n' "$PULUMI_STACK_CONFIG" > Pulumi.prod.yaml
-
       - name: Set up Docker (GKE image builds)
-        if: ${{ (github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm') == 'gke' }}
-        uses: docker/setup-buildx-action@v3
+        if: ${{ env.DEPLOY_PATH == 'gke' }}
+        uses: docker/setup-buildx-action@v4
 
       - name: Pulumi up
         working-directory: ${{ steps.path.outputs.dir }}
@@ -109,21 +117,96 @@ jobs:
             echo "PULUMI_STATE_BUCKET secret is required (e.g. gs://your-bucket)"
             exit 1
           fi
+          if [ -z "${JACKLINE_DOMAIN:-}" ]; then
+            echo "GitHub variable JACKLINE_DOMAIN is required"
+            exit 1
+          fi
           pulumi login "$PULUMI_BACKEND_URL"
-          pulumi stack select prod
+          pulumi stack select prod --create
+          bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-pulumi-apply-config.sh"
           pulumi up --yes
 
       - name: Deploy app on VM
-        if: ${{ (github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm') == 'vm' }}
+        if: ${{ env.DEPLOY_PATH == 'vm' }}
+        working-directory: ${{ steps.path.outputs.dir }}
         env:
-          VM_NAME: ${{ vars.JACKLINE_VM_NAME || 'jackline' }}
-          VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_STATE_BUCKET }}
         run: |
           set -euo pipefail
-          gcloud compute ssh "${VM_NAME}" \
-            --project="${GCP_PROJECT_ID}" \
-            --zone="${VM_ZONE}" \
-            --tunnel-through-iap \
-            --command="sudo GIT_SHA='${GITHUB_SHA}' bash -s" \
-            < deploy/scripts/remote-deploy.sh
+          export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+
+          pulumi login "$PULUMI_BACKEND_URL"
+          pulumi stack select prod
+
+          VM_NAME="$(pulumi stack output instanceName)"
+          VM_ZONE="$(pulumi stack output instanceZone)"
+          echo "VM target: ${VM_NAME} (${VM_ZONE})"
+
+          echo "Waiting for instance to reach RUNNING..."
+          for i in $(seq 1 36); do
+            status="$(gcloud compute instances describe "${VM_NAME}" \
+              --project="${GCP_PROJECT_ID}" \
+              --zone="${VM_ZONE}" \
+              --format='value(status)' 2>/dev/null || true)"
+            if [ "${status}" = "RUNNING" ]; then
+              echo "Instance is RUNNING"
+              break
+            fi
+            if [ "${i}" -eq 36 ]; then
+              echo "Instance not RUNNING after 6 minutes (last status: ${status:-missing})"
+              gcloud compute instances list --project="${GCP_PROJECT_ID}" --filter="name=${VM_NAME}" || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          # Startup script bootstraps on first create; give it a head start before compose rebuild.
+          sleep 30
+
+          # OS Login ignores metadata SSH keys. Register an RSA key on the deploy SA profile
+          # (ed25519 is not reliably accepted; auto keygen races OS Login propagation).
+          mkdir -p "${HOME}/.ssh"
+          chmod 700 "${HOME}/.ssh"
+          KEY="${HOME}/.ssh/google_compute_engine"
+          if [[ ! -f "${KEY}" ]]; then
+            ssh-keygen -t rsa -b 3072 -f "${KEY}" -N "" -C "github-actions-jackline-deploy"
+          fi
+          gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600
+          sleep 15
+
+          # Render .env.prod on the runner from Secret Manager (never log contents).
+          ENV_FILE="$(mktemp)"
+          TOKEN_FILE="$(mktemp)"
+          chmod 600 "${ENV_FILE}" "${TOKEN_FILE}"
+          bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-render-env-prod.sh" "${ENV_FILE}"
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" >"${TOKEN_FILE}"
+
+          SCP=(gcloud compute scp
+            --project="${GCP_PROJECT_ID}"
+            --zone="${VM_ZONE}"
+            --tunnel-through-iap
+            --quiet
+            --ssh-key-file="${KEY}")
+          SSH=(gcloud compute ssh "${VM_NAME}"
+            --project="${GCP_PROJECT_ID}"
+            --zone="${VM_ZONE}"
+            --tunnel-through-iap
+            --quiet
+            --ssh-key-file="${KEY}"
+            --ssh-flag="-o StrictHostKeyChecking=no")
+
+          # Copy artifacts to the OS Login user's /tmp, then remote-deploy installs with sudo.
+          "${SCP[@]}" "${ENV_FILE}" "${VM_NAME}:/tmp/jackline.env.prod"
+          "${SCP[@]}" "${TOKEN_FILE}" "${VM_NAME}:/tmp/jackline-gh-token"
+          "${SCP[@]}" \
+            "${GITHUB_WORKSPACE}/deploy/scripts/remote-deploy.sh" \
+            "${VM_NAME}:/tmp/remote-deploy.sh"
+          shred -u "${ENV_FILE}" "${TOKEN_FILE}" 2>/dev/null || rm -f "${ENV_FILE}" "${TOKEN_FILE}"
+
+          "${SSH[@]}" --command="sudo \
+            GIT_SHA='${GITHUB_SHA}' \
+            GIT_REPO='${JACKLINE_GIT_REPO}' \
+            GIT_REF='${JACKLINE_GIT_REF:-main}' \
+            ENV_PROD_SRC=/tmp/jackline.env.prod \
+            GITHUB_TOKEN_FILE=/tmp/jackline-gh-token \
+            bash /tmp/remote-deploy.sh"

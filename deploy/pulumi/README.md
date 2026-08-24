@@ -19,6 +19,7 @@ pulumi stack init prod                       # once
 cp Pulumi.prod.example.yaml Pulumi.prod.yaml # then edit; file is gitignored
 pulumi config set gcp:project YOUR_PROJECT
 pulumi config set domain jackline.example.com
+pulumi config set gitRepo https://github.com/YOUR_ORG_OR_USER/jackline.git
 pulumi config set --secret jacklineMasterKey "$(openssl rand -base64 32)"
 pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 # optional: pulumi config set machineType e2-medium
@@ -26,7 +27,7 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the `publicIp` output. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS.
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** (remote-deploy recreates Caddy so ACME retries).
 
 **Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy.
 
@@ -80,8 +81,19 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
-3. Grant the SA: Compute (and OS Login / IAP tunnel for VM SSH), Pulumi state bucket R/W, KMS decrypt if used, Artifact Registry for GKE, Secret Manager if used.
-4. Put in GitHub → **Settings → Secrets and variables → Actions**:
+3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`, **`publicIpAdmin`** for the regional static address), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
+
+   ```bash
+   # Regional static IP (jackline-vm-ip) — required after #29
+   gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
+     --member="serviceAccount:$GCP_SERVICE_ACCOUNT" \
+     --role="roles/compute.publicIpAdmin"
+   ```
+
+4. Enable **`iap.googleapis.com`** and **`oslogin.googleapis.com`** (IAP tunnel + OS Login SSH).
+5. The VM path creates a dedicated **`jackline-vm@…`** runtime SA (not the default Compute Engine SA) and attaches it to the instance. Set Pulumi config `deployServiceAccount` to your CI deploy SA email (CI does this automatically from `GCP_SERVICE_ACCOUNT`) so Pulumi grants `roles/iam.serviceAccountUser` on `jackline-vm` — required for OS Login and for attaching the SA at create/update time.
+6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
+   **Settings → Environments → production**.
 
 | Secret / variable | Purpose |
 | --- | --- |
@@ -89,14 +101,40 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `GCP_SERVICE_ACCOUNT` | Deploy SA email |
 | `GCP_PROJECT_ID` | GCP project id |
 | `PULUMI_STATE_BUCKET` | e.g. `gs://your-pulumi-state` |
-| `PULUMI_STACK_CONFIG` | Full contents of your `Pulumi.prod.yaml` |
 | `PULUMI_CONFIG_PASSPHRASE` | Only if the stack uses passphrase encryption |
+| `JACKLINE_DOMAIN` (variable) | App hostname |
+| `JACKLINE_GIT_REPO` (variable) | Git URL the VM clones (required for `vm`) |
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
 | `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
+| `JACKLINE_SECRET_PREFIX` (variable) | Default `jackline-pulumi-` |
 
-Workflows **skip** when WIF secrets are unset (safe for forks that do not self-host via CI).
+Forks do not inherit your `production` Environment secrets, so their runs cannot deploy to your GCP.
 
 Enable **IAP** tunnel access for the deploy SA (`roles/iap.tunnelResourceAccessor`) so Actions can `gcloud compute ssh --tunnel-through-iap` without opening SSH to the world.
+
+### App / Pulumi secrets (Secret Manager prefix)
+
+Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose IDs start with the prefix (default `jackline-pulumi-`). CI runs [`deploy/scripts/ci-pulumi-apply-config.sh`](../scripts/ci-pulumi-apply-config.sh), which lists that prefix and runs `pulumi config set --secret <key>` for each.
+
+| Secret Manager ID | Pulumi config key |
+| --- | --- |
+| `jackline-pulumi-jacklineMasterKey` | `jacklineMasterKey` |
+| `jackline-pulumi-betterAuthSecret` | `betterAuthSecret` |
+| `jackline-pulumi-postgresPassword` | `postgresPassword` |
+| `jackline-pulumi-tenancy` | `tenancy` (`single` or `multi`) |
+| `jackline-pulumi-githubDeployToken` | `githubDeployToken` (PAT with repo read — first-boot clone on private repos) |
+
+```bash
+# example
+echo -n "$(openssl rand -base64 32)" | \
+  gcloud secrets create jackline-pulumi-jacklineMasterKey \
+    --data-file=- --replication-policy=automatic
+# rotate later: gcloud secrets versions add jackline-pulumi-jacklineMasterKey --data-file=-
+```
+
+Add a new required Pulumi secret later by creating another `jackline-pulumi-<key>` in GCP — **no workflow edit**. Plain knobs (`domain`, `gitRepo`, …) stay GitHub **variables**.
+
+**Private GitHub repos / incomplete first boot:** Deploy CI renders `.env.prod` from Secret Manager (`ci-render-env-prod.sh`), scp’s it over IAP, and runs `remote-deploy.sh` with a short-lived `GITHUB_TOKEN` file (not persisted in git remotes). First-boot startup can still embed `jackline-pulumi-githubDeployToken` for an unattended private clone, but CI no longer depends on startup having succeeded.
 
 ## Layout
 
@@ -106,5 +144,6 @@ deploy/pulumi/
   vm/                ← hobbyist default
   gke/               ← advanced Autopilot path
 deploy/scripts/
-  remote-deploy.sh   ← VM app update (CI + manual)
+  remote-deploy.sh              ← VM app update (CI + manual)
+  ci-pulumi-apply-config.sh     ← vars + SM prefix → pulumi config
 ```

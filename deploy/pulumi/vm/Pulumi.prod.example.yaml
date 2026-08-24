@@ -7,13 +7,18 @@ config:
   # Optional docs host (defaults to docs.<domain>)
   # jackline-vm:docsDomain: docs.jackline.example.com
   jackline-vm:machineType: e2-small
-  jackline-vm:gitRepo: https://github.com/kvpendergast/jackline.git
+  jackline-vm:gitRepo: https://github.com/YOUR_ORG_OR_USER/jackline.git
   jackline-vm:gitRef: main
+  # CI deploy SA (WIF). Grants actAs on the dedicated jackline-vm SA for OS Login / instance attach.
+  # jackline-vm:deployServiceAccount: jackline-deploy@your-gcp-project-id.iam.gserviceaccount.com
   # jackline-vm:caddyEmail: you@example.com
   # Set secrets with: pulumi config set --secret <key> <value>
   # jackline-vm:jacklineMasterKey: <openssl rand -base64 32>
   # jackline-vm:betterAuthSecret: <openssl rand -base64 32>
   # jackline-vm:postgresPassword: jackline
   #
-  # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output.
+  # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output
+  # (regional static address jackline-vm-ip by default — not the old global GKE jackline-ip).
+  # Optional: jackline-vm:staticIpName: my-custom-ip-name
   # First boot runs compose; later deploys use deploy/scripts/remote-deploy.sh (CI).
+  # Changing the VM service account or external IP may stop/start the instance once.

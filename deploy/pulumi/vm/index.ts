@@ -13,7 +13,7 @@ const zone = cfg.get("zone") ?? `${region}-a`;
 const domain = cfg.require("domain");
 const docsDomain = cfg.get("docsDomain") ?? `docs.${domain}`;
 const machineType = cfg.get("machineType") ?? "e2-small";
-const gitRepo = cfg.get("gitRepo") ?? "https://github.com/kvpendergast/jackline.git";
+const gitRepo = cfg.require("gitRepo");
 const gitRef = cfg.get("gitRef") ?? "main";
 const caddyEmail = cfg.get("caddyEmail") ?? "";
 const tenancy = cfg.get("tenancy") ?? "single";
@@ -21,6 +21,10 @@ const tenancy = cfg.get("tenancy") ?? "single";
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
 const postgresPassword = cfg.getSecret("postgresPassword") ?? pulumi.output("jackline");
+// PAT for private github.com clone on first boot (optional; CI uses GITHUB_TOKEN via remote-deploy).
+const githubDeployToken = cfg.getSecret("githubDeployToken");
+// CI deploy SA (WIF). Used to grant actAs on the VM SA for OS Login / instance attach.
+const deployServiceAccount = cfg.get("deployServiceAccount");
 
 const publicBaseUrl = `https://${domain}`;
 const docsBaseUrl = `https://${docsDomain}`;
@@ -34,6 +38,33 @@ const computeApi = new gcp.projects.Service("compute", {
   service: "compute.googleapis.com",
   disableOnDestroy: false,
 });
+
+const iamApi = new gcp.projects.Service("iam", {
+  service: "iam.googleapis.com",
+  disableOnDestroy: false,
+});
+
+// ---------------------------------------------------------------------------
+// VM service account (not the default Compute Engine SA)
+// ---------------------------------------------------------------------------
+const vmSa = new gcp.serviceaccount.Account(
+  "jackline-vm",
+  {
+    accountId: "jackline-vm",
+    displayName: "Jackline VM runtime",
+    description: "Identity attached to the Jackline Compose VM (least privilege).",
+  },
+  { dependsOn: [iamApi] },
+);
+
+// Allow CI / operator deploy SA to attach this SA to the instance and SSH via OS Login.
+if (deployServiceAccount) {
+  new gcp.serviceaccount.IAMMember("jackline-vm-deploy-act-as", {
+    serviceAccountId: vmSa.name,
+    role: "roles/iam.serviceAccountUser",
+    member: `serviceAccount:${deployServiceAccount}`,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Firewall: HTTP/HTTPS to tagged VMs
@@ -70,9 +101,13 @@ const iapSsh = new gcp.compute.Firewall(
 // Ongoing app deploys use deploy/scripts/remote-deploy.sh via CI SSH.
 // ---------------------------------------------------------------------------
 const startupScript = pulumi
-  .all([masterKey, betterAuthSecret, postgresPassword])
-  .apply(([mk, bas, pg]) => {
+  .all([masterKey, betterAuthSecret, postgresPassword, githubDeployToken])
+  .apply(([mk, bas, pg, ghToken]) => {
     const caddyGlobal = caddyEmail ? `email ${caddyEmail}` : "";
+    const cloneRepo =
+      ghToken && gitRepo.startsWith("https://github.com/")
+        ? gitRepo.replace("https://github.com/", `https://x-access-token:${ghToken}@github.com/`)
+        : gitRepo;
     // Escape values for embedding in a shell single-quoted heredoc via printf %q-ish:
     // we write the env file with a Python one-liner to avoid shell injection.
     const envPayload = {
@@ -122,7 +157,7 @@ systemctl enable --now docker
 
 mkdir -p ${installRoot}
 if [ ! -d ${installRoot}/.git ]; then
-  git clone --depth 1 --branch "${gitRef}" "${gitRepo}" ${installRoot}
+  git clone --depth 1 --branch "${gitRef}" "${cloneRepo}" ${installRoot}
 else
   cd ${installRoot}
   git fetch --depth 1 origin "${gitRef}"
@@ -144,6 +179,21 @@ docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 echo "=== Jackline bootstrap complete ==="
 `;
   });
+
+// ---------------------------------------------------------------------------
+// Regional static external IP (DNS-stable; VMs cannot use global LB addresses)
+// ---------------------------------------------------------------------------
+const addressName = cfg.get("staticIpName") ?? "jackline-vm-ip";
+const staticIp = new gcp.compute.Address(
+  "jackline-vm-ip",
+  {
+    name: addressName,
+    region,
+    addressType: "EXTERNAL",
+    description: "Jackline VM public IP — point DNS A/AAAA here",
+  },
+  { dependsOn: [computeApi] },
+);
 
 // ---------------------------------------------------------------------------
 // Compute Engine instance
@@ -170,12 +220,25 @@ const instance = new gcp.compute.Instance(
     networkInterfaces: [
       {
         network: "default",
-        accessConfigs: [{}], // ephemeral external IP
+        accessConfigs: [
+          {
+            natIp: staticIp.address,
+            networkTier: "PREMIUM",
+          },
+        ],
       },
     ],
     metadata: {
       "enable-oslogin": "TRUE",
       "startup-script": startupScript,
+    },
+    serviceAccount: {
+      email: vmSa.email,
+      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring agents.
+      scopes: [
+        "https://www.googleapis.com/auth/logging.write",
+        "https://www.googleapis.com/auth/monitoring.write",
+      ],
     },
     allowStoppingForUpdate: true,
     labels: {
@@ -183,16 +246,13 @@ const instance = new gcp.compute.Instance(
       path: "vm",
     },
   },
-  { dependsOn: [computeApi, firewall, iapSsh] },
+  { dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp] },
 );
-
-const publicIp = instance.networkInterfaces.apply((nis) => {
-  const ac = nis[0]?.accessConfigs?.[0];
-  return ac?.natIp ?? "";
-});
 
 export const instanceName = instance.name;
 export const instanceZone = zone;
-export { publicIp };
+export const vmServiceAccount = vmSa.email;
+export const publicIp = staticIp.address;
+export const staticIpName = staticIp.name;
 export const appUrl = publicBaseUrl;
 export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
