@@ -1,6 +1,9 @@
 import { count, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
-import { auth } from "@jackline/auth";
+import {
+  createHumanUserWithSession,
+  reloadAuth,
+} from "@jackline/auth";
 import { db, memberships, tenants, user } from "@jackline/db";
 import {
   assertCanCreateTenant,
@@ -29,6 +32,32 @@ export type SignupSuccess = {
   authResponse: Response;
 };
 
+export type SignupStatus = {
+  /** True when `/api/v1/signup` can create a new organization. */
+  open: boolean;
+};
+
+async function status(
+  log: Logger,
+): Promise<Result<SignupStatus, JacklineError>> {
+  const configResult = getConfig();
+  if (configResult.isErr()) {
+    return err(configResult.error);
+  }
+
+  const [{ value: tenantCount } = { value: 0 }] = await db
+    .select({ value: count() })
+    .from(tenants);
+
+  const gate = assertCanCreateTenant(
+    tenantCount,
+    configResult.value.JACKLINE_TENANCY,
+  );
+  const open = gate.isOk();
+  log.debug({ tenantCount, open }, "signup status");
+  return ok({ open });
+}
+
 async function create(
   log: Logger,
   input: SignupInput,
@@ -50,25 +79,17 @@ async function create(
     return err(gate.error);
   }
 
-  const authResponse = await auth.api.signUpEmail({
-    body: {
-      email: input.email,
-      password: input.password,
-      name: input.name,
-    },
-    asResponse: true,
+  const created = await createHumanUserWithSession({
+    email: input.email,
+    password: input.password,
+    name: input.name,
   });
-
-  if (!authResponse.ok) {
-    const message = (await authResponse.text()) || "Sign up failed";
-    return err(new BadRequestError(message));
+  if (!created.ok) {
+    return err(new BadRequestError(created.message));
   }
 
-  const signUpJson = (await authResponse.clone().json()) as {
-    user: { id: string; email: string; name: string };
-  };
-
-  const userId = signUpJson.user.id;
+  const { user: createdUser, authResponse } = created;
+  const userId = createdUser.id;
   const slug = slugify(input.organizationName);
 
   if (!slug) {
@@ -102,6 +123,9 @@ async function create(
       throw new SetupError("Failed to create membership");
     }
 
+    // Close Better Auth public email signup now that a tenant exists.
+    await reloadAuth();
+
     log.info(
       { userId, tenantId: tenant.id, membershipId: membership.id },
       "organization created",
@@ -109,9 +133,9 @@ async function create(
 
     return ok({
       user: {
-        id: signUpJson.user.id,
-        email: signUpJson.user.email,
-        name: signUpJson.user.name,
+        id: createdUser.id,
+        email: createdUser.email,
+        name: createdUser.name,
         kind: "human",
       },
       tenant: {
@@ -139,4 +163,4 @@ async function create(
   }
 }
 
-export const signupServices = { create } as const;
+export const signupServices = { create, status } as const;

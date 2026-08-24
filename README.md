@@ -170,6 +170,8 @@ Expect `201` with `user`, `tenant`, `membership`, and session cookies.
 
 In **`JACKLINE_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
 
+After the first organization exists, Better Auth’s public email signup (`POST /api/auth/sign-up/email`) is **disabled** so strangers cannot create orphan user accounts. Additional humans should use invites (sign in + accept invite) or admin-created service users. Check availability with `GET /api/v1/signup/status`.
+
 ### Sign in (if an org already exists)
 
 ```bash

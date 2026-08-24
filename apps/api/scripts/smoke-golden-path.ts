@@ -104,17 +104,19 @@ async function ensureSession(): Promise<string> {
   const [tenant] = await db.select().from(tenants).limit(1);
   if (!tenant) throw new Error("No tenant in database");
 
-  const authRes = await auth.api.signUpEmail({
-    body: { email, password, name: "Smoke Admin" },
-    asResponse: true,
+  // Public Better Auth signup is closed after bootstrap — create via helper.
+  const { createHumanUserWithSession } = await import("@jackline/auth");
+  const created = await createHumanUserWithSession({
+    email,
+    password,
+    name: "Smoke Admin",
   });
-  if (!authRes.ok) {
-    throw new Error(`auth signUpEmail failed: ${await authRes.text()}`);
+  if (!created.ok) {
+    throw new Error(`createHumanUserWithSession failed: ${created.message}`);
   }
-  const authJson = (await authRes.clone().json()) as { user: { id: string } };
 
   await db.insert(memberships).values({
-    userId: authJson.user.id,
+    userId: created.user.id,
     tenantId: tenant.id,
     role: "full_admin",
   });

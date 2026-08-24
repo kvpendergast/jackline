@@ -16,6 +16,7 @@ export function LoginPage() {
   const [providers, setProviders] = useState<
     Array<{ providerId: string; label: string }>
   >([]);
+  const [signupOpen, setSignupOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,6 +25,10 @@ export function LoginPage() {
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
   }, []);
 
   if (!loading && user) {
@@ -71,12 +76,16 @@ export function LoginPage() {
       title="Sign in"
       subtitle="Access your Jackline control plane."
       footer={
-        <>
-          No organization yet?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
-            Create one
-          </Link>
-        </>
+        signupOpen ? (
+          <>
+            No organization yet?{" "}
+            <Link to="/signup" className="text-primary hover:underline">
+              Create one
+            </Link>
+          </>
+        ) : (
+          <>Need access? Ask an admin for an invite.</>
+        )
       }
     >
       <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
@@ -143,9 +152,21 @@ export function SignupPage() {
   const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signupOpen, setSignupOpen] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
+  }, []);
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (signupOpen === false) {
+    return <Navigate to="/login" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -161,6 +182,14 @@ export function SignupPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (signupOpen === null) {
+    return (
+      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   return (

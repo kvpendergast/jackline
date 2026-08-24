@@ -3,9 +3,9 @@ import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { createSecretBox } from "@jackline/crypto";
-import { db, schema, ssoConfigs } from "@jackline/db";
+import { db, schema, ssoConfigs, tenants } from "@jackline/db";
 import { getConfig, webTrustedOrigins } from "@jackline/shared";
 
 function ssoSecretAad(tenantId: string): Uint8Array {
@@ -36,6 +36,14 @@ export function generateClientSecret(): string {
 /** Opaque OAuth2 access token for Jackline Admin API. */
 export function generateAccessToken(): string {
   return `jackline_at_${randomBytes(32).toString("base64url")}`;
+}
+
+/** True when at least one tenant exists — public Better Auth email signup should be closed. */
+export async function hasBootstrappedTenant(): Promise<boolean> {
+  const [{ value: tenantCount } = { value: 0 }] = await db
+    .select({ value: count() })
+    .from(tenants);
+  return tenantCount > 0;
 }
 
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
@@ -108,7 +116,10 @@ async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
   return configs;
 }
 
-function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
+function buildAuth(
+  oauthConfigs: GenericOAuthConfig[],
+  disableSignUp: boolean,
+) {
   const configResult = getConfig();
   if (configResult.isErr()) throw configResult.error;
   const config = configResult.value;
@@ -131,7 +142,9 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
-    emailAndPassword: { enabled: true, disableSignUp: false },
+    // After the first org exists, block /api/auth/sign-up/email (orphan users).
+    // Org bootstrap (/api/v1/signup) uses createHumanUserWithSession instead.
+    emailAndPassword: { enabled: true, disableSignUp },
     plugins:
       oauthConfigs.length > 0
         ? [genericOAuth({ config: oauthConfigs })]
@@ -142,6 +155,7 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
 export type JacklineAuth = ReturnType<typeof buildAuth>;
 
 let _auth: JacklineAuth | undefined;
+let _disableSignUp = false;
 
 /** Better Auth instance — call `initAuth()` before use. */
 export const auth = new Proxy({} as JacklineAuth, {
@@ -153,15 +167,123 @@ export const auth = new Proxy({} as JacklineAuth, {
   },
 });
 
+export function isEmailPasswordSignUpDisabled(): boolean {
+  return _disableSignUp;
+}
+
 export async function initAuth(): Promise<JacklineAuth> {
   const oauthConfigs = await loadOAuthConfigs();
-  _auth = buildAuth(oauthConfigs);
+  _disableSignUp = await hasBootstrappedTenant();
+  _auth = buildAuth(oauthConfigs, _disableSignUp);
   return _auth;
 }
 
-/** Reload OAuth providers after SSO settings change (full_admin). */
+/** Reload OAuth providers / signup policy after SSO or tenant bootstrap changes. */
 export async function reloadAuth(): Promise<JacklineAuth> {
   return initAuth();
+}
+
+export type CreatedHumanUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
+/**
+ * Create a human user + session cookie response.
+ * Uses Better Auth signUpEmail when public signup is open; otherwise creates
+ * the credential account via the internal adapter and signs in (for multi-tenant
+ * org bootstrap after public signup is closed).
+ */
+export async function createHumanUserWithSession(input: {
+  email: string;
+  password: string;
+  name: string;
+}): Promise<
+  | { ok: true; user: CreatedHumanUser; authResponse: Response }
+  | { ok: false; message: string }
+> {
+  if (!_auth) {
+    throw new Error("Auth not initialized — call initAuth() first");
+  }
+
+  if (!_disableSignUp) {
+    const authResponse = await auth.api.signUpEmail({
+      body: {
+        email: input.email,
+        password: input.password,
+        name: input.name,
+      },
+      asResponse: true,
+    });
+    if (!authResponse.ok) {
+      const message = (await authResponse.text()) || "Sign up failed";
+      return { ok: false, message };
+    }
+    const signUpJson = (await authResponse.clone().json()) as {
+      user: { id: string; email: string; name: string };
+    };
+    return {
+      ok: true,
+      user: {
+        id: signUpJson.user.id,
+        email: signUpJson.user.email,
+        name: signUpJson.user.name,
+      },
+      authResponse,
+    };
+  }
+
+  const ctx = await auth.$context;
+  const normalizedEmail = input.email.toLowerCase();
+  const existing = await ctx.internalAdapter.findUserByEmail(normalizedEmail);
+  if (existing?.user) {
+    return {
+      ok: false,
+      message: "User already exists. Please use another email.",
+    };
+  }
+
+  const hash = await ctx.password.hash(input.password);
+  let createdUser: { id: string; email: string; name: string };
+  try {
+    const row = await ctx.internalAdapter.createUser({
+      email: normalizedEmail,
+      name: input.name,
+      emailVerified: false,
+    });
+    if (!row) {
+      return { ok: false, message: "Failed to create user" };
+    }
+    createdUser = {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+    };
+  } catch {
+    return { ok: false, message: "Failed to create user" };
+  }
+
+  await ctx.internalAdapter.linkAccount({
+    userId: createdUser.id,
+    providerId: "credential",
+    accountId: createdUser.id,
+    password: hash,
+  });
+
+  const authResponse = await auth.api.signInEmail({
+    body: {
+      email: normalizedEmail,
+      password: input.password,
+    },
+    asResponse: true,
+  });
+  if (!authResponse.ok) {
+    const message = (await authResponse.text()) || "Sign in after signup failed";
+    return { ok: false, message };
+  }
+
+  return { ok: true, user: createdUser, authResponse };
 }
 
 export { ssoSecretAad };

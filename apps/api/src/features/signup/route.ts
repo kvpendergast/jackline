@@ -27,6 +27,40 @@ const SignupResponseSchema = successEnvelopeSchema(
   "SignupResponse",
 );
 
+const SignupStatusSchema = z
+  .strictObject({
+    open: z.boolean(),
+  })
+  .openapi("SignupStatus");
+
+const SignupStatusResponseSchema = successEnvelopeSchema(
+  SignupStatusSchema,
+  "SignupStatusResponse",
+);
+
+const status = createRoute({
+  method: "get",
+  path: "/signup/status",
+  tags: ["Auth"],
+  summary: "Whether organization signup is open",
+  description:
+    "Returns whether `/api/v1/signup` can create a new organization (tenancy limits). Separate from Better Auth public email signup, which is disabled once any tenant exists.",
+  responses: {
+    200: {
+      description: "Signup availability",
+      content: {
+        "application/json": {
+          schema: SignupStatusResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Internal error",
+      content: { "application/json": { schema: ErrorEnvelopeSchema } },
+    },
+  },
+});
+
 const create = createRoute({
   method: "post",
   path: "/signup",
@@ -62,4 +96,4 @@ const create = createRoute({
   },
 });
 
-export const signupRoutes = { create } as const;
+export const signupRoutes = { status, create } as const;
