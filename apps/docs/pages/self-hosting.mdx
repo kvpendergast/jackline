@@ -38,7 +38,7 @@ For a small always-on (or destroy-when-idle) instance on Google Cloud, see **[de
 - **Default:** single VM + this Compose file (fixed machine size, predictable cost)
 - **Advanced:** GKE Autopilot (higher idle cost)
 
-CI can deploy on merge to `main` via Workload Identity Federation; configure per-repo GitHub secrets (see that README).
+CI can deploy on merge to `main` via Workload Identity Federation; configure per-repo GitHub secrets (see that README). Live VM updates go through `deploy/scripts/remote-deploy.sh`, which keeps the old app containers until the new replica passes its health check. Do not use `docker compose up --build -d` on an already-running production VM — that replaces containers in place.
 
 ### HTTPS on a real domain
 
