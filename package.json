@@ -11,6 +11,7 @@
     "docs:build": "pnpm --filter @jackline/docs build",
     "openapi:export": "pnpm --filter @jackline/api openapi:export",
     "build": "pnpm -r build",
+    "typecheck": "pnpm -r --sort typecheck",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "db:generate": "pnpm --filter @jackline/db generate",

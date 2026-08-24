@@ -10,6 +10,7 @@
     "build": "zudoku build",
     "preview": "zudoku preview --port 3000",
     "openapi:export": "pnpm --filter @jackline/api openapi:export",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"lint later\""
   },

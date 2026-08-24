@@ -1,0 +1,12 @@
+# Secret scan allowlist for intentional test fixtures only.
+# Real keys, .env values, and live jkl_… tokens must never be committed.
+title = "Jackline"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret fixtures"
+paths = [
+  '''(^|/)pnpm-lock\.yaml$''',
+]
