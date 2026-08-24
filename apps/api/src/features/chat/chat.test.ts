@@ -5,10 +5,39 @@ import {
   CHAT_NOT_CONFIGURED,
   ErrorCode,
   maskSecretLast4,
+  titleFromChatMessages,
   UpdateChatSettingsBodySchema,
 } from "@jackline/shared";
 import { createChatAdapter } from "./adapter.js";
 import { isMcpMethodNotFound, policyDeniedMessage } from "./mcpTools.js";
+
+describe("titleFromChatMessages", () => {
+  it("uses the first user text part", () => {
+    assert.equal(
+      titleFromChatMessages([
+        {
+          id: "1",
+          role: "user",
+          parts: [{ type: "text", content: "  List open PRs  " }],
+        },
+      ]),
+      "List open PRs",
+    );
+  });
+
+  it("truncates long titles", () => {
+    const title = titleFromChatMessages([
+      {
+        id: "1",
+        role: "user",
+        parts: [{ type: "text", content: "x".repeat(120) }],
+      },
+    ]);
+    assert.equal(title?.endsWith("…"), true);
+    assert.equal(title?.length, 80);
+  });
+});
+
 
 describe("maskSecretLast4", () => {
   it("hides short secrets entirely", () => {

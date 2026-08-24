@@ -7,6 +7,7 @@ import { createChatAdapter } from "./adapter.js";
 import { connectJacklineMcpTools } from "./mcpTools.js";
 import { chatRoutes } from "./route.js";
 import { chatServices } from "./service.js";
+import { chatThreadServices } from "./threads.js";
 
 const getSession: RouteHandler<typeof chatRoutes.getSession, JacklineEnv> = async (
   c,
@@ -36,6 +37,69 @@ const updateSettings: RouteHandler<
     log,
     auth.tenantId,
     { userId: auth.userId, role: auth.membership.role },
+    body,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const listThreads: RouteHandler<
+  typeof chatRoutes.listThreads,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const query = c.req.valid("query");
+  const result = await chatThreadServices.list(
+    log,
+    auth.tenantId,
+    auth.userId,
+    query,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const createThread: RouteHandler<
+  typeof chatRoutes.createThread,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const result = await chatThreadServices.create(
+    log,
+    auth.tenantId,
+    auth.userId,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 201);
+};
+
+const getThread: RouteHandler<typeof chatRoutes.getThread, JacklineEnv> = async (
+  c,
+) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const result = await chatThreadServices.get(
+    log,
+    auth.tenantId,
+    auth.userId,
+    id,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const updateThread: RouteHandler<
+  typeof chatRoutes.updateThread,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const result = await chatThreadServices.update(
+    log,
+    auth.tenantId,
+    auth.userId,
+    id,
     body,
   );
   if (result.isErr()) throw result.error;
@@ -128,5 +192,9 @@ export const chatHandlers = {
   getSession,
   getSettings,
   updateSettings,
+  listThreads,
+  createThread,
+  getThread,
+  updateThread,
   run,
 } as const;

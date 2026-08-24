@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+import type { UIMessage } from "@tanstack/ai-react";
+import {
+  History,
   Maximize2,
   Minimize2,
   MessageSquare,
+  Plus,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { UIMessage } from "@tanstack/ai-react";
-import type { PublicChatSession } from "@jackline/shared";
+import {
+  DEFAULT_CHAT_THREAD_TITLE,
+  type PublicChatSession,
+  type PublicChatThreadSummary,
+} from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +32,22 @@ import { jacklineApi } from "@/lib/jackline-api";
 import { cn } from "@/lib/utils";
 
 type Layout = "closed" | "drawer" | "expanded";
+
+function lastThreadStorageKey(tenantId: string) {
+  return `jackline.chat.lastThread.${tenantId}`;
+}
+
+function formatThreadTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const delta = Date.now() - then;
+  if (delta < 45_000) return "Just now";
+  if (delta < 3_600_000) return `${Math.max(1, Math.floor(delta / 60_000))}m`;
+  if (delta < 86_400_000) return `${Math.max(1, Math.floor(delta / 3_600_000))}h`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
 function partContent(part: unknown): string {
   if (part && typeof part === "object" && "content" in part) {
@@ -110,15 +139,74 @@ function ChatTranscript({ messages }: { messages: UIMessage[] }) {
   );
 }
 
-function ChatDockInner({ tenantId }: { tenantId: string }) {
-  const { membership } = useAuth();
-  const isFullAdmin = membership?.role === "full_admin";
-  const [layout, setLayout] = useState<Layout>("closed");
-  const [session, setSession] = useState<PublicChatSession | null>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+function ThreadList({
+  threads,
+  activeId,
+  onSelect,
+}: {
+  threads: PublicChatThreadSummary[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (threads.length === 0) {
+    return (
+      <p className="px-3 py-4 text-sm text-muted-foreground">
+        No saved chats yet. Send a message to start one.
+      </p>
+    );
+  }
+  return (
+    <ul className="py-1">
+      {threads.map((thread) => {
+        const active = thread.id === activeId;
+        return (
+          <li key={thread.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(thread.id)}
+              className={cn(
+                "flex w-full flex-col items-start gap-0.5 border-l-2 px-3 py-2 text-left text-sm",
+                active
+                  ? "border-primary bg-secondary"
+                  : "border-transparent hover:bg-muted",
+              )}
+            >
+              <span className="line-clamp-2 font-medium">{thread.title}</span>
+              <span className="section-label">
+                {formatThreadTime(thread.lastMessageAt)}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
+function ChatSession({
+  tenantId,
+  threadId,
+  initialMessages,
+  pendingSend,
+  session,
+  sessionError,
+  isFullAdmin,
+  onPendingSendConsumed,
+  onPersist,
+  onNeedThread,
+}: {
+  tenantId: string;
+  threadId: string | null;
+  initialMessages: UIMessage[];
+  pendingSend: string | null;
+  session: PublicChatSession | null;
+  sessionError: string | null;
+  isFullAdmin: boolean;
+  onPendingSendConsumed: () => void;
+  onPersist: (threadId: string | null, messages: UIMessage[]) => void;
+  onNeedThread: (id: string, text: string) => void;
+}) {
+  const [input, setInput] = useState("");
   const connection = useMemo(
     () =>
       fetchServerSentEvents("/api/v1/chat", () => ({
@@ -130,33 +218,39 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
 
   const { messages, sendMessage, isLoading, stop, error } = useChat({
     connection,
+    initialMessages,
+    ...(threadId ? { threadId } : {}),
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    void jacklineApi
-      .getChatSession(tenantId)
-      .then((data) => {
-        if (!cancelled) {
-          setSession(data);
-          setSessionError(null);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setSessionError(
-            err instanceof ApiError ? err.message : "Failed to load Chat",
-          );
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const wasLoading = useRef(false);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, layout]);
+  }, [messages]);
+
+  useEffect(() => {
+    if (wasLoading.current && !isLoading && messagesRef.current.length > 0) {
+      onPersist(threadId, messagesRef.current);
+    }
+    wasLoading.current = isLoading;
+  }, [isLoading, onPersist, threadId]);
+
+  useEffect(() => {
+    return () => {
+      if (messagesRef.current.length > 0) {
+        onPersist(threadId, messagesRef.current);
+      }
+    };
+  }, [onPersist, threadId]);
+
+  useEffect(() => {
+    if (!pendingSend || !threadId) return;
+    void sendMessage(pendingSend);
+    onPendingSendConsumed();
+  }, [pendingSend, threadId, sendMessage, onPendingSendConsumed]);
 
   const toolsAllowed = (session?.tools ?? []).filter((t) => t.allowed);
   const servers = [...new Set(toolsAllowed.map((t) => t.serverName))];
@@ -165,57 +259,25 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
   const settingsHint =
     error instanceof ApiError && error.code === "BAD_REQUEST";
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text || !canSend) return;
     setInput("");
+    if (!threadId) {
+      try {
+        const created = await jacklineApi.createChatThread(tenantId);
+        onNeedThread(created.id, text);
+      } catch {
+        setInput(text);
+      }
+      return;
+    }
     void sendMessage(text);
   }
 
-  const panel = (
-    <div className="lattice-bg flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-        <div>
-          <div className="text-sm font-medium">Chat</div>
-          <div className="section-label mt-0.5">
-            Your tools, through Jackline policy
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          {layout === "drawer" ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              aria-label="Expand Chat"
-              onClick={() => setLayout("expanded")}
-            >
-              <Maximize2 className="size-3.5" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              aria-label="Dock Chat"
-              onClick={() => setLayout("drawer")}
-            >
-              <Minimize2 className="size-3.5" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            aria-label="Close Chat"
-            onClick={() => setLayout("closed")}
-          >
-            <X className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
+  return (
+    <>
       <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-4 py-2">
         <span className="section-label">{toolsAllowed.length} tools</span>
         {servers.slice(0, 6).map((name) => (
@@ -287,7 +349,7 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
 
       <form
         className="flex shrink-0 gap-2 border-t border-border bg-card p-3"
-        onSubmit={onSubmit}
+        onSubmit={(e) => void onSubmit(e)}
       >
         <Input
           value={input}
@@ -307,11 +369,264 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
           </Button>
         )}
       </form>
-      <div className="section-label border-t border-border bg-card px-3 py-1.5 text-center">
-        client: Jackline Chat
-      </div>
-    </div>
+    </>
   );
+}
+
+function ChatDockInner({ tenantId }: { tenantId: string }) {
+  const { membership } = useAuth();
+  const isFullAdmin = membership?.role === "full_admin";
+  const [layout, setLayout] = useState<Layout>("closed");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [session, setSession] = useState<PublicChatSession | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [threads, setThreads] = useState<PublicChatThreadSummary[]>([]);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
+  const [pendingSend, setPendingSend] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
+
+  const rememberThread = useCallback((id: string | null) => {
+    const key = lastThreadStorageKey(tenantId);
+    if (!id) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, id);
+  }, [tenantId]);
+
+  const persistMessages = useCallback(
+    async (id: string | null, messages: UIMessage[]) => {
+      if (!id || messages.length === 0) return;
+      try {
+        const saved = await jacklineApi.updateChatThread(tenantId, id, {
+          messages: messages as import("@jackline/shared").ChatUiMessage[],
+        });
+        setInitialMessages(messages);
+        setThreads((current) => {
+          const rest = current.filter((row) => row.id !== saved.id);
+          return [
+            {
+              id: saved.id,
+              title: saved.title,
+              lastMessageAt: saved.lastMessageAt,
+              createdAt: saved.createdAt,
+              updatedAt: saved.updatedAt,
+            },
+            ...rest,
+          ];
+        });
+      } catch {
+        // Keep the in-memory transcript; the next successful turn retries save.
+      }
+    },
+    [tenantId],
+  );
+
+  const openThread = useCallback(
+    async (id: string) => {
+      const row = await jacklineApi.getChatThread(tenantId, id);
+      setThreadId(row.id);
+      setInitialMessages(row.messages as UIMessage[]);
+      setPendingSend(null);
+      setSessionKey((n) => n + 1);
+      setHistoryOpen(false);
+      rememberThread(row.id);
+    },
+    [rememberThread, tenantId],
+  );
+
+  const startNewChat = useCallback(() => {
+    setThreadId(null);
+    setInitialMessages([]);
+    setPendingSend(null);
+    setSessionKey((n) => n + 1);
+    setHistoryOpen(false);
+    rememberThread(null);
+  }, [rememberThread]);
+
+  const onNeedThread = useCallback(
+    (id: string, text: string) => {
+      setThreadId(id);
+      setInitialMessages([]);
+      setPendingSend(text);
+      setSessionKey((n) => n + 1);
+      rememberThread(id);
+      const now = new Date().toISOString();
+      setThreads((current) => [
+        {
+          id,
+          title: DEFAULT_CHAT_THREAD_TITLE,
+          lastMessageAt: now,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ...current.filter((row) => row.id !== id),
+      ]);
+    },
+    [rememberThread],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void jacklineApi
+      .getChatSession(tenantId)
+      .then((data) => {
+        if (!cancelled) {
+          setSession(data);
+          setSessionError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setSessionError(
+            err instanceof ApiError ? err.message : "Failed to load Chat",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const page = await jacklineApi.listChatThreads(tenantId);
+        if (cancelled) return;
+        setThreads(page.items);
+        const savedId = localStorage.getItem(lastThreadStorageKey(tenantId));
+        const restoreId =
+          (savedId && page.items.some((row) => row.id === savedId)
+            ? savedId
+            : null) ?? page.items[0]?.id;
+        if (!restoreId) return;
+        const row = await jacklineApi.getChatThread(tenantId, restoreId);
+        if (cancelled) return;
+        setThreadId(row.id);
+        setInitialMessages(row.messages as UIMessage[]);
+        setSessionKey((n) => n + 1);
+        rememberThread(row.id);
+      } catch {
+        if (!cancelled) setThreads([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rememberThread, tenantId]);
+
+  const headerTitle =
+    threads.find((row) => row.id === threadId)?.title ?? DEFAULT_CHAT_THREAD_TITLE;
+
+  const historyPanel = (
+    <ScrollArea className="min-h-0 flex-1">
+      <ThreadList
+        threads={threads}
+        activeId={threadId}
+        onSelect={(id) => void openThread(id)}
+      />
+    </ScrollArea>
+  );
+
+  const sessionNode = (
+    <ChatSession
+      key={sessionKey}
+      tenantId={tenantId}
+      threadId={threadId}
+      initialMessages={initialMessages}
+      pendingSend={pendingSend}
+      session={session}
+      sessionError={sessionError}
+      isFullAdmin={isFullAdmin}
+      onPendingSendConsumed={() => setPendingSend(null)}
+      onPersist={(id, messages) => void persistMessages(id, messages)}
+      onNeedThread={onNeedThread}
+    />
+  );
+
+  function chrome(opts: { showHistoryToggle: boolean; showInlineHistory: boolean }) {
+    return (
+      <div className="lattice-bg flex h-full min-h-0 flex-col bg-background">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{headerTitle}</div>
+            <div className="section-label mt-0.5">
+              Your tools, through Jackline policy
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="New chat"
+              onClick={startNewChat}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+            {opts.showHistoryToggle ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant={historyOpen ? "secondary" : "outline"}
+                aria-label="Chat history"
+                aria-pressed={historyOpen}
+                onClick={() => setHistoryOpen((open) => !open)}
+              >
+                <History className="size-3.5" />
+              </Button>
+            ) : null}
+            {layout === "drawer" ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Expand Chat"
+                onClick={() => {
+                  setLayout("expanded");
+                  setHistoryOpen(false);
+                }}
+              >
+                <Maximize2 className="size-3.5" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Dock Chat"
+                onClick={() => setLayout("drawer")}
+              >
+                <Minimize2 className="size-3.5" />
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="Close Chat"
+              onClick={() => setLayout("closed")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">{sessionNode}</div>
+          {opts.showInlineHistory && historyOpen ? (
+            <div className="absolute inset-0 z-10 flex flex-col border-t border-border bg-background">
+              {historyPanel}
+            </div>
+          ) : null}
+        </div>
+        <div className="section-label border-t border-border bg-card px-3 py-1.5 text-center">
+          client: Jackline Chat
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -328,14 +643,31 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
 
       {layout === "drawer" ? (
         <div className="fixed inset-y-0 right-0 z-50 flex w-[min(100%,400px)] border-l border-border shadow-none">
-          {panel}
+          {chrome({ showHistoryToggle: true, showInlineHistory: true })}
         </div>
       ) : null}
 
       {layout === "expanded" ? (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background">
-          <div className="mx-auto flex h-full w-full max-w-3xl flex-col border-x border-border">
-            {panel}
+        <div className="fixed inset-0 z-50 flex bg-background">
+          <div className="mx-auto flex h-full w-full max-w-5xl border-x border-border">
+            <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card">
+              <div className="flex h-14 items-center justify-between border-b border-border px-3">
+                <span className="text-sm font-medium">Chats</span>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="New chat"
+                  onClick={startNewChat}
+                >
+                  <Plus className="size-3.5" />
+                </Button>
+              </div>
+              {historyPanel}
+            </aside>
+            <div className="flex min-w-0 flex-1 flex-col">
+              {chrome({ showHistoryToggle: false, showInlineHistory: false })}
+            </div>
           </div>
         </div>
       ) : null}
