@@ -81,7 +81,15 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
-3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
+3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`, **`publicIpAdmin`** for the regional static address), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
+
+   ```bash
+   # Regional static IP (jackline-vm-ip) — required after #29
+   gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
+     --member="serviceAccount:$GCP_SERVICE_ACCOUNT" \
+     --role="roles/compute.publicIpAdmin"
+   ```
+
 4. Enable **`iap.googleapis.com`** and **`oslogin.googleapis.com`** (IAP tunnel + OS Login SSH).
 5. The VM path creates a dedicated **`jackline-vm@…`** runtime SA (not the default Compute Engine SA) and attaches it to the instance. Set Pulumi config `deployServiceAccount` to your CI deploy SA email (CI does this automatically from `GCP_SERVICE_ACCOUNT`) so Pulumi grants `roles/iam.serviceAccountUser` on `jackline-vm` — required for OS Login and for attaching the SA at create/update time.
 6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
