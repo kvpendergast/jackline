@@ -44,7 +44,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # e2-small compose --build (api/web/docs/gateway) regularly exceeds 60m.
+    # A hard cancel mid-build leaves Caddy/SSH in a bad state for later deploys.
+    timeout-minutes: 120
     environment: production
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}
@@ -193,7 +195,35 @@ jobs:
             --tunnel-through-iap
             --quiet
             --ssh-key-file="${KEY}"
-            --ssh-flag="-o StrictHostKeyChecking=no")
+            --ssh-flag="-o StrictHostKeyChecking=no"
+            --ssh-flag="-o ConnectTimeout=10"
+            --ssh-flag="-o ServerAliveInterval=15"
+            --ssh-flag="-o ServerAliveCountMax=4")
+
+          # Wait for IAP→sshd. RUNNING does not mean port 22 is accepting yet, and a
+          # prior deploy cancelled mid `docker compose build` can leave the guest
+          # overloaded (IAP error 4003 / scp 255) until sshd recovers or the VM is reset.
+          echo "Waiting for SSH via IAP..."
+          ssh_ok=0
+          for i in $(seq 1 36); do
+            if "${SSH[@]}" --command="true" >/dev/null 2>&1; then
+              echo "SSH via IAP is ready (attempt ${i})"
+              ssh_ok=1
+              break
+            fi
+            echo "SSH not ready yet (attempt ${i}/36); sleeping 10s..."
+            sleep 10
+          done
+          if [[ "${ssh_ok}" -ne 1 ]]; then
+            echo "::error::IAP SSH to ${VM_NAME} failed after ~6m (gcloud error 4003 = cannot reach port 22)."
+            echo "The guest is likely wedged from a previous cancelled compose build."
+            echo "Recover: reset/reboot the VM in GCP, then re-run this workflow (workflow_dispatch)."
+            gcloud compute instances describe "${VM_NAME}" \
+              --project="${GCP_PROJECT_ID}" \
+              --zone="${VM_ZONE}" \
+              --format='yaml(status,networkInterfaces,tags,metadata.items.enable-oslogin)' || true
+            exit 1
+          fi
 
           # Copy artifacts to the OS Login user's /tmp, then remote-deploy installs with sudo.
           "${SCP[@]}" "${ENV_FILE}" "${VM_NAME}:/tmp/jackline.env.prod"
