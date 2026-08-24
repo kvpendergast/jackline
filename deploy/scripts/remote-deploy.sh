@@ -164,6 +164,10 @@ if [[ ! -f .env.prod ]]; then
   exit 1
 fi
 
+# e2-small OOMs / wedges sshd when compose builds api+web+docs+gateway in parallel.
+# Prefer slower sequential builds over a hung guest that later deploys cannot SSH into.
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+
 docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 
 # Force Caddy to retry Let's Encrypt after DNS/IP changes. A plain `up` leaves a
