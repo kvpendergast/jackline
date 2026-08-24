@@ -1,0 +1,16 @@
+# Betterleaks config for Jackline.
+# Extends upstream defaults (includes lockfile skips such as pnpm-lock.yaml).
+# Allowlist is only for known fixtures — real keys, .env values, and live jkl_…
+# tokens must never be committed.
+title = "Jackline"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret fixtures and local example credentials"
+paths = [
+  '''(?:^|/)_design_preview(?:/.*)?$''',
+  '''(?:^|/)deploy/docker-compose\.yml$''',
+  '''(?i)\.security\.test\.ts$''',
+]

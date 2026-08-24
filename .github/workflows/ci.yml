@@ -61,8 +61,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-  gitleaks:
-    name: gitleaks
+  betterleaks:
+    name: betterleaks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -71,17 +71,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Use the open-source binary (not gitleaks-action) so private repos
-      # do not need a GITLEAKS_LICENSE secret.
-      - name: Install gitleaks
+      # Official Betterleaks binary (Gitleaks successor). No license secret
+      # required for private repos.
+      - name: Install betterleaks
         env:
-          GITLEAKS_VERSION: "8.24.3"
+          BETTERLEAKS_VERSION: "1.8.1"
         run: |
           set -euo pipefail
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz gitleaks
-          sudo mv gitleaks /usr/local/bin/gitleaks
-          gitleaks version
+          curl -sSL "https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz betterleaks
+          sudo mv betterleaks /usr/local/bin/betterleaks
+          betterleaks version
 
+      # medium+ skips noisy low-confidence generic matches (docs/examples)
+      # while still failing on GitHub PATs, cloud keys, etc.
       - name: Scan for secrets
-        run: gitleaks detect --source . --config .gitleaks.toml --verbose --redact
+        run: >
+          betterleaks git .
+          --config .betterleaks.toml
+          --verbose
+          --redact
+          --confidence medium
+          --no-banner
