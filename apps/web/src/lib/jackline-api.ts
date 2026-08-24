@@ -519,4 +519,24 @@ export const jacklineApi = {
       `/api/v1/connections/${connectionId}/upstream-credentials`,
       { tenantId },
     ),
+
+  getChatSession: (tenantId: string) =>
+    api<import("@jackline/shared").PublicChatSession>("/api/v1/chat/session", {
+      tenantId,
+    }),
+
+  getChatSettings: (tenantId: string) =>
+    api<import("@jackline/shared").PublicChatSettings>("/api/v1/chat/settings", {
+      tenantId,
+    }),
+
+  updateChatSettings: (
+    tenantId: string,
+    body: import("@jackline/shared").UpdateChatSettingsBody,
+  ) =>
+    api<import("@jackline/shared").PublicChatSettings>("/api/v1/chat/settings", {
+      tenantId,
+      method: "PUT",
+      body,
+    }),
 };

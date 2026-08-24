@@ -1,4 +1,5 @@
-import { pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
 import { user } from "./auth.js";
@@ -36,8 +37,15 @@ export const clients = pgTable(
     ownerUserId: text("owner_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    /** First-party clients (e.g. in-product Chat). Null = user-created. */
+    systemKey: text("system_key"),
   },
-  (t) => [unique("clients_tenant_name_unique").on(t.tenantId, t.name)],
+  (t) => [
+    unique("clients_tenant_name_unique").on(t.tenantId, t.name),
+    uniqueIndex("clients_tenant_system_key_unique")
+      .on(t.tenantId, t.systemKey)
+      .where(sql`${t.systemKey} is not null`),
+  ],
 );
 
 export type Client = typeof clients.$inferSelect;

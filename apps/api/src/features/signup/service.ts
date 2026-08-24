@@ -13,6 +13,7 @@ import {
   type PublicUser,
 } from "@jackline/shared";
 import type { Logger } from "pino";
+import { ensureJacklineChatClient } from "../chat/ensure.js";
 import { slugify } from "../../lib/slug.js";
 
 export type SignupInput = {
@@ -106,6 +107,14 @@ async function create(
       { userId, tenantId: tenant.id, membershipId: membership.id },
       "organization created",
     );
+
+    const chatClient = await ensureJacklineChatClient(log, tenant.id);
+    if (chatClient.isErr()) {
+      log.warn(
+        { tenantId: tenant.id, errorCode: chatClient.error.code },
+        "failed to seed Jackline Chat client",
+      );
+    }
 
     return ok({
       user: {

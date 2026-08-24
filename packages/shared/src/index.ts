@@ -1,4 +1,4 @@
-export { loadConfig, getConfig, publicApiBaseUrl, publicMcpUrl, webTrustedOrigins } from "./env/load.js";
+export { loadConfig, getConfig, publicApiBaseUrl, publicMcpUrl, internalMcpUrl, webTrustedOrigins } from "./env/load.js";
 export { EnvSchema, type Env } from "./env/schema.js";
 export {
   ErrorCode,

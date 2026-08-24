@@ -127,6 +127,7 @@ const startupScript = pulumi
       BETTER_AUTH_URL: publicBaseUrl,
       JACKLINE_PUBLIC_API_URL: publicBaseUrl,
       JACKLINE_PUBLIC_MCP_URL: `${publicBaseUrl}/mcp`,
+      JACKLINE_INTERNAL_MCP_URL: "http://gateway:8081/mcp",
       API_HOST: "0.0.0.0",
       API_PORT: "8080",
       GATEWAY_HOST: "0.0.0.0",
