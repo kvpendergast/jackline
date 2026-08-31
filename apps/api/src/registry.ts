@@ -1,6 +1,7 @@
 import { accessRequestsFeature } from "./features/accessRequests/index.js";
 import { chatFeature } from "./features/chat/index.js";
 import { signupFeature } from "./features/signup/index.js";
+import { authCompleteFeature } from "./features/authComplete/index.js";
 import { healthFeature } from "./features/health/index.js";
 import type { AppSlice } from "./lib/feature.js";
 import { meFeature } from "./features/me/index.js";
@@ -24,6 +25,7 @@ export type { AppSlice, FeatureRoute } from "./lib/feature.js";
 /** Public `/api/v1` routes (no tenant header). */
 export const publicV1Features: AppSlice[] = [
   signupFeature,
+  authCompleteFeature,
   meFeature,
   identityPublicFeature,
 ];

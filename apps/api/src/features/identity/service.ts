@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import {
@@ -14,9 +14,12 @@ import {
   BadRequestError,
   ForbiddenError,
   JacklineError,
+  MembershipRoleSchema,
   NotFoundError,
   SetupError,
   getConfig,
+  normalizeAllowedDomains,
+  PLATFORM_GOOGLE_PROVIDER_ID,
   type CreateInviteBody,
   type MembershipRole,
   type PublicInvite,
@@ -27,6 +30,7 @@ import {
 import { getSecretBox } from "../../lib/secrets/secretBox.js";
 
 function toPublicSso(row: typeof ssoConfigs.$inferSelect): PublicSsoConfig {
+  const roleParse = MembershipRoleSchema.safeParse(row.autoJoinRole);
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -35,6 +39,9 @@ function toPublicSso(row: typeof ssoConfigs.$inferSelect): PublicSsoConfig {
     clientId: row.clientId,
     hasClientSecret: row.clientSecretCiphertext != null,
     autoCreateUsers: row.autoCreateUsers,
+    requireSso: row.requireSso,
+    allowedDomains: row.allowedDomains ?? [],
+    autoJoinRole: roleParse.success ? roleParse.data : "member",
     scimEnabled: row.scimEnabled,
     hasScimToken: row.scimTokenHash != null,
     providerId: ssoProviderId(row.tenantId),
@@ -99,6 +106,11 @@ async function updateSso(
   if (input.autoCreateUsers !== undefined) {
     patch.autoCreateUsers = input.autoCreateUsers;
   }
+  if (input.requireSso !== undefined) patch.requireSso = input.requireSso;
+  if (input.allowedDomains !== undefined) {
+    patch.allowedDomains = normalizeAllowedDomains(input.allowedDomains);
+  }
+  if (input.autoJoinRole !== undefined) patch.autoJoinRole = input.autoJoinRole;
   if (input.scimEnabled !== undefined) patch.scimEnabled = input.scimEnabled;
 
   if (input.clientSecret !== undefined) {
@@ -132,6 +144,25 @@ async function updateSso(
       return err(
         new BadRequestError(
           "Enabled SSO requires issuer, clientId, and clientSecret",
+        ),
+      );
+    }
+  }
+
+  if (patch.requireSso === true) {
+    const enabled =
+      patch.enabled !== undefined ? patch.enabled : existing.enabled;
+    const issuer = patch.issuer !== undefined ? patch.issuer : existing.issuer;
+    const clientId =
+      patch.clientId !== undefined ? patch.clientId : existing.clientId;
+    const hasSecret =
+      patch.clientSecretCiphertext !== undefined
+        ? patch.clientSecretCiphertext != null
+        : existing.clientSecretCiphertext != null;
+    if (!enabled || !issuer || !clientId || !hasSecret) {
+      return err(
+        new BadRequestError(
+          "Require SSO needs SSO enabled with issuer, clientId, and clientSecret",
         ),
       );
     }
@@ -317,6 +348,59 @@ async function acceptInvite(
   return ok(toPublicInvite(row));
 }
 
+async function acceptPendingInviteByEmail(
+  log: Logger,
+  userId: string,
+  userEmail: string,
+): Promise<Result<PublicInvite | null, JacklineError>> {
+  const [invite] = await db
+    .select()
+    .from(invites)
+    .where(
+      and(
+        eq(invites.email, userEmail.toLowerCase()),
+        isNull(invites.acceptedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!invite) return ok(null);
+  if (invite.expiresAt.getTime() < Date.now()) {
+    return err(new BadRequestError("Invite has expired"));
+  }
+
+  const [existing] = await db
+    .select()
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.tenantId, invite.tenantId),
+        eq(memberships.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    await db.insert(memberships).values({
+      tenantId: invite.tenantId,
+      userId,
+      role: invite.role,
+      team: invite.team,
+    });
+  }
+
+  const [row] = await db
+    .update(invites)
+    .set({ acceptedAt: new Date(), updatedAt: new Date() })
+    .where(eq(invites.id, invite.id))
+    .returning();
+
+  if (!row) return err(new SetupError("Failed to accept invite"));
+
+  log.info({ inviteId: invite.id, userId }, "pending invite auto-accepted");
+  return ok(toPublicInvite(row));
+}
+
 async function listAdmins(
   log: Logger,
   tenantId: string,
@@ -378,8 +462,36 @@ async function listLoginProviders(
 > {
   const items: Array<{ providerId: string; label: string }> = [];
   const config = getConfig();
-  if (config.isOk() && config.value.JACKLINE_OIDC_ISSUER) {
-    items.push({ providerId: "oidc-env", label: "Organization SSO" });
+  let hidePlatformGoogle = false;
+
+  if (config.isOk()) {
+    if (
+      config.value.GOOGLE_CLIENT_ID &&
+      config.value.GOOGLE_CLIENT_SECRET
+    ) {
+      if (config.value.JACKLINE_TENANCY === "single") {
+        const [{ value: tenantCount } = { value: 0 }] = await db
+          .select({ value: count() })
+          .from(tenants);
+        if (tenantCount === 1) {
+          const [row] = await db
+            .select({ requireSso: ssoConfigs.requireSso, enabled: ssoConfigs.enabled })
+            .from(ssoConfigs)
+            .limit(1);
+          hidePlatformGoogle = Boolean(row?.enabled && row.requireSso);
+        }
+      }
+      if (!hidePlatformGoogle) {
+        items.push({
+          providerId: PLATFORM_GOOGLE_PROVIDER_ID,
+          label: "Continue with Google",
+        });
+      }
+    }
+
+    if (config.value.JACKLINE_OIDC_ISSUER) {
+      items.push({ providerId: "oidc-env", label: "Organization SSO" });
+    }
   }
 
   const rows = await db
@@ -410,6 +522,7 @@ export const identityServices = {
   listInvites,
   createInvite,
   acceptInvite,
+  acceptPendingInviteByEmail,
   listAdmins,
   listLoginProviders,
 } as const;

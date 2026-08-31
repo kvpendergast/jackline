@@ -10,5 +10,8 @@ export const Signup = {
 
 export const signupFeature: AppSlice = {
   name: "signup",
-  routes: featureRoutes(Signup.routes, Signup.handlers, ["create"] as const),
+  routes: featureRoutes(Signup.routes, Signup.handlers, [
+    "create",
+    "createSocial",
+  ] as const),
 };

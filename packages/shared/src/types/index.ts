@@ -134,6 +134,14 @@ export {
   RotateScimTokenResultSchema,
 } from './identity.js';
 export {
+  type AuthCompleteBody,
+  AuthCompleteBodySchema,
+  type AuthCompleteIntent,
+  AuthCompleteIntentSchema,
+  type AuthCompleteResult,
+  AuthCompleteResultSchema,
+} from './authComplete.js';
+export {
   type AccessRequestStatus,
   AccessRequestStatusSchema,
   type PublicAccessRequest,

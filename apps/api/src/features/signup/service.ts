@@ -30,6 +30,110 @@ export type SignupSuccess = {
   authResponse: Response;
 };
 
+async function createOrganizationForUser(
+  log: Logger,
+  existingUser: PublicUser,
+  organizationName: string,
+): Promise<
+  Result<
+    {
+      user: PublicUser;
+      tenant: PublicTenant;
+      membership: PublicMembership;
+    },
+    JacklineError
+  >
+> {
+  const configResult = getConfig();
+  if (configResult.isErr()) {
+    return err(configResult.error);
+  }
+
+  const [{ value: tenantCount } = { value: 0 }] = await db
+    .select({ value: count() })
+    .from(tenants);
+
+  const gate = assertCanCreateTenant(
+    tenantCount,
+    configResult.value.JACKLINE_TENANCY,
+  );
+  if (gate.isErr()) {
+    return err(gate.error);
+  }
+
+  const slug = slugify(organizationName);
+  if (!slug) {
+    return err(new BadRequestError("organizationName produces an empty slug"));
+  }
+
+  try {
+    const [tenant] = await db
+      .insert(tenants)
+      .values({
+        name: organizationName,
+        slug,
+      })
+      .returning();
+
+    if (!tenant) {
+      throw new SetupError("Failed to create tenant");
+    }
+
+    const [membership] = await db
+      .insert(memberships)
+      .values({
+        userId: existingUser.id,
+        tenantId: tenant.id,
+        role: "full_admin",
+      })
+      .returning();
+
+    if (!membership) {
+      throw new SetupError("Failed to create membership");
+    }
+
+    log.info(
+      {
+        userId: existingUser.id,
+        tenantId: tenant.id,
+        membershipId: membership.id,
+      },
+      "organization created for existing user",
+    );
+
+    const chatClient = await ensureJacklineChatClient(log, tenant.id);
+    if (chatClient.isErr()) {
+      log.warn(
+        { tenantId: tenant.id, errorCode: chatClient.error.code },
+        "failed to seed Jackline Chat client",
+      );
+    }
+
+    return ok({
+      user: existingUser,
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+      },
+      membership: {
+        id: membership.id,
+        userId: membership.userId,
+        tenantId: membership.tenantId,
+        role: membership.role as "full_admin",
+        team: membership.team,
+      },
+    });
+  } catch (cause) {
+    if (cause instanceof JacklineError) {
+      return err(cause);
+    }
+    const message =
+      cause instanceof Error ? cause.message : "Failed to create organization";
+    return err(new SetupError(message));
+  }
+}
+
 async function create(
   log: Logger,
   input: SignupInput,
@@ -78,63 +182,23 @@ async function create(
   }
 
   try {
-    const [tenant] = await db
-      .insert(tenants)
-      .values({
-        name: input.organizationName,
-        slug,
-      })
-      .returning();
-
-    if (!tenant) {
-      throw new SetupError("Failed to create tenant");
-    }
-
-    const [membership] = await db
-      .insert(memberships)
-      .values({
-        userId,
-        tenantId: tenant.id,
-        role: "full_admin",
-      })
-      .returning();
-
-    if (!membership) {
-      throw new SetupError("Failed to create membership");
-    }
-
-    log.info(
-      { userId, tenantId: tenant.id, membershipId: membership.id },
-      "organization created",
-    );
-
-    const chatClient = await ensureJacklineChatClient(log, tenant.id);
-    if (chatClient.isErr()) {
-      log.warn(
-        { tenantId: tenant.id, errorCode: chatClient.error.code },
-        "failed to seed Jackline Chat client",
-      );
-    }
-
-    return ok({
-      user: {
+    const org = await createOrganizationForUser(
+      log,
+      {
         id: signUpJson.user.id,
         email: signUpJson.user.email,
         name: signUpJson.user.name,
         kind: "human",
       },
-      tenant: {
-        id: tenant.id,
-        name: tenant.name,
-        slug: tenant.slug,
-      },
-      membership: {
-        id: membership.id,
-        userId: membership.userId,
-        tenantId: membership.tenantId,
-        role: membership.role as "full_admin",
-        team: membership.team,
-      },
+      input.organizationName,
+    );
+    if (org.isErr()) {
+      await db.delete(user).where(eq(user.id, userId));
+      return err(org.error);
+    }
+
+    return ok({
+      ...org.value,
       authResponse,
     });
   } catch (cause) {
@@ -148,4 +212,25 @@ async function create(
   }
 }
 
-export const signupServices = { create } as const;
+async function createSocial(
+  log: Logger,
+  existingUser: PublicUser,
+  organizationName: string,
+): Promise<
+  Result<
+    {
+      user: PublicUser;
+      tenant: PublicTenant;
+      membership: PublicMembership;
+    },
+    JacklineError
+  >
+> {
+  return createOrganizationForUser(log, existingUser, organizationName);
+}
+
+export const signupServices = {
+  create,
+  createSocial,
+  createOrganizationForUser,
+} as const;
