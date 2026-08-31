@@ -146,21 +146,15 @@ The VM path provisions **`jackline-db`** (`db-f1-micro`, 10 GB HDD by default, z
 | `cloudSqlConnectionName` | `project:region:jackline-db` — for `gcloud sql connect` / proxy |
 | `cloudSqlInstanceName` | Instance id |
 
-**Run SQL manually** (from your laptop):
+**Run SQL manually** — the instance has **private IP only** (not reachable from the public internet). SSH to the VM, then use `psql`:
 
 ```bash
-gcloud sql connect jackline-db --user=jackline --project=YOUR_PROJECT
-# password: jackline-pulumi-postgresPassword from Secret Manager
-```
-
-Or SSH to the VM and use `psql` with the private IP from `.env.prod`:
-
-```bash
-gcloud compute ssh jackline --zone=us-central1-a --tunnel-through-iap
-grep DATABASE_URL /opt/jackline/.env.prod   # do not paste in public logs
-# install client if needed: sudo apt-get install -y postgresql-client
+gcloud compute ssh jackline --project=YOUR_PROJECT --zone=us-central1-a --tunnel-through-iap
+sudo apt-get install -y postgresql-client   # once
 psql "$(grep ^DATABASE_URL= /opt/jackline/.env.prod | cut -d= -f2-)"
 ```
+
+From a machine on the same VPC you can also use `gcloud sql connect jackline-db --user=jackline`.
 
 Optional Pulumi config: `cloudSqlTier` (default `db-f1-micro`), `cloudSqlDiskSize` (default `10`), `cloudSqlDiskType` (`PD_HDD` or `PD_SSD`).
 

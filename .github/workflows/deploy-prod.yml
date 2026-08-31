@@ -144,8 +144,17 @@ jobs:
           VM_ZONE="$(pulumi stack output instanceZone)"
           export CLOUD_SQL_PRIVATE_IP="$(pulumi stack output cloudSqlPrivateIp)"
           export CLOUD_SQL_CONNECTION_NAME="$(pulumi stack output cloudSqlConnectionName)"
+          CLOUD_SQL_INSTANCE="$(pulumi stack output cloudSqlInstanceName 2>/dev/null || true)"
           echo "VM target: ${VM_NAME} (${VM_ZONE})"
           echo "Cloud SQL: ${CLOUD_SQL_CONNECTION_NAME} (${CLOUD_SQL_PRIVATE_IP})"
+
+          if [[ -n "${CLOUD_SQL_INSTANCE}" ]]; then
+            CLOUD_SQL_INSTANCE_NAME="${CLOUD_SQL_INSTANCE}" \
+              GIT_SHA="${GITHUB_SHA}" \
+              bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-cloudsql-backup.sh"
+          else
+            echo "Cloud SQL instance output missing — skipping on-demand backup (pre-cloud-sql stack?)"
+          fi
 
           echo "Waiting for instance to reach RUNNING..."
           for i in $(seq 1 36); do
