@@ -13,6 +13,15 @@ export {
   SetupError,
 } from "./errors/index.js";
 export { isSingleTenancy, isMultiTenancy, assertCanCreateTenant } from "./tenancy/index.js";
+export {
+  PLATFORM_GOOGLE_PROVIDER_ID,
+  CREDENTIAL_PROVIDER_ID,
+  emailDomain,
+  normalizeAllowedDomain,
+  normalizeAllowedDomains,
+  tenantOidcProviderId,
+  isTenantOidcProvider,
+} from "./auth/emailDomain.js";
 export * from "./types/index.js";
 export {
   UpstreamOAuthSecretSchema,

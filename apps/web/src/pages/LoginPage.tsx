@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/auth-provider";
 import { authClient } from "@/lib/auth-client";
 import { jacklineApi } from "@/lib/jackline-api";
+import { authCompleteRedirect } from "@/pages/AuthCompletePage";
+
+const PLATFORM_GOOGLE_ID = "google";
 
 export function LoginPage() {
   const { user, loading, refresh } = useAuth();
@@ -16,6 +19,10 @@ export function LoginPage() {
   const [providers, setProviders] = useState<
     Array<{ providerId: string; label: string }>
   >([]);
+  const googleProvider = providers.find((p) => p.providerId === PLATFORM_GOOGLE_ID);
+  const tenantProviders = providers.filter(
+    (p) => p.providerId !== PLATFORM_GOOGLE_ID,
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -44,10 +51,27 @@ export function LoginPage() {
         await jacklineApi.acceptInvite(inviteToken.trim());
       }
       await refresh();
-      navigate("/dashboard", { replace: true });
+      navigate("/auth/complete?intent=login", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onGoogle(intent: "login" | "signup") {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: authCompleteRedirect(
+          intent,
+          intent === "login" ? inviteToken.trim() || undefined : undefined,
+        ),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
       setSubmitting(false);
     }
   }
@@ -58,7 +82,10 @@ export function LoginPage() {
     try {
       await authClient.signIn.oauth2({
         providerId,
-        callbackURL: `${window.location.origin}/dashboard`,
+        callbackURL: authCompleteRedirect(
+          "login",
+          inviteToken.trim() || undefined,
+        ),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "SSO failed");
@@ -79,6 +106,17 @@ export function LoginPage() {
         </>
       }
     >
+      {googleProvider ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="mb-4 w-full"
+          disabled={submitting}
+          onClick={() => void onGoogle("login")}
+        >
+          {googleProvider.label}
+        </Button>
+      ) : null}
       <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
         <Field label="Email" htmlFor="email">
           <Input
@@ -113,10 +151,10 @@ export function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      {providers.length > 0 ? (
+      {tenantProviders.length > 0 ? (
         <div className="mt-4 space-y-2 border-t border-border pt-4">
           <p className="section-label">SSO</p>
-          {providers.map((p) => (
+          {tenantProviders.map((p) => (
             <Button
               key={p.providerId}
               type="button"
@@ -141,8 +179,20 @@ export function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationName, setOrganizationName] = useState("");
+  const [providers, setProviders] = useState<
+    Array<{ providerId: string; label: string }>
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const googleProvider = providers.find((p) => p.providerId === PLATFORM_GOOGLE_ID);
+
+  useEffect(() => {
+    void jacklineApi
+      .listSsoProviders()
+      .then((page) => setProviders(page.items))
+      .catch(() => setProviders([]));
+  }, []);
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
@@ -163,6 +213,20 @@ export function SignupPage() {
     }
   }
 
+  async function onGoogleSignup() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: authCompleteRedirect("signup"),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-up failed");
+      setSubmitting(false);
+    }
+  }
+
   return (
     <AuthScreen
       title="Create organization"
@@ -176,6 +240,17 @@ export function SignupPage() {
         </>
       }
     >
+      {googleProvider ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="mb-4 w-full"
+          disabled={submitting}
+          onClick={() => void onGoogleSignup()}
+        >
+          {googleProvider.label}
+        </Button>
+      ) : null}
       <form className="space-y-4" onSubmit={onSubmit}>
         <Field label="Organization" htmlFor="org">
           <Input

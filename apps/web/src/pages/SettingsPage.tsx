@@ -230,6 +230,11 @@ function SsoForm({
   const [clientId, setClientId] = useState(sso.clientId ?? "");
   const [clientSecret, setClientSecret] = useState("");
   const [autoCreateUsers, setAutoCreateUsers] = useState(sso.autoCreateUsers);
+  const [requireSso, setRequireSso] = useState(sso.requireSso);
+  const [allowedDomains, setAllowedDomains] = useState(
+    sso.allowedDomains.join(", "),
+  );
+  const [autoJoinRole, setAutoJoinRole] = useState(sso.autoJoinRole);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -237,11 +242,18 @@ function SsoForm({
     if (!tenantId) return;
     setBusy(true);
     try {
+      const domains = allowedDomains
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean);
       const next = await jacklineApi.updateSsoConfig(tenantId, {
         enabled,
         issuer: issuer.trim() || null,
         clientId: clientId.trim() || null,
         autoCreateUsers,
+        requireSso,
+        allowedDomains: domains,
+        autoJoinRole,
         ...(clientSecret.trim()
           ? { clientSecret: clientSecret.trim() }
           : {}),
@@ -301,10 +313,42 @@ function SsoForm({
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
+          checked={requireSso}
+          onChange={(e) => setRequireSso(e.target.checked)}
+        />
+        Require SSO (block platform Google and email/password for members)
+      </label>
+      <Field label="Allowed email domains" htmlFor="sso-domains">
+        <Input
+          id="sso-domains"
+          value={allowedDomains}
+          onChange={(e) => setAllowedDomains(e.target.value)}
+          placeholder="acme.com, acme.co.uk"
+        />
+      </Field>
+      <Field label="Auto-join role" htmlFor="sso-auto-role">
+        <select
+          id="sso-auto-role"
+          className="w-full border border-border bg-background px-3 py-2 text-sm"
+          value={autoJoinRole}
+          onChange={(e) =>
+            setAutoJoinRole(
+              e.target.value as "full_admin" | "delegated_admin" | "member",
+            )
+          }
+        >
+          <option value="member">member</option>
+          <option value="delegated_admin">delegated_admin</option>
+          <option value="full_admin">full_admin</option>
+        </select>
+      </Field>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
           checked={autoCreateUsers}
           onChange={(e) => setAutoCreateUsers(e.target.checked)}
         />
-        Auto-create users on first SSO login
+        Auto-create users on domain SSO sign-in
       </label>
       <Button type="submit" disabled={busy}>
         {busy ? "Saving…" : "Save SSO"}

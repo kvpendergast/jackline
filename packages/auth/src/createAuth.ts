@@ -113,6 +113,16 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
   if (configResult.isErr()) throw configResult.error;
   const config = configResult.value;
 
+  const socialProviders =
+    config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: config.GOOGLE_CLIENT_ID,
+            clientSecret: config.GOOGLE_CLIENT_SECRET,
+          },
+        }
+      : undefined;
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -132,6 +142,7 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
     emailAndPassword: { enabled: true, disableSignUp: false },
+    socialProviders,
     plugins:
       oauthConfigs.length > 0
         ? [genericOAuth({ config: oauthConfigs })]

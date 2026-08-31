@@ -9,6 +9,7 @@ import { ClientsPage } from "@/pages/ClientsPage";
 import { ConnectionDetailPage } from "@/pages/ConnectionDetailPage";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
 import { LoginPage, SignupPage } from "@/pages/LoginPage";
+import { AuthCompletePage } from "@/pages/AuthCompletePage";
 import { MyAccessPage } from "@/pages/MyAccessPage";
 import { RolesPage } from "@/pages/RolesPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -81,6 +82,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/auth/complete" element={<AuthCompletePage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/my-access" element={<MyAccessPage />} />

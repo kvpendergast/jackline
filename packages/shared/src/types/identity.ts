@@ -9,6 +9,9 @@ export const PublicSsoConfigSchema = z.strictObject({
   /** True when a client secret is stored (plaintext never returned). */
   hasClientSecret: z.boolean(),
   autoCreateUsers: z.boolean(),
+  requireSso: z.boolean(),
+  allowedDomains: z.array(z.string()),
+  autoJoinRole: z.enum(["full_admin", "delegated_admin", "member"]),
   scimEnabled: z.boolean(),
   /** True when a SCIM bearer token hash is stored. */
   hasScimToken: z.boolean(),
@@ -25,6 +28,9 @@ export const UpdateSsoConfigBodySchema = z
     clientId: z.string().min(1).nullable().optional(),
     clientSecret: z.string().min(1).nullable().optional(),
     autoCreateUsers: z.boolean().optional(),
+    requireSso: z.boolean().optional(),
+    allowedDomains: z.array(z.string()).optional(),
+    autoJoinRole: z.enum(["full_admin", "delegated_admin", "member"]).optional(),
     scimEnabled: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {

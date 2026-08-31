@@ -41,6 +41,19 @@ export const jacklineApi = {
   signup: (body: SignupInput) =>
     api<SignupResult>("/api/v1/signup", { method: "POST", body }),
 
+  signupSocial: (body: { organizationName: string }) =>
+    api<SignupResult>("/api/v1/signup/social", { method: "POST", body }),
+
+  authComplete: (body: {
+    intent: "login" | "signup";
+    inviteToken?: string;
+    organizationName?: string;
+  }) =>
+    api<import("@jackline/shared").AuthCompleteResult>("/api/v1/auth/complete", {
+      method: "POST",
+      body,
+    }),
+
   me: () => api<MeData>("/api/v1/me"),
 
   listServers: (tenantId: string) =>

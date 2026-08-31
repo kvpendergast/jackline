@@ -1,6 +1,13 @@
 import { cors } from "hono/cors";
-import { auth } from "@jackline/auth";
-import { getConfig, webTrustedOrigins } from "@jackline/shared";
+import {
+  auth,
+  loginProviderCookieHeader,
+} from "@jackline/auth";
+import {
+  CREDENTIAL_PROVIDER_ID,
+  getConfig,
+  webTrustedOrigins,
+} from "@jackline/shared";
 import { createJacklineApp } from "./lib/http/createApp.js";
 import {
   requestMiddleware,
@@ -39,8 +46,44 @@ for (const feature of rootFeatures) {
   }
 }
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => {
-  return auth.handler(c.req.raw);
+app.on(["POST", "GET"], "/api/auth/*", async (c) => {
+  const response = await auth.handler(c.req.raw);
+  const authPath = new URL(c.req.url).pathname.replace(/^.*\/api\/auth/, "");
+
+  let providerId: string | null = null;
+  const oauth2Match = authPath.match(/^\/oauth2\/callback\/([^/]+)/);
+  const socialMatch = authPath.match(/^\/callback\/([^/]+)/);
+  if (oauth2Match?.[1]) {
+    providerId = oauth2Match[1];
+  } else if (socialMatch?.[1]) {
+    providerId = socialMatch[1];
+  } else if (
+    authPath === "/sign-in/email" &&
+    c.req.method === "POST" &&
+    response.ok
+  ) {
+    providerId = CREDENTIAL_PROVIDER_ID;
+  }
+
+  if (!providerId || !response.ok) {
+    return response;
+  }
+
+  const cfg = getConfig();
+  if (cfg.isErr()) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.append(
+    "Set-Cookie",
+    loginProviderCookieHeader(providerId, cfg.value.BETTER_AUTH_SECRET),
+  );
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 });
 
 app.route("/scim/v2", scimApp);

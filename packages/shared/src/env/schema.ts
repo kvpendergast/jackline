@@ -48,6 +48,9 @@ export const EnvSchema = z.object({
   JACKLINE_OIDC_ISSUER: z.string().url().optional(),
   JACKLINE_OIDC_CLIENT_ID: z.string().min(1).optional(),
   JACKLINE_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
+  /** Optional platform Google social login (operator-configured). */
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 }).strict()
   .superRefine((env, ctx) => {
     const any =
@@ -63,6 +66,18 @@ export const EnvSchema = z.object({
         code: "custom",
         message:
           "JACKLINE_OIDC_ISSUER, JACKLINE_OIDC_CLIENT_ID, and JACKLINE_OIDC_CLIENT_SECRET must be set together",
+      });
+    }
+
+    const googleAny =
+      env.GOOGLE_CLIENT_ID != null || env.GOOGLE_CLIENT_SECRET != null;
+    const googleAll =
+      env.GOOGLE_CLIENT_ID != null && env.GOOGLE_CLIENT_SECRET != null;
+    if (googleAny && !googleAll) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together",
       });
     }
   });

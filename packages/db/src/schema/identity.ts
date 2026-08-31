@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -27,6 +28,12 @@ export const ssoConfigs = pgTable(
     clientSecretNonce: bytea("client_secret_nonce"),
     clientSecretKeyVersion: integer("client_secret_key_version"),
     autoCreateUsers: boolean("auto_create_users").notNull().default(true),
+    requireSso: boolean("require_sso").notNull().default(false),
+    allowedDomains: jsonb("allowed_domains")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    autoJoinRole: text("auto_join_role").notNull().default("member"),
     scimEnabled: boolean("scim_enabled").notNull().default(false),
     /** SHA-256 hex of the SCIM bearer token (plaintext shown once on rotate). */
     scimTokenHash: text("scim_token_hash"),
