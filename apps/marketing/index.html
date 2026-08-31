@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en" data-theme="fog">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jackline — Clip in. Explore. Build.</title>
+    <meta
+      name="description"
+      content="Jackline is the safety line for AI agents — clip your tools in, explore freely, and stay audited."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Figtree:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles/main.css" />
+  </head>
+  <body>
+    <div class="chart-bg" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
+          <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
+          <path
+            d="M9.5 20.2C12 17 18 13.5 22.5 11.5"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M7 19v-1.5a1.5 1.5 0 0 1 3 0V19M25 11V9.5a1.5 1.5 0 0 0-3 0V11"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span class="brand-name">Jackline</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Primary">
+        <a href="#how">How it works</a>
+        <a href="#previews">UI previews</a>
+        <a href="#themes">Themes</a>
+        <a href="https://github.com/kvpendergast/jackline" target="_blank" rel="noreferrer"
+          >GitHub</a
+        >
+      </nav>
+
+      <div class="header-actions">
+        <div class="theme-switch" role="group" aria-label="Color theme">
+          <button type="button" class="theme-btn is-active" data-theme="fog">Fog Chart</button>
+          <button type="button" class="theme-btn" data-theme="deck">Warm Deck</button>
+        </div>
+        <a class="btn btn-primary btn-sm" href="#start">Get started</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="kicker">Open-source · self-hosted · MCP gateway</p>
+          <h1>
+            Clip in your AI tools.<br />
+            <em>Then go build.</em>
+          </h1>
+          <p class="lede">
+            Jackline is the safety line between your agents and the outside world. Connect Cursor,
+            Claude, or any MCP client — explore Gmail, GitHub, Notion, and more — with guardrails
+            your team actually controls.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="#start">Start self-hosting</a>
+            <a class="btn btn-secondary" href="#previews">See the UI</a>
+          </div>
+          <ul class="hero-points">
+            <li>No falling overboard — deny-by-default policy</li>
+            <li>Clip in once — one token per connection</li>
+            <li>Ship fast — open source, runs on your infra</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual">
+          <div class="hero-card elev-lg">
+            <div class="hero-card-top">
+              <span class="pill pill-safe">Clipped in</span>
+              <span class="mono">cursor · you@crew.dev</span>
+            </div>
+            <div class="hero-card-body">
+              <div class="tool-row">
+                <span class="tool-dot allow"></span>
+                <span>linear.create_issue</span>
+                <span class="tag tag-allow">allowed</span>
+              </div>
+              <div class="tool-row">
+                <span class="tool-dot allow"></span>
+                <span>notion.search</span>
+                <span class="tag tag-allow">allowed</span>
+              </div>
+              <div class="tool-row">
+                <span class="tool-dot deny"></span>
+                <span>gmail.send_email</span>
+                <span class="tag tag-deny">blocked</span>
+              </div>
+            </div>
+            <p class="hero-card-foot">
+              Policy says yes to read &amp; create — not send. Your agent keeps moving; your inbox
+              stays safe.
+            </p>
+          </div>
+          <div class="hero-float hero-float-a">audit logged</div>
+          <div class="hero-float hero-float-b">self-hosted</div>
+        </div>
+      </section>
+
+      <section class="strip">
+        <p>
+          Built for <strong>builders</strong> who want agents that ship — not security theater. You
+          don't need to be an infra expert to clip in.
+        </p>
+      </section>
+
+      <section id="how" class="section">
+        <div class="section-head">
+          <p class="kicker">How it works</p>
+          <h2>Three moves. Same as on deck.</h2>
+          <p class="section-lede">
+            A jackline is the rope you clip to before crossing the deck. Jackline the product works
+            the same way for AI tools.
+          </p>
+        </div>
+        <div class="steps">
+          <article class="step-card elev-sm">
+            <div class="step-num">01</div>
+            <h3>Clip in</h3>
+            <p>
+              Register your agent (Cursor, Claude Code, internal bots). Mint a connection token —
+              that's your carabiner to Jackline.
+            </p>
+          </article>
+          <article class="step-card elev-sm">
+            <div class="step-num">02</div>
+            <h3>Explore</h3>
+            <p>
+              Agents call MCP tools through Jackline. Upstreams like Linear, GitHub, and Gmail sit
+              behind one gateway you own.
+            </p>
+          </article>
+          <article class="step-card elev-sm">
+            <div class="step-num">03</div>
+            <h3>Stay safe</h3>
+            <p>
+              Roles, approvals, and audit logs catch what shouldn't happen. Deny by default — grant
+              only what each builder needs.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="previews" class="section section-dark">
+        <div class="section-head">
+          <p class="kicker">Product previews</p>
+          <h2>What builders and admins actually see</h2>
+          <p class="section-lede">
+            Same product, two lenses: <strong>My Access</strong> for everyday builders,
+            <strong>Control plane</strong> for the crew running policy.
+          </p>
+        </div>
+
+        <div class="preview-tabs" role="tablist" aria-label="UI preview">
+          <button type="button" class="preview-tab is-active" role="tab" aria-selected="true" data-preview="personal">
+            My Access
+          </button>
+          <button type="button" class="preview-tab" role="tab" aria-selected="false" data-preview="admin">
+            Control plane
+          </button>
+        </div>
+
+        <div class="preview-frame elev-lg" data-active-preview="personal">
+          <!-- Personal preview -->
+          <div class="ui-mock" data-preview-panel="personal">
+            <aside class="ui-sidebar">
+              <div class="ui-sidebar-head">
+                <svg class="brand-mark sm" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
+                  <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
+                  <path d="M9.5 20.2C12 17 18 13.5 22.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <div>
+                  <div class="ui-brand">Jackline</div>
+                  <div class="ui-eyebrow">My Access</div>
+                </div>
+              </div>
+              <nav class="ui-nav">
+                <a class="is-active" href="#">My Access</a>
+                <a href="#">Connections</a>
+                <a href="#">Clearance requests</a>
+                <a href="#">Notifications</a>
+              </nav>
+            </aside>
+            <div class="ui-main">
+              <header class="ui-topbar">
+                <span class="ui-eyebrow">Clipped in · policy active</span>
+                <span class="ui-user">you@crew.dev</span>
+              </header>
+              <div class="ui-content">
+                <h3>Your line to approved tools</h3>
+                <p class="ui-muted">What Cursor can call — and what happened lately.</p>
+                <div class="ui-cards">
+                  <div class="ui-card">
+                    <div class="ui-card-head">
+                      <strong>Cursor · Design team</strong>
+                      <span class="pill pill-safe">Clipped in</span>
+                    </div>
+                    <div class="ui-tool-list">
+                      <div><span class="tool-dot allow"></span> linear.create_issue</div>
+                      <div><span class="tool-dot allow"></span> notion.search</div>
+                      <div><span class="tool-dot deny"></span> gmail.send_email</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" type="button">Request clearance</button>
+                  </div>
+                  <div class="ui-card">
+                    <div class="ui-card-head">
+                      <strong>Recent activity</strong>
+                    </div>
+                    <div class="ui-log">
+                      <div><span class="tag tag-allow">allow</span> notion.search · 2m ago</div>
+                      <div><span class="tag tag-deny">deny</span> gmail.send_email · 14m ago</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin preview -->
+          <div class="ui-mock hidden" data-preview-panel="admin">
+            <aside class="ui-sidebar">
+              <div class="ui-sidebar-head">
+                <svg class="brand-mark sm" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
+                  <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
+                  <path d="M9.5 20.2C12 17 18 13.5 22.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <div>
+                  <div class="ui-brand">Jackline</div>
+                  <div class="ui-eyebrow">Control plane</div>
+                </div>
+              </div>
+              <nav class="ui-nav">
+                <a class="is-active" href="#">Dashboard</a>
+                <a href="#">Connections</a>
+                <a href="#">Audit log</a>
+                <a href="#">Roles</a>
+                <a href="#">Servers</a>
+              </nav>
+            </aside>
+            <div class="ui-main">
+              <header class="ui-topbar">
+                <span class="ui-eyebrow">Bridge overview</span>
+                <span class="ui-user">admin@crew.dev</span>
+              </header>
+              <div class="ui-content">
+                <h3>Pre-departure checklist</h3>
+                <div class="ui-checklist">
+                  <div class="ui-check done">Register upstream servers</div>
+                  <div class="ui-check done">Create roles &amp; grant tools</div>
+                  <div class="ui-check">Mint connection for Jackline Chat</div>
+                </div>
+                <h4 class="ui-subhead">Near-miss log</h4>
+                <table class="ui-table">
+                  <thead>
+                    <tr>
+                      <th>Outcome</th>
+                      <th>Tool</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="tag tag-deny">deny</span></td>
+                      <td class="mono">gmail.send_email</td>
+                      <td>you@crew.dev</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tag tag-allow">allow</span></td>
+                      <td class="mono">linear.create_issue</td>
+                      <td>bot@crew.dev</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="themes" class="section">
+        <div class="section-head">
+          <p class="kicker">Pick a direction</p>
+          <h2>Two light-mode moods — toggle above</h2>
+          <p class="section-lede">
+            <strong>Fog Chart</strong> feels like a navigation room — cool, instrument-ready, trust
+            through precision. <strong>Warm Deck</strong> feels like sunrise before launch — inviting
+            for builders who aren't infra natives.
+          </p>
+        </div>
+
+        <div class="theme-compare">
+          <article class="theme-card elev-sm" data-theme-card="fog">
+            <div class="swatch-row">
+              <span style="background: var(--fog-bg)"></span>
+              <span style="background: var(--fog-teal)"></span>
+              <span style="background: var(--fog-navy)"></span>
+              <span style="background: var(--fog-mist)"></span>
+            </div>
+            <h3>Fog Chart</h3>
+            <p>Cool chart paper, signal teal, deep navy ink. Best for "serious but approachable."</p>
+            <ul>
+              <li>Instrument Serif + DM Sans</li>
+              <li>Chart grid backgrounds</li>
+              <li>Teal allow · coral deny</li>
+            </ul>
+          </article>
+          <article class="theme-card elev-sm" data-theme-card="deck">
+            <div class="swatch-row">
+              <span style="background: var(--deck-bg)"></span>
+              <span style="background: var(--deck-rope)"></span>
+              <span style="background: var(--deck-sea)"></span>
+              <span style="background: var(--deck-sage)"></span>
+            </div>
+            <h3>Warm Deck</h3>
+            <p>Deck at dawn — sand, rope tan, sea green. Best for adventurous builder marketing.</p>
+            <ul>
+              <li>Fraunces + Figtree</li>
+              <li>Soft radii &amp; washed texture</li>
+              <li>Sea green allow · flare deny</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="start" class="section cta-section">
+        <div class="cta-card elev-lg">
+          <p class="kicker">Open source · MIT</p>
+          <h2>Ready to clip in?</h2>
+          <p>
+            Self-host with Docker Compose in minutes. No vendor lock-in — your agents, your policy,
+            your audit trail.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="https://github.com/kvpendergast/jackline" target="_blank" rel="noreferrer">
+              View on GitHub
+            </a>
+            <a class="btn btn-secondary" href="https://github.com/kvpendergast/jackline#setup" target="_blank" rel="noreferrer">
+              Read the setup guide
+            </a>
+          </div>
+          <pre class="code-block" aria-label="Quick start"><code>git clone https://github.com/kvpendergast/jackline.git
+cd jackline && cp .env.example .env
+docker compose -f deploy/docker-compose.yml up --build</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Design preview · not wired to production yet</p>
+      <p class="mono">pnpm --filter @jackline/marketing dev → localhost:4321</p>
+    </footer>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
