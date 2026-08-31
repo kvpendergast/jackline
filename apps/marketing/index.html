@@ -17,30 +17,33 @@
     <link rel="stylesheet" href="/styles/main.css" />
   </head>
   <body>
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="jackline-mark" viewBox="0 0 32 32" fill="none">
+        <circle cx="4" cy="16" r="2" stroke="currentColor" stroke-width="1.75" />
+        <path d="M6.25 16H10.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" />
+        <path
+          d="M10.5 16V12.75c0-2.2 4.5-2.2 4.5 0v6.5c0 2.2-4.5 2.2-4.5 0V16"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path d="M10.5 12.75V16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
+        <path d="M15 16h10.75" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" />
+        <circle cx="28" cy="16" r="2" stroke="currentColor" stroke-width="1.75" />
+      </symbol>
+    </svg>
+
     <div class="chart-bg" aria-hidden="true"></div>
 
     <header class="site-header">
       <a class="brand" href="#">
-        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-          <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
-          <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
-          <path
-            d="M9.5 20.2C12 17 18 13.5 22.5 11.5"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-          />
-          <path
-            d="M7 19v-1.5a1.5 1.5 0 0 1 3 0V19M25 11V9.5a1.5 1.5 0 0 0-3 0V11"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
         <span class="brand-name">Jackline</span>
       </a>
 
       <nav class="site-nav" aria-label="Primary">
+        <a href="#logo">Logo</a>
         <a href="#how">How it works</a>
         <a href="#previews">UI previews</a>
         <a href="#themes">Themes</a>
@@ -115,6 +118,55 @@
         </div>
       </section>
 
+      <section id="logo" class="section logo-section">
+        <div class="section-head">
+          <p class="kicker">Brand mark</p>
+          <h2>The jackline, literally</h2>
+          <p class="section-lede">
+            A safety line runs bow to stern. Pad eyes anchor it to the deck; your harness clips on
+            with a carabiner. The mark is that moment — <strong>tethered, not tangled</strong>.
+          </p>
+        </div>
+        <div class="logo-showcase elev-md">
+          <div class="logo-showcase-row">
+            <div class="logo-size">
+              <svg class="brand-mark xs" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span class="mono">16px</span>
+            </div>
+            <div class="logo-size">
+              <svg class="brand-mark sm" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span class="mono">20px</span>
+            </div>
+            <div class="logo-size">
+              <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span class="mono">32px</span>
+            </div>
+            <div class="logo-size">
+              <svg class="brand-mark lg" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span class="mono">48px</span>
+            </div>
+          </div>
+          <div class="logo-lockup">
+            <svg class="brand-mark xl" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+            <span class="logo-lockup-name">Jackline</span>
+          </div>
+          <div class="logo-on-grounds">
+            <div class="logo-ground logo-ground-light">
+              <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span>Light</span>
+            </div>
+            <div class="logo-ground logo-ground-dark">
+              <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span>Dark</span>
+            </div>
+            <div class="logo-ground logo-ground-accent">
+              <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
+              <span>Accent</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="strip">
         <p>
           Built for <strong>builders</strong> who want agents that ship — not security theater. You
@@ -183,11 +235,7 @@
           <div class="ui-mock" data-preview-panel="personal">
             <aside class="ui-sidebar">
               <div class="ui-sidebar-head">
-                <svg class="brand-mark sm" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                  <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
-                  <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
-                  <path d="M9.5 20.2C12 17 18 13.5 22.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                </svg>
+                <svg class="brand-mark sm" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
                 <div>
                   <div class="ui-brand">Jackline</div>
                   <div class="ui-eyebrow">My Access</div>
@@ -239,11 +287,7 @@
           <div class="ui-mock hidden" data-preview-panel="admin">
             <aside class="ui-sidebar">
               <div class="ui-sidebar-head">
-                <svg class="brand-mark sm" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                  <circle cx="7" cy="22" r="3" stroke="currentColor" stroke-width="1.75" />
-                  <circle cx="25" cy="10" r="3" stroke="currentColor" stroke-width="1.75" />
-                  <path d="M9.5 20.2C12 17 18 13.5 22.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                </svg>
+                <svg class="brand-mark sm" viewBox="0 0 32 32" aria-hidden="true"><use href="#jackline-mark" /></svg>
                 <div>
                   <div class="ui-brand">Jackline</div>
                   <div class="ui-eyebrow">Control plane</div>

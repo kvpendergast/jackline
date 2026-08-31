@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" fill="none" aria-label="Jackline">
+  <g transform="translate(0 0)">
+    <circle cx="5" cy="16" r="2.25" stroke="currentColor" stroke-width="1.75" />
+    <path d="M7.5 16h4.75" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" />
+    <path
+      d="M12.25 16V13.25c0-2.35 3.85-2.35 3.85 0V18.75c0 2.35-3.85 2.35-3.85 0V16"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path d="M12.25 13.25V16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
+    <path d="M16.1 16h8.65" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" />
+    <circle cx="27" cy="16" r="2.25" stroke="currentColor" stroke-width="1.75" />
+  </g>
+  <text
+    x="38"
+    y="21.5"
+    font-family="Instrument Serif, Georgia, serif"
+    font-size="20"
+    font-weight="600"
+    fill="currentColor"
+    letter-spacing="-0.02em"
+  >
+    Jackline
+  </text>
+</svg>

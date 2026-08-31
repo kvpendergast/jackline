@@ -213,6 +213,120 @@ a {
   height: 1.35rem;
 }
 
+.brand-mark.xs {
+  width: 1rem;
+  height: 1rem;
+}
+
+.brand-mark.lg {
+  width: 3rem;
+  height: 3rem;
+}
+
+.brand-mark.xl {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+/* ── Logo showcase ── */
+.logo-section {
+  padding-top: 2rem;
+}
+
+.logo-showcase {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+
+.logo-showcase-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 2rem;
+}
+
+.logo-size {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo-size .mono {
+  color: var(--text-muted);
+}
+
+.logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+.logo-lockup-name {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.logo-on-grounds {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .logo-on-grounds {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.logo-ground {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.logo-ground-light {
+  background: #ffffff;
+  color: #0c1929;
+  border: 1px solid var(--divider);
+}
+
+.logo-ground-light .brand-mark {
+  color: #0d9488;
+}
+
+.logo-ground-dark {
+  background: #0c1929;
+  color: #eef4f8;
+}
+
+.logo-ground-dark .brand-mark {
+  color: #5eead4;
+}
+
+.logo-ground-accent {
+  background: var(--accent);
+  color: white;
+}
+
+.logo-ground-accent .brand-mark {
+  color: white;
+}
+
 .brand-name {
   font-family: var(--font-display);
   font-size: 1.25rem;
