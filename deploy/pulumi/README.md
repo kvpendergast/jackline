@@ -4,7 +4,7 @@ Hobbyist-first deploy paths for Jackline on Google Cloud.
 
 | Path | Who it's for | Cost shape |
 | --- | --- | --- |
-| **[`vm/`](vm/)** (default) | Weekend demos, personal instances | One small VM (+ disk). Fixed machine = **compute bill stays flat** under bot traffic. |
+| **[`vm/`](vm/)** (default) | Weekend demos, personal instances | One small VM + **Cloud SQL `db-f1-micro`** (~$10/mo DB + ~$12–15/mo VM). Fixed sizes = **compute bill stays flat** under bot traffic. |
 | **[`gke/`](gke/)** (advanced) | Learning Kubernetes / Autopilot | Autopilot + global HTTP LB keep burning while up. **Not** the overnight hobbyist default. |
 
 Budgets only **alert** — they do not hard-cap spend. Prefer architecture that bounds cost (`vm/`), and `pulumi destroy` (or stop the VM) when idle.
@@ -27,7 +27,7 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. Postgres runs on **Cloud SQL** (`jackline-db`, private IP only); the VM connects over the default VPC. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
 
 **Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy. Do **not** run `docker compose up --build -d` on a live VM: that replaces containers in place. remote-deploy builds new images first, starts a second replica (`--scale 2 --no-recreate`), waits until Docker health is green, and only then stops the old replica. If the new replica fails health, it is removed and the old one keeps serving. The script re-execs under `systemd-run` so a cancelled CI SSH session does not SIGKILL the build.
 
@@ -81,7 +81,7 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 
 1. In **GCP Console** → **IAM & Admin → Workload Identity Federation**: create a pool + **OIDC provider** for GitHub (`https://token.actions.githubusercontent.com`), restricted to your repo.
 2. Create a **deploy service account**; grant the WIF principal `roles/iam.workloadIdentityUser` on that SA.
-3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`, **`publicIpAdmin`** for the regional static address), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
+3. Grant the SA: Compute (`instanceAdmin`, `securityAdmin`, `osAdminLogin`, **`publicIpAdmin`** for the regional static address), IAP tunnel, **`roles/iam.serviceAccountAdmin`** (create the dedicated `jackline-vm` SA), **`roles/cloudsql.admin`** (provision Cloud SQL + VPC peering), **`roles/servicenetworking.networksAdmin`** (private services connection on `default`), Pulumi state bucket R/W, KMS decrypt if used, Secret Manager list/access.
 
    ```bash
    # Regional static IP (jackline-vm-ip) — required after #29
@@ -120,7 +120,9 @@ Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose I
 | --- | --- |
 | `jackline-pulumi-jacklineMasterKey` | `jacklineMasterKey` |
 | `jackline-pulumi-betterAuthSecret` | `betterAuthSecret` |
-| `jackline-pulumi-postgresPassword` | `postgresPassword` |
+| `jackline-pulumi-postgresPassword` | `postgresPassword` (Cloud SQL user `jackline`) |
+| `jackline-pulumi-cloudSqlPrivateIp` | optional fallback for `ci-render-env-prod.sh` if not using pulumi outputs |
+| `jackline-pulumi-cloudSqlConnectionName` | optional fallback (`project:region:jackline-db`) |
 | `jackline-pulumi-tenancy` | `tenancy` (`single` or `multi`) |
 | `jackline-pulumi-githubDeployToken` | `githubDeployToken` (PAT with repo read — first-boot clone on private repos) |
 
@@ -133,6 +135,34 @@ echo -n "$(openssl rand -base64 32)" | \
 ```
 
 Add a new required Pulumi secret later by creating another `jackline-pulumi-<key>` in GCP — **no workflow edit**. Plain knobs (`domain`, `gitRepo`, …) stay GitHub **variables**.
+
+### Cloud SQL (managed Postgres)
+
+The VM path provisions **`jackline-db`** (`db-f1-micro`, 10 GB HDD by default, zonal, private IP on the `default` VPC). Stack outputs:
+
+| Output | Purpose |
+| --- | --- |
+| `cloudSqlPrivateIp` | `DATABASE_URL` host (CI reads this each deploy) |
+| `cloudSqlConnectionName` | `project:region:jackline-db` — for `gcloud sql connect` / proxy |
+| `cloudSqlInstanceName` | Instance id |
+
+**Run SQL manually** (from your laptop):
+
+```bash
+gcloud sql connect jackline-db --user=jackline --project=YOUR_PROJECT
+# password: jackline-pulumi-postgresPassword from Secret Manager
+```
+
+Or SSH to the VM and use `psql` with the private IP from `.env.prod`:
+
+```bash
+gcloud compute ssh jackline --zone=us-central1-a --tunnel-through-iap
+grep DATABASE_URL /opt/jackline/.env.prod   # do not paste in public logs
+# install client if needed: sudo apt-get install -y postgresql-client
+psql "$(grep ^DATABASE_URL= /opt/jackline/.env.prod | cut -d= -f2-)"
+```
+
+Optional Pulumi config: `cloudSqlTier` (default `db-f1-micro`), `cloudSqlDiskSize` (default `10`), `cloudSqlDiskType` (`PD_HDD` or `PD_SSD`).
 
 **Private GitHub repos / incomplete first boot:** Deploy CI renders `.env.prod` from Secret Manager (`ci-render-env-prod.sh`), scp’s it over IAP, and runs `remote-deploy.sh` with a short-lived `GITHUB_TOKEN` file (not persisted in git remotes). First-boot startup can still embed `jackline-pulumi-githubDeployToken` for an unattended private clone, but CI no longer depends on startup having succeeded.
 

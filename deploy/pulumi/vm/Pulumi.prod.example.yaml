@@ -16,6 +16,10 @@ config:
   # jackline-vm:jacklineMasterKey: <openssl rand -base64 32>
   # jackline-vm:betterAuthSecret: <openssl rand -base64 32>
   # jackline-vm:postgresPassword: jackline
+  # Cloud SQL sizing (optional — defaults shown)
+  # jackline-vm:cloudSqlTier: db-f1-micro
+  # jackline-vm:cloudSqlDiskSize: "10"
+  # jackline-vm:cloudSqlDiskType: PD_HDD
   #
   # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output
   # (regional static address jackline-vm-ip by default — not the old global GKE jackline-ip).

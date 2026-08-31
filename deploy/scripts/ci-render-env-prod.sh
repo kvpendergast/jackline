@@ -11,6 +11,8 @@
 #   JACKLINE_DOCS_DOMAIN
 #   JACKLINE_CADDY_EMAIL
 #   JACKLINE_TENANCY         default single (overridden by SM secret if present)
+#   CLOUD_SQL_PRIVATE_IP     Cloud SQL private IP (CI sets from pulumi stack output)
+#   CLOUD_SQL_CONNECTION_NAME  project:region:instance (CI sets from pulumi output)
 set -euo pipefail
 
 : "${GCP_PROJECT_ID:?GCP_PROJECT_ID is required}"
@@ -45,6 +47,14 @@ if [[ -n "${JACKLINE_CADDY_EMAIL:-}" ]]; then
   CADDY_GLOBAL="email ${JACKLINE_CADDY_EMAIL}"
 fi
 
+CLOUD_SQL_IP="${CLOUD_SQL_PRIVATE_IP:-$(read_secret cloudSqlPrivateIp)}"
+CLOUD_SQL_CONN="${CLOUD_SQL_CONNECTION_NAME:-$(read_secret cloudSqlConnectionName)}"
+if [[ -z "${CLOUD_SQL_IP}" ]]; then
+  echo "error: CLOUD_SQL_PRIVATE_IP is required (export from pulumi stack output cloudSqlPrivateIp, or create ${PREFIX}cloudSqlPrivateIp in Secret Manager)" >&2
+  exit 1
+fi
+DATABASE_URL="postgresql://jackline:${PG_PASS}@${CLOUD_SQL_IP}:5432/jackline"
+
 # shellcheck disable=SC2016
 render() {
   cat <<EOF
@@ -55,6 +65,8 @@ JACKLINE_MASTER_KEY=${MASTER_KEY}
 BETTER_AUTH_SECRET=${AUTH_SECRET}
 JACKLINE_SECRET_STORAGE_LOCATION=local
 POSTGRES_PASSWORD=${PG_PASS}
+DATABASE_URL=${DATABASE_URL}
+CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONN}
 JACKLINE_SITE_ADDRESS=${DOMAIN}
 JACKLINE_DOCS_SITE_ADDRESS=${DOCS_DOMAIN}
 JACKLINE_HTTP_PORT=80

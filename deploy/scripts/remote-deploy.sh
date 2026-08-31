@@ -376,14 +376,16 @@ if [[ ! -f .env.prod ]]; then
   exit 1
 fi
 
+if ! grep -qE '^DATABASE_URL=' .env.prod; then
+  echo "error: .env.prod must set DATABASE_URL (Cloud SQL private IP from pulumi output)" >&2
+  exit 1
+fi
+
 SITE_HOST="$(grep -E '^JACKLINE_SITE_ADDRESS=' .env.prod | head -1 | cut -d= -f2- | tr -d '\r' || true)"
 
 # Serial builds on e2-small — parallel vite/zudoku OOMs and wedges the VM.
 export COMPOSE_PARALLEL_LIMIT=1
 export BUILDKIT_MAX_PARALLELISM=1
-
-echo "Ensuring postgres (never recreated during app deploys)…"
-compose up -d --no-deps --wait --wait-timeout 60 postgres
 
 echo "Building images serially (running containers stay up)…"
 for svc in migrate api gateway web docs; do
