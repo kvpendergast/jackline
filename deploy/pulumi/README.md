@@ -27,9 +27,9 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** (remote-deploy recreates Caddy so ACME retries).
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
 
-**Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy.
+**Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy. Do **not** run `docker compose up --build -d` on a live VM: that replaces containers in place. remote-deploy builds new images first, starts a second replica (`--scale 2 --no-recreate`), waits until Docker health is green, and only then stops the old replica. If the new replica fails health, it is removed and the old one keeps serving. The script re-execs under `systemd-run` so a cancelled CI SSH session does not SIGKILL the build.
 
 ```bash
 # after pulumi up

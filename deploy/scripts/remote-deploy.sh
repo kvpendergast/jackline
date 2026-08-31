@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # Update Jackline on a VM (CI via gcloud compute ssh / scp, or manual).
 #
+# Rolling cutover (app services) — the live container is never replaced in place:
+#   1. Build new images first. Running containers keep serving the old image.
+#   2. `compose up --scale=2 --no-recreate` starts a *second* replica from the
+#      new image. Compose will not recreate the existing replica.
+#   3. Wait until Docker health (compose/Dockerfile HEALTHCHECK) is `healthy`
+#      on that new replica. Caddy's active checks skip it until /health is OK.
+#   4. Only then stop/remove the old replica.
+# If the new replica never becomes healthy, it is deleted and the old replica
+# keeps serving. A cancelled CI SSH session cannot SIGKILL the deploy: the
+# script re-execs under systemd-run (unit=jackline-deploy).
+#
 # Env:
 #   JACKLINE_ROOT       Install directory (default: /opt/jackline)
 #   GIT_REPO            Clone URL if ROOT is not yet a git checkout (required then)
@@ -9,12 +20,46 @@
 #   GITHUB_TOKEN_FILE   Optional path to a token file (read once, then shredded)
 #   GITHUB_TOKEN        Optional token in env (prefer TOKEN_FILE — avoids argv leaks)
 #   ENV_PROD_SRC        Optional path to a rendered .env.prod to install at ROOT
+#   JACKLINE_DEPLOY_INNER  Set by systemd-run re-exec (do not set manually)
 set -euo pipefail
 
 ROOT="${JACKLINE_ROOT:-/opt/jackline}"
 REF="${GIT_REF:-main}"
 TOKEN=""
 ASKPASS=""
+COMPOSE_FILE="deploy/compose.prod.yml"
+HEALTH_TIMEOUT="${JACKLINE_HEALTH_TIMEOUT:-240}"
+
+# Re-exec under systemd so a cancelled CI SSH session does not SIGKILL docker builds.
+if [[ -z "${JACKLINE_DEPLOY_INNER:-}" && -d /run/systemd/system ]] && command -v systemd-run >/dev/null 2>&1; then
+  if systemctl is-active --quiet jackline-deploy.service 2>/dev/null; then
+    echo "Another deploy is running; waiting for jackline-deploy.service to finish…"
+    deadline=$((SECONDS + 7200))
+    while systemctl is-active --quiet jackline-deploy.service 2>/dev/null; do
+      if (( SECONDS >= deadline )); then
+        echo "error: timed out waiting for jackline-deploy.service" >&2
+        systemctl status jackline-deploy.service --no-pager >&2 || true
+        exit 1
+      fi
+      sleep 10
+    done
+  fi
+  systemctl reset-failed jackline-deploy.service 2>/dev/null || true
+  extra=()
+  for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT; do
+    if [[ -n "${!k:-}" ]]; then
+      extra+=(-E "${k}=${!k}")
+    fi
+  done
+  echo "Re-executing under systemd-run (unit=jackline-deploy)…"
+  exec systemd-run --wait --collect --unit=jackline-deploy \
+    --property=Type=oneshot \
+    --property=TimeoutStartSec=2h \
+    --property=KillMode=mixed \
+    -E JACKLINE_DEPLOY_INNER=1 \
+    "${extra[@]}" \
+    /bin/bash "$(readlink -f "$0")"
+fi
 
 cleanup() {
   if [[ -n "${ASKPASS}" && -f "${ASKPASS}" ]]; then
@@ -94,11 +139,178 @@ ensure_docker() {
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
   chmod a+r /etc/apt/keyrings/docker.gpg
   # shellcheck disable=SC1091
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME")" \
     >/etc/apt/sources.list.d/docker.list
   apt-get update -y
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   systemctl enable --now docker
+}
+
+compose() {
+  docker compose -f "${COMPOSE_FILE}" --env-file .env.prod "$@"
+}
+
+container_health() {
+  local id="$1"
+  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${id}" 2>/dev/null || echo "missing"
+}
+
+container_number() {
+  docker inspect -f '{{index .Config.Labels "com.docker.compose.container-number"}}' "$1" 2>/dev/null || echo ""
+}
+
+wait_healthy() {
+  local id="$1"
+  local timeout="$2"
+  local start
+  start="$(date +%s)"
+  while true; do
+    local status
+    status="$(container_health "${id}")"
+    if [[ "${status}" == "healthy" ]]; then
+      return 0
+    fi
+    # Images without a HEALTHCHECK: inspect returns State.Status ("running").
+    # With a HEALTHCHECK it returns starting/healthy/unhealthy — never succeed early.
+    if [[ "${status}" == "running" ]]; then
+      return 0
+    fi
+    if [[ "${status}" == "unhealthy" || "${status}" == "exited" || "${status}" == "dead" || "${status}" == "missing" ]]; then
+      local now
+      now="$(date +%s)"
+      if (( now - start > 30 )); then
+        echo "container ${id} is ${status}" >&2
+        docker logs --tail=40 "${id}" >&2 || true
+        return 1
+      fi
+    fi
+    local now
+    now="$(date +%s)"
+    if (( now - start >= timeout )); then
+      echo "timeout waiting for healthy ${id} (last status=${status})" >&2
+      docker logs --tail=40 "${id}" >&2 || true
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+reload_caddy() {
+  local cid
+  cid="$(compose ps -q caddy 2>/dev/null | head -1 || true)"
+  if [[ -z "${cid}" ]]; then
+    return 0
+  fi
+  docker exec "${cid}" caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+}
+
+# Keep the live replica until a new replica from the freshly built image is healthy.
+roll_service() {
+  local svc="$1"
+  local timeout="${2:-${HEALTH_TIMEOUT}}"
+  local old new replacement number
+  local -a existing
+
+  mapfile -t existing < <(compose ps -q "${svc}" 2>/dev/null | sed '/^$/d' || true)
+
+  if [[ ${#existing[@]} -eq 0 ]]; then
+    echo "Starting ${svc} (no existing replica)"
+    compose up -d --no-deps --wait --wait-timeout "${timeout}" "${svc}"
+    return 0
+  fi
+
+  old="${existing[0]}"
+  if [[ ${#existing[@]} -gt 1 ]]; then
+    echo "Found ${#existing[@]} ${svc} replicas; keeping ${old:0:12}, removing extras before roll"
+    local id
+    for id in "${existing[@]:1}"; do
+      docker rm -f "${id}" || true
+    done
+  fi
+
+  echo "Rolling ${svc}: keeping ${old:0:12} until the new replica is healthy"
+  compose up -d --no-deps --no-recreate --scale "${svc}=2" "${svc}"
+
+  new="$(compose ps -q "${svc}" | grep -vx "${old}" | head -1 || true)"
+  if [[ -z "${new}" ]]; then
+    echo "error: ${svc} did not start a second replica" >&2
+    number="$(container_number "${old}")"
+    if [[ "${number}" == "1" ]]; then
+      compose up -d --no-deps --no-recreate --scale "${svc}=1" "${svc}" || true
+    fi
+    return 1
+  fi
+
+  if ! wait_healthy "${new}" "${timeout}"; then
+    echo "error: new ${svc} replica ${new:0:12} failed health; removing it, old replica stays" >&2
+    docker rm -f "${new}" || true
+    reload_caddy
+    # If the survivor is *-1, scale-down is safe. If it is *-2, do not scale to 1:
+    # Compose would create a fresh *-1 and delete *-2.
+    number="$(container_number "${old}")"
+    if [[ "${number}" == "1" ]]; then
+      compose up -d --no-deps --no-recreate --scale "${svc}=1" "${svc}" || true
+    fi
+    return 1
+  fi
+
+  echo "New ${svc} ${new:0:12} healthy — draining old ${old:0:12}"
+  reload_caddy
+  docker stop -t 20 "${old}" || true
+  docker rm -f "${old}" || true
+  reload_caddy
+
+  # Compose scale-down to 1 always keeps the lowest index (*-1) and deletes *-2.
+  # If the healthy replica is already *-1, we are done. If it is *-2, recreate
+  # *-1 from the new image *while *-2 still serves*, then scale down.
+  number="$(container_number "${new}")"
+  if [[ "${number}" == "1" ]]; then
+    compose up -d --no-deps --no-recreate --scale "${svc}=1" "${svc}"
+    echo "Rolled ${svc}"
+    return 0
+  fi
+
+  echo "Recreating ${svc}-1 from the new image while ${new:0:12} still serves"
+  compose up -d --no-deps --no-recreate --scale "${svc}=2" "${svc}"
+  replacement="$(compose ps -q "${svc}" | grep -vx "${new}" | head -1 || true)"
+  if [[ -z "${replacement}" ]]; then
+    echo "warning: ${svc}-1 was not recreated; leaving healthy replica ${new:0:12}" >&2
+    echo "Rolled ${svc}"
+    return 0
+  fi
+  if ! wait_healthy "${replacement}" "${timeout}"; then
+    echo "warning: replacement ${svc} ${replacement:0:12} failed health; keeping ${new:0:12}" >&2
+    docker rm -f "${replacement}" || true
+    reload_caddy
+    echo "Rolled ${svc} (survivor may be named *-2 until the next deploy)"
+    return 0
+  fi
+  compose up -d --no-deps --no-recreate --scale "${svc}=1" "${svc}"
+  reload_caddy
+  echo "Rolled ${svc}"
+}
+
+ensure_caddy() {
+  local recreate=0
+  local cid
+  cid="$(compose ps -q caddy 2>/dev/null | head -1 || true)"
+  if [[ -z "${cid}" ]]; then
+    recreate=1
+  elif ! echo | openssl s_client -connect "127.0.0.1:443" -servername "${SITE_HOST:-localhost}" 2>/dev/null \
+    | grep -q 'BEGIN CERTIFICATE'; then
+    echo "Caddy is up but TLS is not serving a cert — recreating so ACME retries"
+    recreate=1
+  fi
+
+  if [[ "${recreate}" -eq 1 ]]; then
+    compose up -d --no-deps --wait --wait-timeout 60 caddy || compose up -d --no-deps caddy
+    return 0
+  fi
+
+  echo "Reloading Caddy config (no container recreate)"
+  docker exec "${cid}" caddy reload --config /etc/caddy/Caddyfile || {
+    echo "caddy reload failed — leaving existing container running" >&2
+  }
 }
 
 echo "=== remote-deploy $(date -u) root=${ROOT} ==="
@@ -164,15 +376,40 @@ if [[ ! -f .env.prod ]]; then
   exit 1
 fi
 
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
-
-# Force Caddy to retry Let's Encrypt after DNS/IP changes. A plain `up` leaves a
-# running caddy container alone, which can stick with a failed cert obtain from
-# when the A record still pointed elsewhere (TLS then fails with ERR_SSL_PROTOCOL_ERROR).
-echo "Restarting Caddy to refresh ACME certificates…"
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up -d --force-recreate --no-deps caddy
-
 SITE_HOST="$(grep -E '^JACKLINE_SITE_ADDRESS=' .env.prod | head -1 | cut -d= -f2- | tr -d '\r' || true)"
+
+# Serial builds on e2-small — parallel vite/zudoku OOMs and wedges the VM.
+export COMPOSE_PARALLEL_LIMIT=1
+export BUILDKIT_MAX_PARALLELISM=1
+
+echo "Ensuring postgres (never recreated during app deploys)…"
+compose up -d --no-deps --wait --wait-timeout 60 postgres
+
+echo "Building images serially (running containers stay up)…"
+for svc in migrate api gateway web docs; do
+  echo "Building ${svc}…"
+  compose build "${svc}"
+done
+
+echo "Running migrations (one-shot; does not replace api/gateway)…"
+compose run --rm --no-deps migrate
+
+live="$(compose ps -q api 2>/dev/null || true)"
+if [[ -z "${live}" ]]; then
+  echo "First boot — starting full stack"
+  compose up -d --wait --wait-timeout "${HEALTH_TIMEOUT}"
+else
+  # Load the new Caddyfile (active health checks) before scale=2 so Caddy can
+  # skip the new replica until it passes /health. Recreate is still deferred
+  # to ensure_caddy so a reload blip does not take TLS down mid-build.
+  reload_caddy
+  roll_service api
+  roll_service gateway
+  roll_service web
+  roll_service docs
+  ensure_caddy
+fi
+
 if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
   echo "Waiting for TLS on ${SITE_HOST}…"
   ok=0
@@ -186,7 +423,7 @@ if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
   done
   if [[ "${ok}" -ne 1 ]]; then
     echo "warning: TLS not ready for ${SITE_HOST} after ~60s — dumping Caddy logs" >&2
-    docker compose -f deploy/compose.prod.yml --env-file .env.prod logs --tail=80 caddy >&2 || true
+    compose logs --tail=80 caddy >&2 || true
   else
     echo "TLS handshake OK for ${SITE_HOST}"
   fi

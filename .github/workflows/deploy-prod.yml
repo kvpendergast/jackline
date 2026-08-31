@@ -44,7 +44,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # e2-small serial image builds can exceed 60m; remote-deploy also re-execs
+    # under systemd so a cancelled SSH session does not kill docker.
+    timeout-minutes: 120
     environment: production
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}
@@ -195,10 +197,33 @@ jobs:
             --ssh-key-file="${KEY}"
             --ssh-flag="-o StrictHostKeyChecking=no")
 
+          # IAP tunnel (4003 failed to connect to backend) is flaky; retry
+          # copies and a warmup SSH. Do not retry remote-deploy itself — a
+          # failed compose roll must not be replayed blindly.
+          retry_iap() {
+            local n=0 max=6 delay=4
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+              n=$((n + 1))
+              if [ "${n}" -ge "${max}" ]; then
+                echo "IAP command failed after ${max} attempts" >&2
+                return 1
+              fi
+              echo "IAP command failed (attempt ${n}/${max}); retrying in ${delay}s..."
+              sleep "${delay}"
+              delay=$((delay * 2))
+              if [ "${delay}" -gt 32 ]; then delay=32; fi
+            done
+          }
+
+          retry_iap "${SSH[@]}" --command="true"
+
           # Copy artifacts to the OS Login user's /tmp, then remote-deploy installs with sudo.
-          "${SCP[@]}" "${ENV_FILE}" "${VM_NAME}:/tmp/jackline.env.prod"
-          "${SCP[@]}" "${TOKEN_FILE}" "${VM_NAME}:/tmp/jackline-gh-token"
-          "${SCP[@]}" \
+          retry_iap "${SCP[@]}" "${ENV_FILE}" "${VM_NAME}:/tmp/jackline.env.prod"
+          retry_iap "${SCP[@]}" "${TOKEN_FILE}" "${VM_NAME}:/tmp/jackline-gh-token"
+          retry_iap "${SCP[@]}" \
             "${GITHUB_WORKSPACE}/deploy/scripts/remote-deploy.sh" \
             "${VM_NAME}:/tmp/remote-deploy.sh"
           shred -u "${ENV_FILE}" "${TOKEN_FILE}" 2>/dev/null || rm -f "${ENV_FILE}" "${TOKEN_FILE}"

@@ -3,10 +3,14 @@
 # UI + API + MCP share one origin via Caddy. Caddy is a convenience edge —
 # not required (see compose.byo-edge.yml / compose.gateway-split.yml).
 #
-# Usage (from repo root):
+# First boot / local (from repo root):
 #   cp deploy/.env.prod.example .env.prod
 #   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
 #   docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+#
+# Live VM updates: use deploy/scripts/remote-deploy.sh (not `up --build -d`).
+# That script builds first, starts a second replica, and only removes the old
+# container after Docker health is green. `up --build -d` replaces in place.
 #
 # HTTPS: set JACKLINE_SITE_ADDRESS / JACKLINE_DOCS_SITE_ADDRESS to bare hostnames
 # (no http://) and open ports 80 + 443. See apps/docs/pages/self-hosting.mdx.
@@ -99,6 +103,12 @@ services:
       target: web
     depends_on:
       - api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   docs:
@@ -106,6 +116,12 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       target: docs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   caddy:
