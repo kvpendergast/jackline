@@ -1,4 +1,37 @@
 const THEME_KEY = "jackline-marketing-theme";
+const LOGO_KEY = "jackline-marketing-logo";
+
+const LOGO_SYMBOLS = {
+  j: "#jackline-mark-j",
+  line: "#jackline-mark-line",
+};
+
+function setLogo(variant) {
+  const symbol = LOGO_SYMBOLS[variant] ?? LOGO_SYMBOLS.j;
+  localStorage.setItem(LOGO_KEY, variant);
+
+  document.querySelectorAll(".logo-use use").forEach((use) => {
+    use.setAttribute("href", symbol);
+  });
+
+  document.querySelectorAll(".logo-variant-btn").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.logo === variant);
+  });
+
+  document.querySelectorAll("[data-logo-card]").forEach((card) => {
+    card.classList.toggle("is-featured", card.dataset.logoCard === variant);
+  });
+}
+
+function initLogo() {
+  const stored = localStorage.getItem(LOGO_KEY);
+  const variant = stored === "line" ? "line" : "j";
+  setLogo(variant);
+
+  document.querySelectorAll(".logo-variant-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setLogo(btn.dataset.logo ?? "j"));
+  });
+}
 
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -46,3 +79,4 @@ function initPreviewTabs() {
 
 initTheme();
 initPreviewTabs();
+initLogo();
