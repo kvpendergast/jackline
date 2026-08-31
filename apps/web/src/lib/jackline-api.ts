@@ -539,4 +539,32 @@ export const jacklineApi = {
       method: "PUT",
       body,
     }),
+
+  listChatThreads: (tenantId: string) =>
+    apiPage<import("@jackline/shared").PublicChatThreadSummary>(
+      "/api/v1/chat/threads",
+      { tenantId, searchParams: { limit: "50" } },
+    ),
+
+  createChatThread: (tenantId: string) =>
+    api<import("@jackline/shared").PublicChatThread>("/api/v1/chat/threads", {
+      tenantId,
+      method: "POST",
+    }),
+
+  getChatThread: (tenantId: string, threadId: string) =>
+    api<import("@jackline/shared").PublicChatThread>(
+      `/api/v1/chat/threads/${threadId}`,
+      { tenantId },
+    ),
+
+  updateChatThread: (
+    tenantId: string,
+    threadId: string,
+    body: import("@jackline/shared").UpdateChatThreadBody,
+  ) =>
+    api<import("@jackline/shared").PublicChatThread>(
+      `/api/v1/chat/threads/${threadId}`,
+      { tenantId, method: "PATCH", body },
+    ),
 };

@@ -6,6 +6,10 @@ const routeOrder = [
   "getSession",
   "getSettings",
   "updateSettings",
+  "listThreads",
+  "createThread",
+  "getThread",
+  "updateThread",
   "run",
 ] as const;
 
