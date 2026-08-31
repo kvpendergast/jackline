@@ -20,6 +20,8 @@ const tenancy = cfg.get("tenancy") ?? "single";
 const cloudSqlTier = cfg.get("cloudSqlTier") ?? "db-f1-micro";
 const cloudSqlDiskSize = cfg.getNumber("cloudSqlDiskSize") ?? 10;
 const cloudSqlDiskType = cfg.get("cloudSqlDiskType") ?? "PD_HDD";
+const cloudSqlAutomatedBackupRetain = cfg.getNumber("cloudSqlAutomatedBackupRetain") ?? 7;
+const cloudSqlOnDemandBackupKeep = cfg.getNumber("cloudSqlOnDemandBackupKeep") ?? 7;
 
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
@@ -104,6 +106,10 @@ const sqlInstance = new gcp.sql.DatabaseInstance(
         enabled: true,
         startTime: "04:00",
         pointInTimeRecoveryEnabled: false,
+        backupRetentionSettings: {
+          retainedBackups: cloudSqlAutomatedBackupRetain,
+          retentionUnit: "COUNT",
+        },
       },
     },
   },

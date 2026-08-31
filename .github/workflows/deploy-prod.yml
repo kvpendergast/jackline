@@ -151,6 +151,7 @@ jobs:
           if [[ -n "${CLOUD_SQL_INSTANCE}" ]]; then
             CLOUD_SQL_INSTANCE_NAME="${CLOUD_SQL_INSTANCE}" \
               GIT_SHA="${GITHUB_SHA}" \
+              JACKLINE_CLOUDSQL_ON_DEMAND_KEEP="${{ vars.JACKLINE_CLOUDSQL_ON_DEMAND_KEEP || '7' }}" \
               bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-cloudsql-backup.sh"
           else
             echo "Cloud SQL instance output missing — skipping on-demand backup (pre-cloud-sql stack?)"

@@ -20,6 +20,8 @@ config:
   # jackline-vm:cloudSqlTier: db-f1-micro
   # jackline-vm:cloudSqlDiskSize: "10"
   # jackline-vm:cloudSqlDiskType: PD_HDD
+  # jackline-vm:cloudSqlAutomatedBackupRetain: "7"
+  # jackline-vm:cloudSqlOnDemandBackupKeep: "7"
   #
   # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output
   # (regional static address jackline-vm-ip by default — not the old global GKE jackline-ip).

@@ -160,7 +160,18 @@ Optional Pulumi config: `cloudSqlTier` (default `db-f1-micro`), `cloudSqlDiskSiz
 
 ### Pre-deploy backup
 
-Each prod deploy creates a **Cloud SQL on-demand backup** in CI (`gcloud sql backups create`) before the app is updated. If backup fails, deploy aborts. Backups are stored by Google and survive VM loss. Automated daily backups also run at 04:00 UTC (Pulumi default).
+Each prod deploy creates a **Cloud SQL on-demand backup** in CI (`gcloud sql backups create`) before the app is updated. If backup fails, deploy aborts. Backups are stored by Google and survive VM loss.
+
+**Retention (cost control):**
+
+| Backup type | Limit | How |
+| --- | --- | --- |
+| **Automated** (daily 04:00 UTC) | **7** (default) | Pulumi `backupRetentionSettings.retainedBackups` |
+| **On-demand** (pre-deploy) | **7** (default) | CI deletes oldest after each new backup |
+
+Tune via Pulumi config `cloudSqlAutomatedBackupRetain` / `cloudSqlOnDemandBackupKeep`, or env `JACKLINE_CLOUDSQL_ON_DEMAND_KEEP` in CI.
+
+Backup storage is billed at ~$0.08/GB-month beyond the free allowance (backups up to DB size are often free). With a small DB and capped retention, expect **well under $1/mo** for backup storage.
 
 **Restore** after a bad deploy:
 
