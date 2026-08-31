@@ -18,6 +18,7 @@
     "@jackline/shared": "workspace:*",
     "@tanstack/ai-client": "^0.24.0",
     "@tanstack/ai-react": "^0.20.0",
+    "@tanstack/markdown": "^0.0.13",
     "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -611,7 +611,7 @@ function ChatSettingsForm({
         provider === "ollama" || provider === "openai_compatible";
       const saved = await jacklineApi.updateChatSettings(tenantId, {
         provider,
-        model,
+        model: model.trim().toLowerCase(),
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         baseUrl: needsBase ? baseUrl : null,
       });
@@ -655,6 +655,9 @@ function ChatSettingsForm({
         <Input
           id="chat-model"
           required
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder={
             provider === "openrouter"
               ? "anthropic/claude-sonnet-4.6"
