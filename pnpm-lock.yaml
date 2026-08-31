@@ -201,6 +201,9 @@ importers:
       '@tanstack/ai-react':
         specifier: ^0.20.0
         version: 0.20.0(@tanstack/ai@0.46.0(zod@3.25.76))(@types/react@19.2.18)(react@19.2.8)(zod@3.25.76)
+      '@tanstack/markdown':
+        specifier: ^0.0.13
+        version: 0.0.13(react@19.2.8)
       better-auth:
         specifier: ^1.6.23
         version: 1.6.23(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.3)(pg@8.22.0))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -222,15 +225,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.8(react@19.2.8)
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.18)(react@19.2.8)
       react-router-dom:
         specifier: ^7.7.0
         version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
       shadcn:
         specifier: ^4.16.1
         version: 4.16.1(typescript@5.9.3)
@@ -2957,6 +2954,17 @@ packages:
     resolution: {integrity: sha512-6T5Yop/793YI+H+5J8Hsyj4kCih9sl4t3ElLgKioW5hk3ocn+ZdSJ94tT7vL7uabxSugWYBZlOTMPzEw2puvQw==}
     engines: {node: '>=18'}
     hasBin: true
+
+  '@tanstack/markdown@0.0.13':
+    resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
+    peerDependencies:
+      octane: '>=0.1.12'
+      react: '>=18'
+    peerDependenciesMeta:
+      octane:
+        optional: true
+      react:
+        optional: true
 
   '@tanstack/openai-base@0.9.15':
     resolution: {integrity: sha512-JMwgnmvxC+c4CJJ6/6Ww6w6Gfn2Htf7KlWh4nALbvviv2nB3ZONRbsnMEHs5BsPY561d5Sa03CHt6SNUJxpy6w==}
@@ -9234,6 +9242,10 @@ snapshots:
 
   '@tanstack/devtools-event-client@0.4.4': {}
 
+  '@tanstack/markdown@0.0.13(react@19.2.8)':
+    optionalDependencies:
+      react: 19.2.8
+
   '@tanstack/openai-base@0.9.15(@tanstack/ai@0.46.0(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@tanstack/ai': 0.46.0(zod@4.4.3)
@@ -11911,24 +11923,6 @@ snapshots:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       '@types/react': 19.2.17
-      devlop: 1.1.0
-      hast-util-to-jsx-runtime: 2.3.6
-      html-url-attributes: 3.0.1
-      mdast-util-to-hast: 13.2.1
-      react: 19.2.8
-      remark-parse: 11.0.0
-      remark-rehype: 11.1.2
-      unified: 11.0.5
-      unist-util-visit: 5.1.0
-      vfile: 6.0.3
-    transitivePeerDependencies:
-      - supports-color
-
-  react-markdown@10.1.0(@types/react@19.2.18)(react@19.2.8):
-    dependencies:
-      '@types/hast': 3.0.5
-      '@types/mdast': 4.0.4
-      '@types/react': 19.2.18
       devlop: 1.1.0
       hast-util-to-jsx-runtime: 2.3.6
       html-url-attributes: 3.0.1
