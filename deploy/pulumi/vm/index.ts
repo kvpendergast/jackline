@@ -17,6 +17,11 @@ const gitRepo = cfg.require("gitRepo");
 const gitRef = cfg.get("gitRef") ?? "main";
 const caddyEmail = cfg.get("caddyEmail") ?? "";
 const tenancy = cfg.get("tenancy") ?? "single";
+const cloudSqlTier = cfg.get("cloudSqlTier") ?? "db-f1-micro";
+const cloudSqlDiskSize = cfg.getNumber("cloudSqlDiskSize") ?? 10;
+const cloudSqlDiskType = cfg.get("cloudSqlDiskType") ?? "PD_HDD";
+const cloudSqlAutomatedBackupRetain = cfg.getNumber("cloudSqlAutomatedBackupRetain") ?? 7;
+const cloudSqlOnDemandBackupKeep = cfg.getNumber("cloudSqlOnDemandBackupKeep") ?? 7;
 
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
@@ -43,6 +48,95 @@ const iamApi = new gcp.projects.Service("iam", {
   service: "iam.googleapis.com",
   disableOnDestroy: false,
 });
+
+const sqlAdminApi = new gcp.projects.Service("sqladmin", {
+  service: "sqladmin.googleapis.com",
+  disableOnDestroy: false,
+});
+
+const serviceNetworkingApi = new gcp.projects.Service("servicenetworking", {
+  service: "servicenetworking.googleapis.com",
+  disableOnDestroy: false,
+});
+
+// ---------------------------------------------------------------------------
+// Cloud SQL (managed Postgres — survives VM replace)
+// ---------------------------------------------------------------------------
+const defaultNetwork = pulumi.interpolate`projects/${project}/global/networks/default`;
+
+const sqlPrivateRange = new gcp.compute.GlobalAddress(
+  "jackline-sql-private-range",
+  {
+    name: "jackline-sql-private-range",
+    purpose: "VPC_PEERING",
+    addressType: "INTERNAL",
+    prefixLength: 16,
+    network: "default",
+  },
+  { dependsOn: [computeApi] },
+);
+
+const sqlPrivateConnection = new gcp.servicenetworking.Connection(
+  "jackline-sql-vpc",
+  {
+    network: defaultNetwork,
+    service: "servicenetworking.googleapis.com",
+    reservedPeeringRanges: [sqlPrivateRange.name],
+  },
+  { dependsOn: [serviceNetworkingApi, sqlPrivateRange] },
+);
+
+const sqlInstance = new gcp.sql.DatabaseInstance(
+  "jackline-db",
+  {
+    name: "jackline-db",
+    databaseVersion: "POSTGRES_16",
+    region,
+    deletionProtection: true,
+    settings: {
+      tier: cloudSqlTier,
+      edition: "ENTERPRISE",
+      diskSize: cloudSqlDiskSize,
+      diskType: cloudSqlDiskType,
+      ipConfiguration: {
+        ipv4Enabled: false,
+        privateNetwork: defaultNetwork,
+      },
+      backupConfiguration: {
+        enabled: true,
+        startTime: "04:00",
+        pointInTimeRecoveryEnabled: false,
+        backupRetentionSettings: {
+          retainedBackups: cloudSqlAutomatedBackupRetain,
+          retentionUnit: "COUNT",
+        },
+      },
+    },
+  },
+  { dependsOn: [sqlAdminApi, sqlPrivateConnection] },
+);
+
+new gcp.sql.Database(
+  "jackline-db",
+  {
+    instance: sqlInstance.name,
+    name: "jackline",
+  },
+  { dependsOn: [sqlInstance] },
+);
+
+new gcp.sql.User(
+  "jackline-db",
+  {
+    instance: sqlInstance.name,
+    name: "jackline",
+    password: postgresPassword,
+  },
+  { dependsOn: [sqlInstance] },
+);
+
+const cloudSqlConnName = pulumi.interpolate`${project}:${region}:${sqlInstance.name}`;
+const databaseUrl = pulumi.interpolate`postgresql://jackline:${postgresPassword}@${sqlInstance.privateIpAddress}:5432/jackline`;
 
 // ---------------------------------------------------------------------------
 // VM service account (not the default Compute Engine SA)
@@ -101,8 +195,8 @@ const iapSsh = new gcp.compute.Firewall(
 // Ongoing app deploys use deploy/scripts/remote-deploy.sh via CI SSH.
 // ---------------------------------------------------------------------------
 const startupScript = pulumi
-  .all([masterKey, betterAuthSecret, postgresPassword, githubDeployToken])
-  .apply(([mk, bas, pg, ghToken]) => {
+  .all([masterKey, betterAuthSecret, postgresPassword, githubDeployToken, databaseUrl, cloudSqlConnName])
+  .apply(([mk, bas, pg, ghToken, dbUrl, sqlConn]) => {
     const caddyGlobal = caddyEmail ? `email ${caddyEmail}` : "";
     const cloneRepo =
       ghToken && gitRepo.startsWith("https://github.com/")
@@ -118,6 +212,8 @@ const startupScript = pulumi
       BETTER_AUTH_SECRET: bas,
       JACKLINE_SECRET_STORAGE_LOCATION: "local",
       POSTGRES_PASSWORD: pg,
+      DATABASE_URL: dbUrl,
+      CLOUD_SQL_CONNECTION_NAME: sqlConn,
       JACKLINE_SITE_ADDRESS: domain,
       JACKLINE_DOCS_SITE_ADDRESS: docsDomain,
       JACKLINE_HTTP_PORT: "80",
@@ -256,3 +352,7 @@ export const publicIp = staticIp.address;
 export const staticIpName = staticIp.name;
 export const appUrl = publicBaseUrl;
 export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
+export const cloudSqlInstanceName = sqlInstance.name;
+export const cloudSqlConnectionName = cloudSqlConnName;
+export const cloudSqlPrivateIp = sqlInstance.privateIpAddress;
+export const databaseUrlHint = pulumi.secret(databaseUrl);
