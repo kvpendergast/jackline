@@ -158,6 +158,17 @@ From a machine on the same VPC you can also use `gcloud sql connect jackline-db 
 
 Optional Pulumi config: `cloudSqlTier` (default `db-f1-micro`), `cloudSqlDiskSize` (default `10`), `cloudSqlDiskType` (`PD_HDD` or `PD_SSD`).
 
+### Pre-deploy backup
+
+Each prod deploy creates a **Cloud SQL on-demand backup** in CI (`gcloud sql backups create`) before the app is updated. If backup fails, deploy aborts. Backups are stored by Google and survive VM loss. Automated daily backups also run at 04:00 UTC (Pulumi default).
+
+**Restore** after a bad deploy:
+
+```bash
+gcloud sql backups list --instance=jackline-db --project=YOUR_PROJECT
+gcloud sql backups restore BACKUP_ID --restore-instance=jackline-db --project=YOUR_PROJECT
+```
+
 **Private GitHub repos / incomplete first boot:** Deploy CI renders `.env.prod` from Secret Manager (`ci-render-env-prod.sh`), scp’s it over IAP, and runs `remote-deploy.sh` with a short-lived `GITHUB_TOKEN` file (not persisted in git remotes). First-boot startup can still embed `jackline-pulumi-githubDeployToken` for an unattended private clone, but CI no longer depends on startup having succeeded.
 
 ## Layout

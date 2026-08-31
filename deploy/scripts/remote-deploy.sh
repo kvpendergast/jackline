@@ -393,9 +393,6 @@ for svc in migrate api gateway web docs; do
   compose build "${svc}"
 done
 
-echo "Pre-deploy database backup…"
-bash deploy/scripts/pre-deploy-backup.sh
-
 echo "Running migrations (one-shot; does not replace api/gateway)…"
 compose run --rm --no-deps migrate
 
