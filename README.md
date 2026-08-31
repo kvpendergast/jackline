@@ -87,6 +87,21 @@ WEB_ORIGIN=http://127.0.0.1:5173
 JACKLINE_TENANCY=single   # or multi
 ```
 
+**Optional — platform Google login** (operator-configured; users don't need their own Google OIDC app):
+
+```bash
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+Register redirect URI in Google Cloud Console:
+
+```text
+{BETTER_AUTH_URL}/api/auth/callback/google
+```
+
+Per-tenant SSO (Settings → SSO) can set **Require SSO**, **Allowed email domains**, and **Auto-create users** to enforce tenant OIDC over platform Google.
+
 Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
 
 ```bash

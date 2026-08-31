@@ -31,6 +31,8 @@ MASTER_KEY="$(read_secret jacklineMasterKey)"
 AUTH_SECRET="$(read_secret betterAuthSecret)"
 PG_PASS="$(read_secret postgresPassword)"
 TENANCY_SM="$(read_secret tenancy)"
+GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId)"
+GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret)"
 
 if [[ -z "${MASTER_KEY}" || -z "${AUTH_SECRET}" ]]; then
   echo "error: missing required Secret Manager secrets ${PREFIX}jacklineMasterKey and/or ${PREFIX}betterAuthSecret" >&2
@@ -54,6 +56,13 @@ if [[ -z "${CLOUD_SQL_IP}" ]]; then
   exit 1
 fi
 DATABASE_URL="postgresql://jackline:${PG_PASS}@${CLOUD_SQL_IP}:5432/jackline"
+
+GOOGLE_ENV_BLOCK=""
+if [[ -n "${GOOGLE_CLIENT_ID_SM}" && -n "${GOOGLE_CLIENT_SECRET_SM}" ]]; then
+  GOOGLE_ENV_BLOCK=$'GOOGLE_CLIENT_ID='"${GOOGLE_CLIENT_ID_SM}"$'\nGOOGLE_CLIENT_SECRET='"${GOOGLE_CLIENT_SECRET_SM}"
+elif [[ -n "${GOOGLE_CLIENT_ID_SM}" || -n "${GOOGLE_CLIENT_SECRET_SM}" ]]; then
+  echo "warning: ${PREFIX}googleClientId and ${PREFIX}googleClientSecret must both be set; skipping platform Google login" >&2
+fi
 
 # shellcheck disable=SC2016
 render() {
@@ -80,6 +89,7 @@ API_HOST=0.0.0.0
 API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
+${GOOGLE_ENV_BLOCK}
 EOF
 }
 

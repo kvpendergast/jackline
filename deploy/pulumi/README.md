@@ -125,6 +125,8 @@ Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose I
 | `jackline-pulumi-cloudSqlConnectionName` | optional fallback (`project:region:jackline-db`) |
 | `jackline-pulumi-tenancy` | `tenancy` (`single` or `multi`) |
 | `jackline-pulumi-githubDeployToken` | `githubDeployToken` (PAT with repo read — first-boot clone on private repos) |
+| `jackline-pulumi-googleClientId` | `googleClientId` (optional — platform Google login; rendered to `GOOGLE_CLIENT_ID` on deploy) |
+| `jackline-pulumi-googleClientSecret` | `googleClientSecret` (optional — pair with `googleClientId`) |
 
 ```bash
 # example
