@@ -543,6 +543,21 @@ export const jacklineApi = {
       tenantId,
     }),
 
+  getPlatformEmailSettings: (tenantId: string) =>
+    api<import("@jackline/shared").PublicPlatformEmailSettings>(
+      "/api/v1/platform/email",
+      { tenantId },
+    ),
+
+  updatePlatformEmailSettings: (
+    tenantId: string,
+    body: import("@jackline/shared").UpdatePlatformEmailSettingsBody,
+  ) =>
+    api<import("@jackline/shared").PublicPlatformEmailSettings>(
+      "/api/v1/platform/email",
+      { tenantId, method: "PATCH", body },
+    ),
+
   updateChatSettings: (
     tenantId: string,
     body: import("@jackline/shared").UpdateChatSettingsBody,

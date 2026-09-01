@@ -1,5 +1,5 @@
 {
-  "name": "@jackline/auth",
+  "name": "@jackline/email",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,15 +11,17 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\"",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "lint": "echo \"lint later\""
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.6.23",
-    "@jackline/crypto": "workspace:*",
-    "@jackline/db": "workspace:*",
     "@jackline/shared": "workspace:*",
-    "better-auth": "^1.6.23",
-    "drizzle-orm": "^0.45.2"
+    "nodemailer": "^7.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/nodemailer": "^6.4.17",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
   }
 }

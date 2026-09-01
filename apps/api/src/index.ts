@@ -15,10 +15,21 @@ if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
-const { initAuth } = await import("@jackline/auth");
+const { initAuth, setVerificationEmailSender } = await import("@jackline/auth");
+const { platformEmailServices } = await import(
+  "./features/platformEmail/service.js"
+);
+const { logger } = await import("./lib/logger.js");
+
+setVerificationEmailSender(async ({ to, url }) => {
+  const result = await platformEmailServices.sendVerification(logger, to, url);
+  if (result.isErr()) {
+    throw result.error;
+  }
+});
+
 await initAuth();
 const { app } = await import("./app.js");
-const { logger } = await import("./lib/logger.js");
 
 serve({ fetch: app.fetch, hostname: config.API_HOST, port: config.API_PORT }, () => {
   logger.info(

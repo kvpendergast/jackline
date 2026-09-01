@@ -33,6 +33,8 @@ PG_PASS="$(read_secret postgresPassword)"
 TENANCY_SM="$(read_secret tenancy)"
 GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId)"
 GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret)"
+RESEND_API_KEY_SM="$(read_secret resendApiKey)"
+EMAIL_CONNECTOR_SM="$(read_secret emailConnector)"
 SMTP_HOST_SM="$(read_secret smtpHost)"
 SMTP_PORT_SM="$(read_secret smtpPort)"
 SMTP_USER_SM="$(read_secret smtpUser)"
@@ -69,17 +71,21 @@ elif [[ -n "${GOOGLE_CLIENT_ID_SM}" || -n "${GOOGLE_CLIENT_SECRET_SM}" ]]; then
   echo "warning: ${PREFIX}googleClientId and ${PREFIX}googleClientSecret must both be set; skipping platform Google login" >&2
 fi
 
-SMTP_ENV_BLOCK=""
-if [[ -n "${SMTP_HOST_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
-  SMTP_ENV_BLOCK=$'SMTP_HOST='"${SMTP_HOST_SM}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"
+EMAIL_ENV_BLOCK=""
+if [[ -n "${RESEND_API_KEY_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
+  CONNECTOR="${EMAIL_CONNECTOR_SM:-resend}"
+  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"$'\nRESEND_API_KEY='"${RESEND_API_KEY_SM}"
+elif [[ -n "${SMTP_HOST_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
+  CONNECTOR="${EMAIL_CONNECTOR_SM:-smtp}"
+  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nSMTP_HOST='"${SMTP_HOST_SM}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"
   if [[ -n "${SMTP_PORT_SM}" ]]; then
-    SMTP_ENV_BLOCK+=$'\nSMTP_PORT='"${SMTP_PORT_SM}"
+    EMAIL_ENV_BLOCK+=$'\nSMTP_PORT='"${SMTP_PORT_SM}"
   fi
   if [[ -n "${SMTP_USER_SM}" && -n "${SMTP_PASS_SM}" ]]; then
-    SMTP_ENV_BLOCK+=$'\nSMTP_USER='"${SMTP_USER_SM}"$'\nSMTP_PASS='"${SMTP_PASS_SM}"
+    EMAIL_ENV_BLOCK+=$'\nSMTP_USER='"${SMTP_USER_SM}"$'\nSMTP_PASS='"${SMTP_PASS_SM}"
   fi
-elif [[ -n "${SMTP_HOST_SM}" || -n "${EMAIL_FROM_SM}" ]]; then
-  echo "warning: ${PREFIX}smtpHost and ${PREFIX}emailFrom must both be set; skipping SMTP" >&2
+elif [[ -n "${RESEND_API_KEY_SM}" || -n "${SMTP_HOST_SM}" || -n "${EMAIL_FROM_SM}" ]]; then
+  echo "warning: email secrets incomplete — set ${PREFIX}resendApiKey+emailFrom or ${PREFIX}smtpHost+emailFrom" >&2
 fi
 
 # shellcheck disable=SC2016
@@ -108,7 +114,7 @@ API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
 ${GOOGLE_ENV_BLOCK}
-${SMTP_ENV_BLOCK}
+${EMAIL_ENV_BLOCK}
 EOF
 }
 

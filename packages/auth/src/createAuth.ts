@@ -7,7 +7,20 @@ import { eq } from "drizzle-orm";
 import { createSecretBox } from "@jackline/crypto";
 import { db, schema, ssoConfigs } from "@jackline/db";
 import { getConfig, webTrustedOrigins } from "@jackline/shared";
-import { createMailer } from "./mailer.js";
+
+export type VerificationEmailSender = (input: {
+  to: string;
+  url: string;
+}) => Promise<void>;
+
+let verificationEmailSender: VerificationEmailSender | null = null;
+
+/** Register platform email delivery (called from API startup). */
+export function setVerificationEmailSender(
+  sender: VerificationEmailSender,
+): void {
+  verificationEmailSender = sender;
+}
 
 function ssoSecretAad(tenantId: string): Uint8Array {
   return new TextEncoder().encode(`mesh:sso_client_secret:${tenantId}`);
@@ -124,8 +137,6 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
         }
       : undefined;
 
-  const mailer = createMailer(config);
-
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -149,7 +160,13 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
       sendOnSignIn: true,
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
-        await mailer.sendVerificationEmail({ to: user.email, url });
+        if (!verificationEmailSender) {
+          console.warn(
+            `[jackline] Email sender not configured — verification link for ${user.email}:\n${url}`,
+          );
+          return;
+        }
+        await verificationEmailSender({ to: user.email, url });
       },
     },
     emailAndPassword: {

@@ -32,6 +32,9 @@ importers:
       '@jackline/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@jackline/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@jackline/policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -283,13 +286,6 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.29.3)(pg@8.22.0)
-      nodemailer:
-        specifier: ^7.0.5
-        version: 7.0.13
-    devDependencies:
-      '@types/nodemailer':
-        specifier: ^6.4.17
-        version: 6.4.24
 
   packages/crypto:
     dependencies:
@@ -321,6 +317,28 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  packages/email:
+    dependencies:
+      '@jackline/shared':
+        specifier: workspace:*
+        version: link:../shared
+      nodemailer:
+        specifier: ^7.0.5
+        version: 7.0.13
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.1.1
+      '@types/nodemailer':
+        specifier: ^6.4.17
+        version: 6.4.24
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   packages/policy:
     dependencies:
@@ -9375,7 +9393,7 @@ snapshots:
 
   '@types/sax@1.2.7':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.1.1
 
   '@types/unist@2.0.11': {}
 

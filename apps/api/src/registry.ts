@@ -1,5 +1,6 @@
 import { accessRequestsFeature } from "./features/accessRequests/index.js";
 import { chatFeature } from "./features/chat/index.js";
+import { platformEmailFeature } from "./features/platformEmail/index.js";
 import { signupFeature } from "./features/signup/index.js";
 import { authCompleteFeature } from "./features/authComplete/index.js";
 import { healthFeature } from "./features/health/index.js";
@@ -45,6 +46,7 @@ export const tenantV1Features: AppSlice[] = [
   oauthFeature,
   accessRequestsFeature,
   chatFeature,
+  platformEmailFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */
