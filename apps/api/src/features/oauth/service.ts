@@ -20,6 +20,7 @@ import {
   getConnectorPreset,
   JacklineError,
   NotFoundError,
+  connectorUsesPublicOAuthClient,
   OAUTH_CLIENT_SECRET_KIND,
   oauthCallbackUrl,
   publicApiBaseUrl,
@@ -127,8 +128,11 @@ async function startConnect(
     );
   }
 
-  const clientSecret = await loadOauthClientSecret(tenantId, serverId);
-  if (clientSecret.isErr()) return err(clientSecret.error);
+  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
+  if (!publicClient) {
+    const clientSecret = await loadOauthClientSecret(tenantId, serverId);
+    if (clientSecret.isErr()) return err(clientSecret.error);
+  }
 
   await db
     .delete(oauthStates)
@@ -147,10 +151,17 @@ async function startConnect(
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   });
 
-  const catalogExtra =
+  const catalogPreset =
     server.connectorKey != null
-      ? getConnectorPreset(server.connectorKey)?.oauthAuthorizeExtraParams
+      ? getConnectorPreset(server.connectorKey)
       : undefined;
+
+  const authorizeExtra: Record<string, string> = {
+    ...(catalogPreset?.oauthAuthorizeExtraParams ?? {}),
+  };
+  if (catalogPreset?.oauthResource) {
+    authorizeExtra["resource"] = catalogPreset.oauthResource;
+  }
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
     authorizeUrl: server.oauthAuthorizeUrl,
@@ -159,7 +170,7 @@ async function startConnect(
     state,
     codeChallenge: pkce.codeChallenge,
     scopes: server.oauthScopes,
-    extraParams: catalogExtra ?? null,
+    extraParams: Object.keys(authorizeExtra).length > 0 ? authorizeExtra : null,
   });
 
   log.info({ tenantId, userId, serverId }, "Oauth.services.startConnect");
@@ -210,11 +221,21 @@ async function handleCallback(
     return err(new NotFoundError("Server OAuth configuration missing"));
   }
 
-  const clientSecret = await loadOauthClientSecret(
-    pending.tenantId,
-    pending.serverId,
-  );
-  if (clientSecret.isErr()) return err(clientSecret.error);
+  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
+  let clientSecretValue = "";
+  if (!publicClient) {
+    const clientSecret = await loadOauthClientSecret(
+      pending.tenantId,
+      pending.serverId,
+    );
+    if (clientSecret.isErr()) return err(clientSecret.error);
+    clientSecretValue = clientSecret.value;
+  }
+
+  const catalogPreset =
+    server.connectorKey != null
+      ? getConnectorPreset(server.connectorKey)
+      : undefined;
 
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
   const tokens = await exchangeAuthorizationCode({
@@ -222,8 +243,11 @@ async function handleCallback(
     code: input.code,
     redirectUri,
     clientId: server.oauthClientId,
-    clientSecret: clientSecret.value,
+    ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
     codeVerifier: pending.codeVerifier,
+    ...(catalogPreset?.oauthResource
+      ? { resource: catalogPreset.oauthResource }
+      : {}),
   });
   if (tokens.isErr()) return err(tokens.error);
 
@@ -235,7 +259,7 @@ async function handleCallback(
           refreshToken: tokens.value.refreshToken,
           tokenUrl: server.oauthTokenUrl,
           clientId: server.oauthClientId,
-          clientSecret: clientSecret.value,
+          ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
           ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
         }
       : {

@@ -48,6 +48,7 @@ export {
   CONNECTOR_PRESETS,
   CONNECTOR_CATEGORIES,
   getConnectorPreset,
+  connectorUsesPublicOAuthClient,
   ConnectorPresetSchema,
   type ConnectorPreset,
 } from "./connectors/catalog.js";

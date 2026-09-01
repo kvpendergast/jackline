@@ -74,7 +74,8 @@ export default defineJacklineCommand({
       : getConnectorPreset(args.name);
     const stored = await readStoredOauthApp(server.secretId, paths);
 
-    const fromFlags = Boolean(args.clientId?.trim() && args.clientSecret?.trim());
+    const publicClient = preset?.oauthPublicClient === true;
+    const fromFlags = Boolean(args.clientId?.trim() && (publicClient || args.clientSecret?.trim()));
     const clientId = args.clientId?.trim() || stored?.clientId;
     const clientSecret = args.clientSecret?.trim() || stored?.clientSecret;
     const authorizeUrl = preset?.oauthAuthorizeUrl;
@@ -82,9 +83,11 @@ export default defineJacklineCommand({
     const scopes = stored?.scopes || preset?.oauthScopes;
     const callbackPort = Number(args.callbackPort);
 
-    if (!clientId || !clientSecret) {
+    if (!clientId || (!publicClient && !clientSecret)) {
       consola.error(
-        `No OAuth app stored for "${server.name}". Pass --client-id and --client-secret once.`,
+        publicClient
+          ? `No OAuth client id stored for "${server.name}". Pass --client-id once (register at the provider's dynamic registration endpoint).`
+          : `No OAuth app stored for "${server.name}". Pass --client-id and --client-secret once.`,
       );
       process.exit(1);
     }
@@ -116,9 +119,10 @@ export default defineJacklineCommand({
         authorizeUrl,
         tokenUrl,
         clientId,
-        clientSecret,
+        ...(clientSecret ? { clientSecret } : {}),
         scopes,
         extraParams: preset?.oauthAuthorizeExtraParams,
+        resource: preset?.oauthResource,
         callbackPort,
       });
 
@@ -129,7 +133,7 @@ export default defineJacklineCommand({
             refreshToken: tokens.refreshToken,
             tokenUrl: tokens.tokenUrl,
             clientId: tokens.clientId,
-            clientSecret: tokens.clientSecret,
+            ...(tokens.clientSecret ? { clientSecret: tokens.clientSecret } : {}),
             ...(scopes ? { scopes } : {}),
             ...(tokens.expiresAt ? { expiresAt: tokens.expiresAt } : {}),
           })
@@ -137,7 +141,7 @@ export default defineJacklineCommand({
             mode: "access_token",
             accessToken: tokens.accessToken,
             clientId: tokens.clientId,
-            clientSecret: tokens.clientSecret,
+            ...(tokens.clientSecret ? { clientSecret: tokens.clientSecret } : {}),
             tokenUrl: tokens.tokenUrl,
             ...(scopes ? { scopes } : {}),
             ...(tokens.expiresAt ? { expiresAt: tokens.expiresAt } : {}),

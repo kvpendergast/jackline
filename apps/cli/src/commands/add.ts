@@ -194,11 +194,14 @@ export default defineJacklineCommand({
         preset?.oauthScopes ||
         storedApp?.scopes ||
         undefined;
+      const publicClient = preset?.oauthPublicClient === true;
       const callbackPort = Number(args.callbackPort);
 
-      if (!clientId || !clientSecret) {
+      if (!clientId || (!publicClient && !clientSecret)) {
         consola.error(
-          "--connect needs an OAuth app. Pass --client-id and --client-secret once; later `jackline add` / `jackline connect` reuse them for the same IdP.",
+          publicClient
+            ? "--connect needs --client-id (register at the provider's dynamic registration endpoint; no secret)."
+            : "--connect needs an OAuth app. Pass --client-id and --client-secret once; later `jackline add` / `jackline connect` reuse them for the same IdP.",
         );
         process.exit(1);
       }
@@ -229,9 +232,10 @@ export default defineJacklineCommand({
           authorizeUrl,
           tokenUrl,
           clientId,
-          clientSecret,
+          ...(clientSecret ? { clientSecret } : {}),
           scopes,
           extraParams: preset?.oauthAuthorizeExtraParams,
+          resource: preset?.oauthResource,
           callbackPort,
         });
 
@@ -242,7 +246,7 @@ export default defineJacklineCommand({
               refreshToken: tokens.refreshToken,
               tokenUrl: tokens.tokenUrl,
               clientId: tokens.clientId,
-              clientSecret: tokens.clientSecret,
+              ...(tokens.clientSecret ? { clientSecret: tokens.clientSecret } : {}),
               ...(scopes ? { scopes } : {}),
               ...(tokens.expiresAt ? { expiresAt: tokens.expiresAt } : {}),
             })
@@ -250,7 +254,7 @@ export default defineJacklineCommand({
               mode: "access_token",
               accessToken: tokens.accessToken,
               clientId: tokens.clientId,
-              clientSecret: tokens.clientSecret,
+              ...(tokens.clientSecret ? { clientSecret: tokens.clientSecret } : {}),
               tokenUrl: tokens.tokenUrl,
               ...(scopes ? { scopes } : {}),
               ...(tokens.expiresAt ? { expiresAt: tokens.expiresAt } : {}),
@@ -294,7 +298,11 @@ export default defineJacklineCommand({
             "  --client-id + --client-secret + --token-url",
           ].join("\n"),
         );
-        if (preset?.oauthAuthorizeUrl) {
+        if (preset?.oauthPublicClient) {
+          consola.info(
+            `Example: jackline add ${preset.key} --connect --client-id …`,
+          );
+        } else if (preset?.oauthAuthorizeUrl) {
           consola.info(
             `Example: jackline add ${preset.key} --connect --client-id … --client-secret …`,
           );

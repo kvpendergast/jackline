@@ -31,6 +31,7 @@ export default defineJacklineCommand({
       baseUrl: preset.baseUrl,
       authMethod: preset.authMethod,
       connect: supportsConnect(preset),
+      oauthPublicClient: preset.oauthPublicClient === true,
       oauthAuthorizeUrl: preset.oauthAuthorizeUrl ?? null,
       oauthTokenUrl: preset.oauthTokenUrl ?? null,
       oauthScopes: preset.oauthScopes ?? null,
@@ -43,7 +44,7 @@ export default defineJacklineCommand({
     }
 
     consola.log(`Catalog: ${rows.length} connectors`);
-    consola.log("Add with: jackline add <key> --connect --client-id … --client-secret …");
+    consola.log("Add with: jackline add <key> --connect [--client-id …] [--client-secret …]");
     consola.log("");
 
     for (const category of CONNECTOR_CATEGORIES) {
@@ -58,7 +59,9 @@ export default defineJacklineCommand({
         consola.log(
           `    connect:  ${
             row.connect
-              ? "yes (jackline add " + row.key + " --connect …)"
+              ? row.oauthPublicClient
+                ? "yes (jackline add " + row.key + " --connect --client-id …)"
+                : "yes (jackline add " + row.key + " --connect …)"
               : "no (paste a token / API key)"
           }`,
         );

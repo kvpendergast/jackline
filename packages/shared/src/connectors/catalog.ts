@@ -14,6 +14,7 @@ export const ConnectorPresetSchema = z.strictObject({
     "google",
     "developer",
     "support",
+    "finance",
   ]),
   kind: ServerKindSchema,
   authMethod: ServerAuthMethodSchema,
@@ -35,6 +36,16 @@ export const ConnectorPresetSchema = z.strictObject({
    * (Google access_type, Notion owner, Atlassian audience, …).
    */
   oauthAuthorizeExtraParams: z.record(z.string(), z.string()).optional(),
+  /**
+   * MCP OAuth resource indicator (RFC 8707). When set, passed as `resource`
+   * on authorize and token requests (Robinhood, …).
+   */
+  oauthResource: z.url().optional(),
+  /**
+   * Public OAuth client (PKCE only; no client secret). Admins register a
+   * client id via the provider's dynamic registration endpoint.
+   */
+  oauthPublicClient: z.boolean().optional(),
 });
 
 export type ConnectorPreset = z.infer<typeof ConnectorPresetSchema>;
@@ -288,6 +299,48 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
       "Paste a Sentry user auth token (Bearer). Hosted MCP OAuth at mcp.sentry.dev is client-driven; classic BYO OAuth is not required for personal jackline add.",
     learnMoreUrl: "https://docs.sentry.io/product/sentry-mcp/",
   },
+  {
+    key: "robinhood_trading",
+    name: "Robinhood Trading",
+    description:
+      "Read portfolio data and place equity trades in a dedicated agentic account.",
+    category: "finance",
+    kind: "mcp",
+    authMethod: "oauth",
+    credentialMode: "subject_required",
+    baseUrl: "https://agent.robinhood.com/mcp/trading",
+    docsUrl: null,
+    authHint:
+      "Robinhood MCP uses a public OAuth client (PKCE, no secret). Register a client at https://agent.robinhood.com/oauth/trading/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop. Fund and authenticate the agentic trading account in Robinhood first.",
+    learnMoreUrl:
+      "https://robinhood.com/us/en/support/articles/agentic-trading",
+    oauthAuthorizeUrl: "https://robinhood.com/oauth",
+    oauthTokenUrl: "https://api.robinhood.com/oauth2/token/",
+    oauthScopes: "internal",
+    oauthResource: "https://agent.robinhood.com/mcp/trading",
+    oauthPublicClient: true,
+  },
+  {
+    key: "robinhood_banking",
+    name: "Robinhood Banking",
+    description:
+      "Agentic virtual credit card — fetch card details at checkout, view spending and policies.",
+    category: "finance",
+    kind: "mcp",
+    authMethod: "oauth",
+    credentialMode: "subject_required",
+    baseUrl: "https://banking-agent.robinhood.com/mcp/banking",
+    docsUrl: null,
+    authHint:
+      "Robinhood MCP uses a public OAuth client (PKCE, no secret). Register a client at https://banking-agent.robinhood.com/oauth/banking/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop and completes agentic card onboarding in Robinhood.",
+    learnMoreUrl:
+      "https://robinhood.com/us/en/support/articles/agentic-credit-card",
+    oauthAuthorizeUrl: "https://robinhood.com/oauth",
+    oauthTokenUrl: "https://api.robinhood.com/oauth2/token/",
+    oauthScopes: "credit-card",
+    oauthResource: "https://banking-agent.robinhood.com/mcp/banking",
+    oauthPublicClient: true,
+  },
 ] as const;
 
 export function getConnectorPreset(
@@ -301,4 +354,12 @@ export const CONNECTOR_CATEGORIES = [
   { id: "google", label: "Google Workspace" },
   { id: "developer", label: "Developer" },
   { id: "support", label: "Support" },
+  { id: "finance", label: "Finance" },
 ] as const;
+
+export function connectorUsesPublicOAuthClient(
+  connectorKey: string | null | undefined,
+): boolean {
+  if (!connectorKey) return false;
+  return getConnectorPreset(connectorKey)?.oauthPublicClient === true;
+}
