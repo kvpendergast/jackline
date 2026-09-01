@@ -26,6 +26,7 @@
     "@jackline/auth": "workspace:*",
     "@jackline/crypto": "workspace:*",
     "@jackline/db": "workspace:*",
+    "@jackline/email": "workspace:*",
     "@jackline/policy": "workspace:*",
     "@jackline/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",

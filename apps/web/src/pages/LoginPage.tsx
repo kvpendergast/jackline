@@ -33,7 +33,7 @@ export function LoginPage() {
       .catch(() => setProviders([]));
   }, []);
 
-  if (!loading && user) {
+  if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -42,8 +42,17 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const result = await authClient.signIn.email({ email, password });
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: authCompleteRedirect("login", inviteToken.trim() || undefined),
+      });
       if (result.error) {
+        const code = result.error.code ?? "";
+        if (code === "EMAIL_NOT_VERIFIED") {
+          navigate("/verify-email", { replace: true, state: { email } });
+          return;
+        }
         setError(result.error.message ?? "Sign in failed");
         return;
       }
@@ -173,7 +182,7 @@ export function LoginPage() {
 }
 
 export function SignupPage() {
-  const { user, loading, refresh } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -194,7 +203,7 @@ export function SignupPage() {
       .catch(() => setProviders([]));
   }, []);
 
-  if (!loading && user) {
+  if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -204,8 +213,7 @@ export function SignupPage() {
     setSubmitting(true);
     try {
       await jacklineApi.signup({ name, email, password, organizationName });
-      await refresh();
-      navigate("/dashboard", { replace: true });
+      navigate("/verify-email", { replace: true, state: { email } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {

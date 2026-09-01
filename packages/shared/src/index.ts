@@ -4,6 +4,7 @@ export {
   ErrorCode,
   JacklineError,
   UnauthorizedError,
+  EmailNotVerifiedError,
   ForbiddenError,
   NotFoundError,
   BadRequestError,

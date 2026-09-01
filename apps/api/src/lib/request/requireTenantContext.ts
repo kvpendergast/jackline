@@ -5,6 +5,7 @@ import { auth, hashToken } from "@jackline/auth";
 import { db, memberships, oauthAccessTokens } from "@jackline/db";
 import {
   BadRequestError,
+  EmailNotVerifiedError,
   ForbiddenError,
   JACKLINE_ACCESS_TOKEN_PREFIX,
   JacklineError,
@@ -91,6 +92,14 @@ async function resolveSessionAuth(
 
   if (!session) {
     return err(new UnauthorizedError("No session"));
+  }
+
+  const kind =
+    "kind" in session.user && session.user.kind === "service"
+      ? "service"
+      : "human";
+  if (kind === "human" && session.user.emailVerified !== true) {
+    return err(new EmailNotVerifiedError());
   }
 
   const tenantId = c.req.header("X-Jackline-Tenant-Id")?.trim();

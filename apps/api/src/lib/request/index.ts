@@ -4,7 +4,7 @@ export type {
   RequestContext,
 } from "./types.js";
 export { requestMiddleware } from "./middleware.js";
-export { requireSession } from "./requireSession.js";
+export { requireSession, requireVerifiedSession } from "./requireSession.js";
 export { requireTenantContext } from "./requireTenantContext.js";
 export { tenantContextMiddleware } from "./tenantContextMiddleware.js";
 export { requireFullAdmin } from "./requireFullAdmin.js";

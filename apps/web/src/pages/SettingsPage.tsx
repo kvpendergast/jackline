@@ -18,11 +18,14 @@ import { jacklineApi } from "@/lib/jackline-api";
 import type {
   ChatLlmProvider,
   CreateInviteBody,
+  EmailConnectorKey,
   PublicInvite,
+  PublicPlatformEmailSettings,
   PublicSsoConfig,
 } from "@jackline/shared";
+import { EMAIL_CONNECTOR_PRESETS } from "@jackline/shared";
 
-type Tab = "sso" | "scim" | "chat" | "invites" | "admins";
+type Tab = "sso" | "scim" | "chat" | "email" | "invites" | "admins";
 
 export function SettingsPage() {
   const { tenantId, membership } = useAuth();
@@ -93,6 +96,7 @@ export function SettingsPage() {
             ["sso", "SSO / OIDC"],
             ["scim", "SCIM"],
             ["chat", "Chat"],
+            ["email", "Email"],
           ] as const)
         : []),
       ["invites", "Invites"],
@@ -107,7 +111,7 @@ export function SettingsPage() {
         title="Settings"
         description={
           isFullAdmin
-            ? "SSO, SCIM, Chat model, invites, and membership roles (full_admin / delegated_admin / member)."
+            ? "SSO, SCIM, Chat model, platform email, invites, and membership roles (full_admin / delegated_admin / member)."
             : `Team-scoped invites and membership for ${membership?.team ?? "your team"}.`
         }
       />
@@ -161,6 +165,10 @@ export function SettingsPage() {
 
       {tab === "chat" && isFullAdmin ? (
         <ChatSettingsForm onError={setError} onSaved={setInfo} />
+      ) : null}
+
+      {tab === "email" && isFullAdmin ? (
+        <PlatformEmailSettingsForm onError={setError} onSaved={setInfo} />
       ) : null}
 
       {tab === "invites" ? (
@@ -699,6 +707,208 @@ function ChatSettingsForm({
       </Field>
       <Button type="submit" disabled={busy}>
         {busy ? "Saving…" : "Save Chat settings"}
+      </Button>
+    </form>
+  );
+}
+
+function PlatformEmailSettingsForm({
+  onError,
+  onSaved,
+}: {
+  onError: (message: string) => void;
+  onSaved: (message: string) => void;
+}) {
+  const { tenantId } = useAuth();
+  const [settings, setSettings] = useState<PublicPlatformEmailSettings | null>(
+    null,
+  );
+  const [connectorKey, setConnectorKey] = useState<EmailConnectorKey>("console");
+  const [fromEmail, setFromEmail] = useState("");
+  const [fromName, setFromName] = useState("");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const preset = EMAIL_CONNECTOR_PRESETS.find((p) => p.key === connectorKey);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    void jacklineApi
+      .getPlatformEmailSettings(tenantId)
+      .then((data) => {
+        if (cancelled) return;
+        setSettings(data);
+        setConnectorKey(data.connectorKey);
+        setFromEmail(data.fromEmail ?? "");
+        setFromName(data.fromName ?? "");
+        setSmtpHost(data.smtpHost ?? "");
+        setSmtpPort(String(data.smtpPort ?? 587));
+        setSmtpSecure(data.smtpSecure);
+        setSmtpUser(data.smtpUser ?? "");
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          onError(
+            err instanceof ApiError ? err.message : "Failed to load email settings",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, onError]);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setBusy(true);
+    try {
+      const saved = await jacklineApi.updatePlatformEmailSettings(tenantId, {
+        connectorKey,
+        fromEmail: fromEmail.trim(),
+        fromName: fromName.trim() || undefined,
+        ...(connectorKey === "smtp"
+          ? {
+              smtpHost: smtpHost.trim(),
+              smtpPort: Number(smtpPort),
+              smtpSecure,
+              smtpUser: smtpUser.trim() || undefined,
+              ...(apiKey.trim() ? { smtpPass: apiKey.trim() } : {}),
+            }
+          : {}),
+        ...(connectorKey === "resend" && apiKey.trim()
+          ? { apiKey: apiKey.trim() }
+          : {}),
+      });
+      setSettings(saved);
+      setApiKey("");
+      onSaved("Platform email settings saved.");
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading email settings…</p>;
+  }
+
+  return (
+    <form
+      className="max-w-lg space-y-3 border border-border bg-card p-4"
+      onSubmit={(e) => void onSubmit(e)}
+    >
+      <p className="text-sm text-muted-foreground">
+        Platform-wide outbound email for verification messages and future
+        notifications. Environment variables apply until you save settings here.
+        {settings?.source === "environment" ? (
+          <span className="mt-1 block text-allow">
+            Currently using environment configuration.
+          </span>
+        ) : null}
+      </p>
+      <Field label="Connector" htmlFor="email-connector">
+        <FieldSelect
+          id="email-connector"
+          value={connectorKey}
+          onChange={(e) => setConnectorKey(e.target.value as EmailConnectorKey)}
+        >
+          {EMAIL_CONNECTOR_PRESETS.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.name}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      {preset ? (
+        <p className="text-xs text-muted-foreground">{preset.description}</p>
+      ) : null}
+      {connectorKey !== "console" ? (
+        <>
+          <Field label="From email" htmlFor="email-from">
+            <Input
+              id="email-from"
+              type="email"
+              required
+              value={fromEmail}
+              onChange={(e) => setFromEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="From name (optional)" htmlFor="email-from-name">
+            <Input
+              id="email-from-name"
+              value={fromName}
+              onChange={(e) => setFromName(e.target.value)}
+            />
+          </Field>
+        </>
+      ) : null}
+      {connectorKey === "smtp" ? (
+        <>
+          <Field label="SMTP host" htmlFor="email-smtp-host">
+            <Input
+              id="email-smtp-host"
+              required
+              value={smtpHost}
+              onChange={(e) => setSmtpHost(e.target.value)}
+            />
+          </Field>
+          <Field label="SMTP port" htmlFor="email-smtp-port">
+            <Input
+              id="email-smtp-port"
+              type="number"
+              required
+              value={smtpPort}
+              onChange={(e) => setSmtpPort(e.target.value)}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={smtpSecure}
+              onChange={(e) => setSmtpSecure(e.target.checked)}
+            />
+            Use TLS (port 465)
+          </label>
+          <Field label="SMTP user (optional)" htmlFor="email-smtp-user">
+            <Input
+              id="email-smtp-user"
+              value={smtpUser}
+              onChange={(e) => setSmtpUser(e.target.value)}
+            />
+          </Field>
+        </>
+      ) : null}
+      {preset?.requiresApiKey || connectorKey === "smtp" ? (
+        <Field
+          label={connectorKey === "smtp" ? "SMTP password" : "API key"}
+          htmlFor="email-api-key"
+        >
+          <Input
+            id="email-api-key"
+            type="password"
+            autoComplete="off"
+            placeholder={
+              settings?.hasApiKey ? "Saved — paste to replace" : "Paste secret"
+            }
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            required={!settings?.hasApiKey && connectorKey === "resend"}
+          />
+        </Field>
+      ) : null}
+      <Button type="submit" disabled={busy}>
+        {busy ? "Saving…" : "Save email settings"}
       </Button>
     </form>
   );

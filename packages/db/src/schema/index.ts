@@ -14,3 +14,4 @@ export * from "./oauthAccessTokens.js";
 export * from "./accessRequests.js";
 export * from "./notifications.js";
 export * from "./chatSettings.js";
+export * from "./platformEmailSettings.js";

@@ -10,6 +10,7 @@ import { ConnectionDetailPage } from "@/pages/ConnectionDetailPage";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
 import { LoginPage, SignupPage } from "@/pages/LoginPage";
 import { AuthCompletePage } from "@/pages/AuthCompletePage";
+import { VerifyEmailPage } from "@/pages/VerifyEmailPage";
 import { MyAccessPage } from "@/pages/MyAccessPage";
 import { RolesPage } from "@/pages/RolesPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -32,6 +33,10 @@ function ProtectedLayout() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!user.emailVerified) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   if (!tenantId) {
@@ -82,6 +87,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/complete" element={<AuthCompletePage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />

@@ -158,6 +158,19 @@ export {
   PublicNotificationSchema,
 } from './notification.js';
 export {
+  EMAIL_CONNECTOR_KEYS,
+  EMAIL_CONNECTOR_PRESETS,
+  EmailConnectorKeySchema,
+  getEmailConnectorPreset,
+  PLATFORM_EMAIL_API_KEY_AAD,
+  PublicPlatformEmailSettingsSchema,
+  UpdatePlatformEmailSettingsBodySchema,
+  type EmailConnectorKey,
+  type EmailConnectorPreset,
+  type PublicPlatformEmailSettings,
+  type UpdatePlatformEmailSettingsBody,
+} from './platformEmail.js';
+export {
   JACKLINE_CHAT_SYSTEM_KEY,
   JACKLINE_CHAT_CLIENT_NAME,
   LLM_API_KEY_KIND,

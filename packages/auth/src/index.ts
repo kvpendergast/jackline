@@ -2,6 +2,8 @@ export {
   auth,
   initAuth,
   reloadAuth,
+  setVerificationEmailSender,
+  type VerificationEmailSender,
   ssoProviderId,
   hashToken,
   generateInviteToken,

@@ -51,6 +51,19 @@ export const EnvSchema = z.object({
   /** Optional platform Google social login (operator-configured). */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  /** Platform outbound email connector (overridden by DB settings when saved). */
+  EMAIL_CONNECTOR: z.enum(["resend", "smtp", "console"]).default("console"),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  /** SMTP connector settings (used when EMAIL_CONNECTOR=smtp). */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).optional(),
 }).strict()
   .superRefine((env, ctx) => {
     const any =
@@ -78,6 +91,25 @@ export const EnvSchema = z.object({
         code: "custom",
         message:
           "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together",
+      });
+    }
+
+    const resendSelected = env.EMAIL_CONNECTOR === "resend";
+    if (resendSelected && !env.RESEND_API_KEY && !env.EMAIL_FROM) {
+      // Allow console fallback in dev; EMAIL_FROM still recommended.
+    }
+    if (resendSelected && env.RESEND_API_KEY && !env.EMAIL_FROM) {
+      ctx.addIssue({
+        code: "custom",
+        message: "EMAIL_FROM is required when RESEND_API_KEY is set",
+      });
+    }
+
+    const smtpSelected = env.EMAIL_CONNECTOR === "smtp";
+    if (smtpSelected && env.SMTP_HOST && !env.EMAIL_FROM) {
+      ctx.addIssue({
+        code: "custom",
+        message: "EMAIL_FROM is required when SMTP_HOST is set",
       });
     }
   });

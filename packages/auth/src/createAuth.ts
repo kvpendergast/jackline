@@ -8,6 +8,20 @@ import { createSecretBox } from "@jackline/crypto";
 import { db, schema, ssoConfigs } from "@jackline/db";
 import { getConfig, webTrustedOrigins } from "@jackline/shared";
 
+export type VerificationEmailSender = (input: {
+  to: string;
+  url: string;
+}) => Promise<void>;
+
+let verificationEmailSender: VerificationEmailSender | null = null;
+
+/** Register platform email delivery (called from API startup). */
+export function setVerificationEmailSender(
+  sender: VerificationEmailSender,
+): void {
+  verificationEmailSender = sender;
+}
+
 function ssoSecretAad(tenantId: string): Uint8Array {
   return new TextEncoder().encode(`mesh:sso_client_secret:${tenantId}`);
 }
@@ -141,7 +155,25 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
-    emailAndPassword: { enabled: true, disableSignUp: false },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        if (!verificationEmailSender) {
+          console.warn(
+            `[jackline] Email sender not configured — verification link for ${user.email}:\n${url}`,
+          );
+          return;
+        }
+        await verificationEmailSender({ to: user.email, url });
+      },
+    },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: false,
+      requireEmailVerification: true,
+    },
     socialProviders,
     plugins:
       oauthConfigs.length > 0

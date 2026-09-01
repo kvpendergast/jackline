@@ -1,5 +1,6 @@
 export const ErrorCode = {
   UNAUTHORIZED: "UNAUTHORIZED",
+  EMAIL_NOT_VERIFIED: "EMAIL_NOT_VERIFIED",
   FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
   BAD_REQUEST: "BAD_REQUEST",
@@ -33,6 +34,13 @@ export class ForbiddenError extends JacklineError {
   constructor(message = "Forbidden") {
     super(ErrorCode.FORBIDDEN, message);
     this.name = "ForbiddenError";
+  }
+}
+
+export class EmailNotVerifiedError extends JacklineError {
+  constructor(message = "Email address is not verified") {
+    super(ErrorCode.EMAIL_NOT_VERIFIED, message);
+    this.name = "EmailNotVerifiedError";
   }
 }
 
