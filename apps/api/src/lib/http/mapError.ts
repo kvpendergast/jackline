@@ -10,6 +10,8 @@ export function toHttpStatus(error: JacklineError): ContentfulStatusCode {
   switch (error.code) {
     case ErrorCode.UNAUTHORIZED:
       return 401;
+    case ErrorCode.EMAIL_NOT_VERIFIED:
+      return 403;
     case ErrorCode.FORBIDDEN:
       return 403;
     case ErrorCode.NOT_FOUND:

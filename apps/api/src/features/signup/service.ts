@@ -160,6 +160,7 @@ async function create(
       email: input.email,
       password: input.password,
       name: input.name,
+      callbackURL: `${configResult.value.WEB_ORIGIN.replace(/\/$/, "")}/auth/complete?intent=login`,
     },
     asResponse: true,
   });
@@ -170,7 +171,7 @@ async function create(
   }
 
   const signUpJson = (await authResponse.clone().json()) as {
-    user: { id: string; email: string; name: string };
+    user: { id: string; email: string; name: string; emailVerified?: boolean };
   };
 
   const userId = signUpJson.user.id;
@@ -189,6 +190,7 @@ async function create(
         email: signUpJson.user.email,
         name: signUpJson.user.name,
         kind: "human",
+        emailVerified: signUpJson.user.emailVerified ?? false,
       },
       input.organizationName,
     );

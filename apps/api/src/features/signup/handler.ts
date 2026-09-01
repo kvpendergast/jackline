@@ -1,7 +1,7 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
-import { requireSession } from "../../lib/request/index.js";
+import { requireVerifiedSession } from "../../lib/request/index.js";
 import { Signup } from "./resource.js";
 
 const create: RouteHandler<typeof Signup.routes.create, JacklineEnv> = async (c) => {
@@ -28,7 +28,7 @@ const createSocial: RouteHandler<
   typeof Signup.routes.createSocial,
   JacklineEnv
 > = async (c) => {
-  const sessionResult = await requireSession(c);
+  const sessionResult = await requireVerifiedSession(c);
   if (sessionResult.isErr()) {
     throw sessionResult.error;
   }

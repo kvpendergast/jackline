@@ -67,6 +67,10 @@ export function AuthCompletePage() {
   }, [intent, inviteToken, oauthError]);
 
   async function handleResult(result: AuthCompleteResult) {
+    if (result.status === "require_email_verification") {
+      navigate("/verify-email", { replace: true });
+      return;
+    }
     if (result.status === "ok") {
       await refresh();
       navigate("/dashboard", { replace: true });

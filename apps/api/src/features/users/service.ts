@@ -43,6 +43,7 @@ function toPublicUser(row: UserRow): PublicUser {
     email: row.email,
     name: row.name,
     kind: row.kind,
+    emailVerified: row.emailVerified,
   };
 }
 

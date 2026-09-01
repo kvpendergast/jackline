@@ -144,6 +144,10 @@ async function complete(
   body: AuthCompleteBody,
   cookieHeader: string | undefined,
 ): Promise<Result<AuthCompleteResult, JacklineError>> {
+  if (user.kind === "human" && !user.emailVerified) {
+    return ok({ status: "require_email_verification" });
+  }
+
   if (body.inviteToken) {
     const accepted = await identityServices.acceptInvite(
       log,

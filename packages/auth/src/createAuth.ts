@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { createSecretBox } from "@jackline/crypto";
 import { db, schema, ssoConfigs } from "@jackline/db";
 import { getConfig, webTrustedOrigins } from "@jackline/shared";
+import { createMailer } from "./mailer.js";
 
 function ssoSecretAad(tenantId: string): Uint8Array {
   return new TextEncoder().encode(`mesh:sso_client_secret:${tenantId}`);
@@ -123,6 +124,8 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
         }
       : undefined;
 
+  const mailer = createMailer(config);
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -141,7 +144,19 @@ function buildAuth(oauthConfigs: GenericOAuthConfig[]) {
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
-    emailAndPassword: { enabled: true, disableSignUp: false },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        await mailer.sendVerificationEmail({ to: user.email, url });
+      },
+    },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: false,
+      requireEmailVerification: true,
+    },
     socialProviders,
     plugins:
       oauthConfigs.length > 0

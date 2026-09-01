@@ -11,6 +11,7 @@ export const AuthCompleteBodySchema = z.strictObject({
 
 export const AuthCompleteResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("ok") }),
+  z.strictObject({ status: z.literal("require_email_verification") }),
   z.strictObject({
     status: z.literal("require_sso"),
     providerId: z.string(),

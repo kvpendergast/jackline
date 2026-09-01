@@ -7,6 +7,7 @@ export const PublicUserSchema = z.strictObject({
   email: z.email(),
   name: z.string(),
   kind: UserKindSchema,
+  emailVerified: z.boolean(),
 });
 
 export type UserKind = z.infer<typeof UserKindSchema>;

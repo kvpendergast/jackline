@@ -33,6 +33,11 @@ PG_PASS="$(read_secret postgresPassword)"
 TENANCY_SM="$(read_secret tenancy)"
 GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId)"
 GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret)"
+SMTP_HOST_SM="$(read_secret smtpHost)"
+SMTP_PORT_SM="$(read_secret smtpPort)"
+SMTP_USER_SM="$(read_secret smtpUser)"
+SMTP_PASS_SM="$(read_secret smtpPass)"
+EMAIL_FROM_SM="$(read_secret emailFrom)"
 
 if [[ -z "${MASTER_KEY}" || -z "${AUTH_SECRET}" ]]; then
   echo "error: missing required Secret Manager secrets ${PREFIX}jacklineMasterKey and/or ${PREFIX}betterAuthSecret" >&2
@@ -64,6 +69,19 @@ elif [[ -n "${GOOGLE_CLIENT_ID_SM}" || -n "${GOOGLE_CLIENT_SECRET_SM}" ]]; then
   echo "warning: ${PREFIX}googleClientId and ${PREFIX}googleClientSecret must both be set; skipping platform Google login" >&2
 fi
 
+SMTP_ENV_BLOCK=""
+if [[ -n "${SMTP_HOST_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
+  SMTP_ENV_BLOCK=$'SMTP_HOST='"${SMTP_HOST_SM}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"
+  if [[ -n "${SMTP_PORT_SM}" ]]; then
+    SMTP_ENV_BLOCK+=$'\nSMTP_PORT='"${SMTP_PORT_SM}"
+  fi
+  if [[ -n "${SMTP_USER_SM}" && -n "${SMTP_PASS_SM}" ]]; then
+    SMTP_ENV_BLOCK+=$'\nSMTP_USER='"${SMTP_USER_SM}"$'\nSMTP_PASS='"${SMTP_PASS_SM}"
+  fi
+elif [[ -n "${SMTP_HOST_SM}" || -n "${EMAIL_FROM_SM}" ]]; then
+  echo "warning: ${PREFIX}smtpHost and ${PREFIX}emailFrom must both be set; skipping SMTP" >&2
+fi
+
 # shellcheck disable=SC2016
 render() {
   cat <<EOF
@@ -90,6 +108,7 @@ API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
 ${GOOGLE_ENV_BLOCK}
+${SMTP_ENV_BLOCK}
 EOF
 }
 

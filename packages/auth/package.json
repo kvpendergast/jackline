@@ -20,6 +20,10 @@
     "@jackline/db": "workspace:*",
     "@jackline/shared": "workspace:*",
     "better-auth": "^1.6.23",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "nodemailer": "^7.0.5"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17"
   }
 }

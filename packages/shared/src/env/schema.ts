@@ -51,6 +51,16 @@ export const EnvSchema = z.object({
   /** Optional platform Google social login (operator-configured). */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  /** Outbound SMTP for verification emails (all optional — dev logs links when unset). */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).optional(),
 }).strict()
   .superRefine((env, ctx) => {
     const any =

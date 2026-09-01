@@ -127,6 +127,11 @@ Do **not** put rotating secrets in GitHub. Create Secret Manager secrets whose I
 | `jackline-pulumi-githubDeployToken` | `githubDeployToken` (PAT with repo read — first-boot clone on private repos) |
 | `jackline-pulumi-googleClientId` | `googleClientId` (optional — platform Google login; rendered to `GOOGLE_CLIENT_ID` on deploy) |
 | `jackline-pulumi-googleClientSecret` | `googleClientSecret` (optional — pair with `googleClientId`) |
+| `jackline-pulumi-smtpHost` | `smtpHost` (optional — outbound SMTP for verification emails) |
+| `jackline-pulumi-smtpPort` | `smtpPort` (optional — defaults to `587` when host/from are set) |
+| `jackline-pulumi-smtpUser` | `smtpUser` (optional — SMTP auth) |
+| `jackline-pulumi-smtpPass` | `smtpPass` (optional — pair with `smtpUser`) |
+| `jackline-pulumi-emailFrom` | `emailFrom` (optional — pair with `smtpHost`) |
 
 ```bash
 # example

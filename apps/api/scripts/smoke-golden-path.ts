@@ -88,6 +88,26 @@ async function ensureSession(): Promise<string> {
 
   if (signup.ok && signupJson.success) {
     console.log("✓ signup created tenant");
+    const { db: smokeDb, user: userTable } = await import("@jackline/db");
+    const { eq } = await import("drizzle-orm");
+    await smokeDb
+      .update(userTable)
+      .set({ emailVerified: true })
+      .where(eq(userTable.email, email));
+    const signIn = await fetch(`${API}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Accept: "application/json",
+        Origin: ORIGIN,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    storeCookies(signIn);
+    if (!signIn.ok) {
+      throw new Error(`sign-in failed after signup: ${await signIn.text()}`);
+    }
+    console.log("✓ signed in after email verification");
     return signupJson.data.tenant.id as string;
   }
 
@@ -118,6 +138,13 @@ async function ensureSession(): Promise<string> {
     tenantId: tenant.id,
     role: "full_admin",
   });
+
+  const { user: userTable } = await import("@jackline/db");
+  const { eq } = await import("drizzle-orm");
+  await db
+    .update(userTable)
+    .set({ emailVerified: true })
+    .where(eq(userTable.email, email));
 
   const signIn = await fetch(`${API}/api/auth/sign-in/email`, {
     method: "POST",
