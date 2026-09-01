@@ -18,7 +18,7 @@ export type BrowserOAuthResult = {
   expiresAt?: number;
   tokenUrl: string;
   clientId: string;
-  clientSecret: string;
+  clientSecret?: string;
 };
 
 /** Escape text interpolated into OAuth callback HTML pages. */
@@ -73,15 +73,24 @@ export async function runBrowserOAuthConnect(input: {
   authorizeUrl: string;
   tokenUrl: string;
   clientId: string;
-  clientSecret: string;
+  /** Omit for public OAuth clients (PKCE-only). */
+  clientSecret?: string;
   scopes?: string | undefined;
   extraParams?: Record<string, string> | undefined;
+  /** MCP OAuth resource indicator (RFC 8707). */
+  resource?: string | undefined;
   callbackPort: number;
   timeoutMs?: number | undefined;
 }): Promise<BrowserOAuthResult> {
   const redirectUri = `http://127.0.0.1:${input.callbackPort}/oauth/callback`;
   const state = createOAuthState();
   const pkce = await createPkcePair();
+  const authorizeExtra: Record<string, string> = {
+    ...(input.extraParams ?? {}),
+  };
+  if (input.resource?.trim()) {
+    authorizeExtra["resource"] = input.resource.trim();
+  }
   const authorizeUrl = buildOAuthAuthorizeUrl({
     authorizeUrl: input.authorizeUrl,
     clientId: input.clientId,
@@ -89,7 +98,7 @@ export async function runBrowserOAuthConnect(input: {
     state,
     codeChallenge: pkce.codeChallenge,
     scopes: input.scopes ?? null,
-    extraParams: input.extraParams ?? null,
+    extraParams: Object.keys(authorizeExtra).length > 0 ? authorizeExtra : null,
   });
 
   const timeoutMs = input.timeoutMs ?? 5 * 60 * 1000;
@@ -175,8 +184,9 @@ export async function runBrowserOAuthConnect(input: {
     code,
     redirectUri,
     clientId: input.clientId,
-    clientSecret: input.clientSecret,
+    ...(input.clientSecret ? { clientSecret: input.clientSecret } : {}),
     codeVerifier: pkce.codeVerifier,
+    ...(input.resource ? { resource: input.resource } : {}),
   });
   if (exchanged.isErr()) {
     throw new Error(exchanged.error.message);
@@ -192,6 +202,6 @@ export async function runBrowserOAuthConnect(input: {
       : {}),
     tokenUrl: input.tokenUrl,
     clientId: input.clientId,
-    clientSecret: input.clientSecret,
+    ...(input.clientSecret ? { clientSecret: input.clientSecret } : {}),
   };
 }

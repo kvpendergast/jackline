@@ -21,7 +21,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Request context + structured logging | Done |
 | Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Chat drawer, Servers quick-add catalog, connections, access requests, audit |
 | In-product Chat | TanStack AI on the API; tools via existing `/mcp` gateway; Settings → Chat (full_admin) |
-| Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry |
+| Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry, Robinhood Trading/Banking |
 | MCP gateway (`@jackline/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
 | Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |

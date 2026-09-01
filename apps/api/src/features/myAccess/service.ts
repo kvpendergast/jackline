@@ -9,6 +9,7 @@ import {
   OAUTH_CLIENT_SECRET_KIND,
   SetupError,
   upstreamSecretKind,
+  connectorUsesPublicOAuthClient,
   type MyAccessServer,
   type PublicSecret,
   type UpstreamCredentialStatus,
@@ -78,17 +79,19 @@ async function listMyServers(
         s.kind === kind,
     );
     const canConnect = server.credentialMode !== "shared";
+    const publicOAuthClient = connectorUsesPublicOAuthClient(server.connectorKey);
+    const hasOauthAppSecret = secretRows.some(
+      (s) =>
+        s.serverId === server.id &&
+        s.userId === null &&
+        s.kind === OAUTH_CLIENT_SECRET_KIND,
+    );
     const oauthConnectAvailable =
       server.authMethod === "oauth" &&
       !!server.oauthAuthorizeUrl &&
       !!server.oauthTokenUrl &&
       !!server.oauthClientId &&
-      secretRows.some(
-        (s) =>
-          s.serverId === server.id &&
-          s.userId === null &&
-          s.kind === OAUTH_CLIENT_SECRET_KIND,
-      );
+      (publicOAuthClient || hasOauthAppSecret);
 
     return {
       serverId: server.id,

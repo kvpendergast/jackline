@@ -421,8 +421,11 @@ export async function exchangeAuthorizationCode(input: {
   code: string;
   redirectUri: string;
   clientId: string;
-  clientSecret: string;
+  /** Omit for public OAuth clients (PKCE-only, e.g. Robinhood MCP). */
+  clientSecret?: string;
   codeVerifier: string;
+  /** MCP OAuth resource indicator (RFC 8707). */
+  resource?: string;
 }): Promise<
   Result<
     {
@@ -441,11 +444,16 @@ export async function exchangeAuthorizationCode(input: {
     client_id: input.clientId,
     code_verifier: input.codeVerifier,
   });
+  if (input.resource?.trim()) {
+    body.set("resource", input.resource.trim());
+  }
 
-  const token = await tokenRequest(input.tokenUrl, body, {
-    clientId: input.clientId,
-    clientSecret: input.clientSecret,
-  });
+  const basic =
+    input.clientSecret != null && input.clientSecret !== ""
+      ? { clientId: input.clientId, clientSecret: input.clientSecret }
+      : undefined;
+
+  const token = await tokenRequest(input.tokenUrl, body, basic);
   if (token.isErr()) return err(token.error);
 
   return ok({

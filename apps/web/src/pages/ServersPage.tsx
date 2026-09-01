@@ -427,6 +427,7 @@ function ServerForm({
 }) {
   const { tenantId } = useAuth();
   const catalogPreset = resolveFormPreset(server, preset);
+  const publicOAuthClient = catalogPreset?.oauthPublicClient === true;
   const [name, setName] = useState(server?.name ?? catalogPreset?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(
     server?.baseUrl ?? catalogPreset?.baseUrl ?? "https://",
@@ -639,7 +640,8 @@ function ServerForm({
         authMethod === "oauth" &&
         mode === "create" &&
         oauthClientId.trim() &&
-        !oauthAppSecret.trim()
+        !oauthAppSecret.trim() &&
+        !publicOAuthClient
       ) {
         onError("OAuth client secret is required when setting a client id.");
         return;
@@ -849,7 +851,8 @@ function ServerForm({
             <p className="mt-0.5 text-xs text-muted-foreground">
               Register a Jackline callback on the provider
               ({`{API_URL}/api/v1/oauth/callback`}). Members use Connect in My
-              Access when client id + secret are set.
+              Access when client id
+              {publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}
             </p>
           </div>
           <Field label="Authorize URL" htmlFor="oauth-app-authorize">
@@ -888,9 +891,11 @@ function ServerForm({
           </Field>
           <Field
             label={
-              hasOauthAppSecret
-                ? "Client secret (optional)"
-                : "Client secret"
+              publicOAuthClient
+                ? "Client secret (not used)"
+                : hasOauthAppSecret
+                  ? "Client secret (optional)"
+                  : "Client secret"
             }
             htmlFor="oauth-app-client-secret"
           >
@@ -901,9 +906,15 @@ function ServerForm({
               value={oauthAppSecret}
               onChange={(e) => setOauthAppSecret(e.target.value)}
               placeholder={
-                hasOauthAppSecret ? "•••••••• (unchanged)" : undefined
+                publicOAuthClient
+                  ? "Public OAuth client — leave empty"
+                  : hasOauthAppSecret
+                    ? "•••••••• (unchanged)"
+                    : undefined
               }
+              disabled={publicOAuthClient}
               required={
+                !publicOAuthClient &&
                 mode === "create" &&
                 !!oauthClientId.trim() &&
                 !hasOauthAppSecret
