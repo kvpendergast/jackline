@@ -1,4 +1,5 @@
 export { loadConfig, getConfig, publicApiBaseUrl, publicMcpUrl, internalMcpUrl, webTrustedOrigins } from "./env/load.js";
+export { formatEnvParseError } from "./env/formatEnvError.js";
 export { buildPostgresUrl, resolvePostgresUrl, type PostgresUrlParts } from "./env/postgresUrl.js";
 export { EnvSchema, type Env } from "./env/schema.js";
 export {

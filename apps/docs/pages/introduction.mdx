@@ -12,28 +12,19 @@ Clients (Cursor, Claude Code, agents) connect to Jackline as an MCP server. Jack
 
 ## What's in these docs
 
-- **Guides** — authentication for the public Admin API and self-hosting with Docker Compose
-- **[API Reference](/api)** — generated automatically from Jackline's OpenAPI schema (`GET /docs` on the API)
+- **Guides** — Docker self-host, connect Cursor, Admin API auth
+- **[API Reference](/api)** — generated from OpenAPI (`GET /docs` on the API)
 
-## Quick start
-
-```bash
-pnpm install
-cp .env.example .env
-# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET
-
-pnpm db:migrate
-pnpm dev
-```
-
-Or with Compose:
+## Quick start (generic Docker)
 
 ```bash
 cp .env.example .env
+# set POSTGRES_PASSWORD, JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
+#   openssl rand -base64 32
+
+pnpm env:check   # optional
 docker compose -f deploy/docker-compose.yml up --build
 ```
-
-For production topologies (same-origin Caddy, gateway-split, or bring-your-own edge), see [Self-hosting](/self-hosting).
 
 | Surface | Default URL |
 | --- | --- |
@@ -41,5 +32,17 @@ For production topologies (same-origin Caddy, gateway-split, or bring-your-own e
 | API | http://127.0.0.1:8080 |
 | Gateway MCP | http://127.0.0.1:8081/mcp |
 | Docs (this site) | http://127.0.0.1:3000 |
+
+Then [connect Cursor](/connect-cursor). For production images, Postgres overlay, GCP, and edge recipes, see [Self-hosting](/self-hosting).
+
+## Local development (no Docker)
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm env:check
+pnpm db:migrate
+pnpm dev
+```
 
 OpenAPI JSON from a running API: [`GET /docs`](http://127.0.0.1:8080/docs).

@@ -9,20 +9,29 @@ export const EnvSchema = z.object({
   /** Trace sampling ratio 0–1 when OTEL export is enabled. Default 1. */
   OTEL_TRACES_SAMPLER_ARG: z.string().optional(),
   JACKLINE_TENANCY: z.enum(["single", "multi"]).default("single"),
-  JACKLINE_MASTER_KEY: z.string().min(1),
+  JACKLINE_MASTER_KEY: z
+    .string()
+    .trim()
+    .min(1, "required — openssl rand -base64 32"),
   JACKLINE_SECRET_STORAGE_LOCATION: z.enum(["local", "aws_kms", "gcp_kms"]).default("local"),
-  DATABASE_URL: z.string().min(1), // or z.url() if you want stricter
+  DATABASE_URL: z
+    .string()
+    .trim()
+    .min(1, "required — set DATABASE_URL or POSTGRES_*"),
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().positive().default(8080),
   GATEWAY_HOST: z.string().default("127.0.0.1"),
   GATEWAY_PORT: z.coerce.number().int().positive().default(8081),
   WEB_ORIGIN: z.string().default("http://127.0.0.1:5173"),
-  BETTER_AUTH_SECRET: z.string().min(1),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .trim()
+    .min(1, "required — openssl rand -base64 32"),
   /**
    * Better Auth base URL (where `/api/auth` is served). Keep this as the
    * URL the web app / Vite proxy actually hits (e.g. http://127.0.0.1:8080).
    */
-  BETTER_AUTH_URL: z.string().min(1),
+  BETTER_AUTH_URL: z.string().trim().min(1, "required"),
   /**
    * Public base URL for browser redirects that must reach the API from the
    * internet (upstream OAuth callbacks). Defaults to BETTER_AUTH_URL.

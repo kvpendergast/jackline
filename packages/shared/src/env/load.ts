@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 
 import { SetupError } from "../errors/index.js";
+import { formatEnvParseError } from "./formatEnvError.js";
 import { resolvePostgresUrl } from "./postgresUrl.js";
 import { EnvSchema, type Env } from "./schema.js";
 
@@ -45,7 +46,7 @@ export function loadConfig(
   }
   const parsed = EnvSchema.safeParse(picked);
   if (!parsed.success) {
-    return err(new SetupError(parsed.error.message));
+    return err(new SetupError(formatEnvParseError(parsed.error)));
   }
 
   config = parsed.data;

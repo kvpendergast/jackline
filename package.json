@@ -16,7 +16,8 @@
     "lint": "pnpm -r lint",
     "db:generate": "pnpm --filter @jackline/db generate",
     "db:migrate": "pnpm --filter @jackline/db migrate",
-    "test:integration": "pnpm --filter @jackline/integration-tests test:integration"
+    "test:integration": "pnpm --filter @jackline/integration-tests test:integration",
+    "env:check": "pnpm --filter @jackline/shared env:check"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
