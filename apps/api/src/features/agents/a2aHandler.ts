@@ -4,9 +4,9 @@ import type { JacklineEnv } from "../../lib/http/env.js";
 import { requireTenantContext } from "../../lib/request/requireTenantContext.js";
 import { agentServices } from "./service.js";
 import {
-  jsonRpcError,
   jsonRpcResult,
   respondA2aError,
+  respondA2aParseError,
 } from "./a2aBoundary.js";
 import type { JsonRpcRequest } from "./a2aProtocol.js";
 
@@ -34,12 +34,12 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
   try {
     body = await c.req.json<JsonRpcRequest>();
   } catch {
-    return c.json(jsonRpcError(null, -32700, "Parse error"), 400);
+    return respondA2aParseError(c, { handle });
   }
 
-  const { log } = c.get("requestContext");
   const authResult = await requireTenantContext(c);
   const hasApiCredential = authResult.isOk();
+  const log = authResult.isOk() ? authResult.value.log : c.get("requestContext").log;
   const result = await agentServices.processA2aJsonRpc({
     handle,
     authorization: c.req.header("Authorization"),
@@ -49,7 +49,10 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
   });
 
   if (result.isErr()) {
-    return respondA2aError(c, body.id, result.error);
+    return respondA2aError(c, body.id, result.error, {
+      handle,
+      method: body.method,
+    });
   }
 
   return c.json(jsonRpcResult(result.value.id, result.value.result));
