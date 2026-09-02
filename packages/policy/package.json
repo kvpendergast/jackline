@@ -11,11 +11,14 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\"",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "lint": "echo \"lint later\""
   },
   "dependencies": {
     "neverthrow": "^8.2.0",
     "@jackline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
   }
 }
