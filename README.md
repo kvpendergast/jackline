@@ -32,8 +32,10 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 | Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
+| Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
+| Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
 
-Next: OTEL, rate limits, mTLS.
+Next: rate limits, mTLS, Prometheus metrics.
 
 ## Stack
 
@@ -169,7 +171,16 @@ A full admin sets provider, model, and API key in **Settings → Chat** (stored 
 
 When the API and gateway are on different hosts (Compose/K8s), set `JACKLINE_INTERNAL_MCP_URL` to the gateway’s MCP URL on the private network (for example `http://gateway:8081/mcp`). Local processes default to `http://127.0.0.1:${GATEWAY_PORT}/mcp`.
 
-## Smoke test
+## Tests
+
+```bash
+pnpm test                 # unit tests (no Postgres)
+pnpm test:integration     # boots API + gateway against Postgres (CI job: integration)
+```
+
+Set `DATABASE_URL` or `POSTGRES_*` (see `.env.example`). Optionally point at an already-running stack with `INTEGRATION_API_URL` + `INTEGRATION_GATEWAY_URL`.
+
+## Smoke test (manual curl)
 
 ### Create organization (first org in `single` mode)
 
@@ -516,12 +527,16 @@ apps/
   web/       # Vite/React admin UI (Steel Lattice + shadcn)
   gateway/   # MCP gateway (Streamable HTTP)
   cli/       # personal Jackline CLI (@buildstuff/jackline)
+  docs/      # Zudoku docs + OpenAPI reference
 packages/
-  shared/    # env, errors, tenancy, public DTOs, connector catalog
-  db/        # Drizzle schema + migrations
-  auth/      # Better Auth instance
-  crypto/    # AES-GCM envelope encryption
-  policy/    # policy evaluation
+  shared/            # env, errors, tenancy, public DTOs, connector catalog
+  db/                # Drizzle schema + migrations
+  auth/              # Better Auth instance
+  crypto/            # AES-GCM envelope encryption
+  policy/            # policy evaluation
+  observability/     # optional OTLP traces + HTTP spans
+  email/             # console / SMTP / Resend connectors
+  integration-tests/ # black-box API + gateway suite (CI)
 ```
 
 ## License
