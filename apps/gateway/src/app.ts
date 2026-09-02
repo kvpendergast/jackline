@@ -1,12 +1,24 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { db } from "@jackline/db";
 import { requireConnection } from "./lib/auth/requireConnection.js";
 import type { GatewayEnv } from "./lib/auth/types.js";
 import { createJacklineMcpServer } from "./lib/mcp/createJacklineMcpServer.js";
+import { requestMiddleware } from "./lib/observability.js";
 
 export const app = new Hono<GatewayEnv>();
+
+app.use(
+  "*",
+  requestMiddleware as unknown as MiddlewareHandler<
+    GatewayEnv,
+    "*",
+    {},
+    Response
+  >,
+);
 
 app.get("/health", async (c) => {
   try {

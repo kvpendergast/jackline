@@ -15,8 +15,20 @@ if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
+const { initObservability, shutdownObservability } = await import(
+  "@jackline/observability"
+);
 const { app } = await import("./app.js");
-const { logger } = await import("./lib/logger.js");
+const { logger, otelConfig } = await import("./lib/observability.js");
+
+const initOtelResult = await initObservability(otelConfig);
+if (initOtelResult.isErr()) {
+  throw initOtelResult.error;
+}
+
+process.on("SIGTERM", () => {
+  void shutdownObservability();
+});
 
 serve(
   {

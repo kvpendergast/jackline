@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ErrorCode, JacklineError } from "@jackline/shared";
+import { recordSpanException, setHttpSpanStatus } from "@jackline/observability";
 import { ZodError } from "zod";
 import { errEnvelope, formatZodIssues } from "./envelope.js";
 import type { JacklineEnv } from "./env.js";
@@ -36,6 +37,10 @@ export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
   if (err instanceof JacklineError) {
     const status = toHttpStatus(err);
     const level = status >= 500 ? "error" : "warn";
+    if (status >= 500) {
+      recordSpanException(err);
+    }
+    setHttpSpanStatus(status);
     log[level](
       {
         requestId,
@@ -49,6 +54,7 @@ export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
 
   if (err instanceof ZodError) {
     const { message, details } = formatZodIssues(err);
+    setHttpSpanStatus(400);
     log.warn(
       {
         requestId,
@@ -60,6 +66,8 @@ export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
     return c.json(errEnvelope(ErrorCode.BAD_REQUEST, message, details), 400);
   }
 
+  recordSpanException(err);
+  setHttpSpanStatus(500);
   log.error(
     {
       requestId,

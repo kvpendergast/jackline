@@ -1,4 +1,5 @@
 import { cors } from "hono/cors";
+import type { MiddlewareHandler } from "hono";
 import {
   auth,
   loginProviderCookieHeader,
@@ -9,6 +10,7 @@ import {
   webTrustedOrigins,
 } from "@jackline/shared";
 import { createJacklineApp } from "./lib/http/createApp.js";
+import type { JacklineEnv } from "./lib/http/env.js";
 import {
   requestMiddleware,
   tenantContextMiddleware,
@@ -38,7 +40,15 @@ app.use(
   }),
 );
 
-app.use("*", requestMiddleware);
+app.use(
+  "*",
+  requestMiddleware as unknown as MiddlewareHandler<
+    JacklineEnv,
+    "*",
+    {},
+    Response
+  >,
+);
 
 for (const feature of rootFeatures) {
   for (const { route, handler } of feature.routes) {

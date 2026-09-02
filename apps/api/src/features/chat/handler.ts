@@ -5,6 +5,7 @@ import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { createChatAdapter } from "./adapter.js";
 import { connectJacklineMcpTools } from "./mcpTools.js";
+import { otelConfig } from "../../lib/observability.js";
 import { chatRoutes } from "./route.js";
 import { chatServices } from "./service.js";
 
@@ -43,7 +44,7 @@ const updateSettings: RouteHandler<
 };
 
 const run: RouteHandler<typeof chatRoutes.run, JacklineEnv> = async (c) => {
-  const { auth, log } = c.get("tenantContext");
+  const { auth, log, requestId } = c.get("tenantContext");
   const rawBody = c.req.valid("json");
 
   let params: Awaited<ReturnType<typeof chatParamsFromRequestBody>>;
@@ -71,6 +72,7 @@ const run: RouteHandler<typeof chatRoutes.run, JacklineEnv> = async (c) => {
   const mcp = await connectJacklineMcpTools(
     resolved.value.mcpUrl,
     resolved.value.gatewayToken,
+    { requestId, otel: otelConfig },
   );
   if (mcp.isErr()) throw mcp.error;
 
