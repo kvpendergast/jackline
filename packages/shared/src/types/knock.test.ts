@@ -8,15 +8,23 @@ import {
 
 describe("validateKnockMessage", () => {
   it("accepts non-empty messages within limit", () => {
-    assert.equal(validateKnockMessage("hello"), null);
+    assert.equal(validateKnockMessage("hello").isOk(), true);
   });
 
   it("rejects empty messages", () => {
-    assert.equal(validateKnockMessage(""), "Knock message is required");
+    const result = validateKnockMessage("");
+    assert.equal(result.isErr(), true);
+    if (result.isErr()) {
+      assert.match(result.error.message, /required/i);
+    }
   });
 
   it("rejects oversized messages", () => {
     const big = "a".repeat(KNOCK_MESSAGE_MAX_BYTES + 1);
-    assert.match(validateKnockMessage(big)!, /exceeds/);
+    const result = validateKnockMessage(big);
+    assert.equal(result.isErr(), true);
+    if (result.isErr()) {
+      assert.match(result.error.message, /exceeds/);
+    }
   });
 });

@@ -22,6 +22,8 @@ import {
   a2aEndpointUrl,
   agentCardUrl,
   BadRequestError,
+  buildAgentCard,
+  decideA2aAuth,
   DEFAULT_PUBLIC_SKILLS,
   ForbiddenError,
   isTrustGrantUsable,
@@ -31,6 +33,7 @@ import {
   publicApiBaseUrl,
   SetupError,
   timingSafeEqualHex,
+  UnauthorizedError,
   extractBearerToken,
   parsePeerGrantToken,
   formatPeerGrantToken,
@@ -50,16 +53,21 @@ import {
 } from "@jackline/shared";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
+import {
+  authDenialToError,
+  extractKnockPayload,
+  isKnockIntent,
+  type JsonRpcRequest,
+} from "./a2aProtocol.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 
-function configPublicBaseUrl(): string {
+function configPublicBaseUrl(): Result<string, JacklineError> {
   const cfg = getConfig();
-  if (cfg.isErr()) throw cfg.error;
-  return publicApiBaseUrl(cfg.value);
+  if (cfg.isErr()) return err(cfg.error);
+  return ok(publicApiBaseUrl(cfg.value));
 }
 
-function toPublicAgent(row: AgentRow): PublicAgent {
-  const base = configPublicBaseUrl();
+function toPublicAgent(row: AgentRow, base: string): PublicAgent {
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -114,33 +122,35 @@ function toPublicTrustGrant(row: TrustGrantRow): PublicTrustGrant {
   };
 }
 
-async function getPublicNetworkId(): Promise<string> {
+async function getPublicNetworkId(): Promise<Result<string, JacklineError>> {
   const [network] = await db
     .select({ id: networks.id })
     .from(networks)
     .where(eq(networks.slug, PUBLIC_NETWORK_SLUG))
     .limit(1);
   if (!network) {
-    throw new SetupError("Public network is not seeded");
+    return err(new SetupError("Public network is not seeded"));
   }
-  return network.id;
+  return ok(network.id);
 }
 
 async function assertAgentOwner(
   tenantId: string,
   userId: string,
   agentId: string,
-): Promise<AgentRow> {
+): Promise<Result<AgentRow, JacklineError>> {
   const [row] = await db
     .select()
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
     .limit(1);
-  if (!row) throw new NotFoundError("Agent not found");
+  if (!row) return err(new NotFoundError("Agent not found"));
   if (row.ownerUserId !== userId) {
-    throw new ForbiddenError("Only the agent owner may perform this action");
+    return err(
+      new ForbiddenError("Only the agent owner may perform this action"),
+    );
   }
-  return row;
+  return ok(row);
 }
 
 async function notifyOwner(input: {
@@ -167,12 +177,17 @@ export const agentServices = {
     tenantId: string,
     userId: string,
   ): Promise<Result<{ items: PublicAgent[] }, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
     const rows = await db
       .select()
       .from(agents)
       .where(and(eq(agents.tenantId, tenantId), eq(agents.ownerUserId, userId)))
       .orderBy(agents.createdAt);
-    return ok({ items: rows.map(toPublicAgent) });
+    return ok({
+      items: rows.map((row) => toPublicAgent(row, baseResult.value)),
+    });
   },
 
   async createAgent(
@@ -180,6 +195,9 @@ export const agentServices = {
     userId: string,
     body: CreateAgentBody,
   ): Promise<Result<PublicAgent, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
     try {
       const [row] = await db
         .insert(agents)
@@ -195,7 +213,7 @@ export const agentServices = {
         })
         .returning();
       if (!row) return err(new SetupError("Failed to create agent"));
-      return ok(toPublicAgent(row));
+      return ok(toPublicAgent(row, baseResult.value));
     } catch (e) {
       return err(fromDbWriteError(e, "Handle already exists"));
     }
@@ -206,13 +224,12 @@ export const agentServices = {
     userId: string,
     agentId: string,
   ): Promise<Result<PublicAgent, JacklineError>> {
-    try {
-      const row = await assertAgentOwner(tenantId, userId, agentId);
-      return ok(toPublicAgent(row));
-    } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      throw e;
-    }
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+    return ok(toPublicAgent(ownerResult.value, baseResult.value));
   },
 
   async updateAgent(
@@ -221,8 +238,13 @@ export const agentServices = {
     agentId: string,
     body: UpdateAgentBody,
   ): Promise<Result<PublicAgent, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
     try {
-      await assertAgentOwner(tenantId, userId, agentId);
       const [row] = await db
         .update(agents)
         .set({
@@ -252,10 +274,9 @@ export const agentServices = {
         .where(eq(agents.id, agentId))
         .returning();
       if (!row) return err(new NotFoundError("Agent not found"));
-      return ok(toPublicAgent(row));
+      return ok(toPublicAgent(row, baseResult.value));
     } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
+      return err(fromDbWriteError(e, "Failed to update agent"));
     }
   },
 
@@ -264,9 +285,16 @@ export const agentServices = {
     userId: string,
     agentId: string,
   ): Promise<Result<PublicAgent, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const networkResult = await getPublicNetworkId();
+    if (networkResult.isErr()) return err(networkResult.error);
+
     try {
-      await assertAgentOwner(tenantId, userId, agentId);
-      const publicNetworkId = await getPublicNetworkId();
       const [row] = await db
         .update(agents)
         .set({ status: "published", updatedAt: new Date() })
@@ -278,7 +306,7 @@ export const agentServices = {
         .insert(agentNetworks)
         .values({
           agentId: row.id,
-          networkId: publicNetworkId,
+          networkId: networkResult.value,
           listed: true,
         })
         .onConflictDoUpdate({
@@ -286,10 +314,9 @@ export const agentServices = {
           set: { listed: true, updatedAt: new Date() },
         });
 
-      return ok(toPublicAgent(row));
+      return ok(toPublicAgent(row, baseResult.value));
     } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
+      return err(fromDbWriteError(e, "Failed to publish agent"));
     }
   },
 
@@ -298,9 +325,16 @@ export const agentServices = {
     userId: string,
     agentId: string,
   ): Promise<Result<PublicAgent, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const networkResult = await getPublicNetworkId();
+    if (networkResult.isErr()) return err(networkResult.error);
+
     try {
-      await assertAgentOwner(tenantId, userId, agentId);
-      const publicNetworkId = await getPublicNetworkId();
       const [row] = await db
         .update(agents)
         .set({ status: "paused", updatedAt: new Date() })
@@ -314,14 +348,13 @@ export const agentServices = {
         .where(
           and(
             eq(agentNetworks.agentId, agentId),
-            eq(agentNetworks.networkId, publicNetworkId),
+            eq(agentNetworks.networkId, networkResult.value),
           ),
         );
 
-      return ok(toPublicAgent(row));
+      return ok(toPublicAgent(row, baseResult.value));
     } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
+      return err(fromDbWriteError(e, "Failed to pause agent"));
     }
   },
 
@@ -330,11 +363,14 @@ export const agentServices = {
     handle?: string;
     skill?: string;
   }): Promise<Result<AgentDirectoryResponse, JacklineError>> {
-    const publicNetworkId = await getPublicNetworkId();
-    const base = configPublicBaseUrl();
+    const networkResult = await getPublicNetworkId();
+    if (networkResult.isErr()) return err(networkResult.error);
+
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
 
     const conditions = [
-      eq(agentNetworks.networkId, publicNetworkId),
+      eq(agentNetworks.networkId, networkResult.value),
       eq(agentNetworks.listed, true),
       eq(agents.status, "published"),
     ];
@@ -353,7 +389,7 @@ export const agentServices = {
       );
     }
 
-    let query = db
+    const rows = await db
       .select({
         handle: agents.handle,
         displayName: agents.displayName,
@@ -366,14 +402,12 @@ export const agentServices = {
       .where(and(...conditions))
       .limit(50);
 
-    const rows = await query;
-
     let items: PublicDirectoryAgent[] = rows.map((row) => ({
       handle: row.handle,
       displayName: row.displayName,
       description: row.description ?? null,
       publicSkills: row.publicSkills.map((s) => s.id),
-      agentCardUrl: agentCardUrl(base, row.handle),
+      agentCardUrl: agentCardUrl(baseResult.value, row.handle),
       knocksEnabled: row.knocksEnabled,
     }));
 
@@ -396,23 +430,43 @@ export const agentServices = {
     return ok(row);
   },
 
+  async buildAgentCardForHandle(
+    handle: string,
+  ): Promise<Result<Record<string, unknown>, JacklineError>> {
+    const agentResult = await agentServices.getAgentByHandle(handle);
+    if (agentResult.isErr()) return err(agentResult.error);
+
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const agent = agentResult.value;
+    return ok(
+      buildAgentCard({
+        handle: agent.handle,
+        displayName: agent.displayName,
+        description: agent.description,
+        publicSkills: agent.publicSkills,
+        knocksEnabled: agent.knocksEnabled,
+        publicBaseUrl: baseResult.value,
+        status: agent.status,
+      }),
+    );
+  },
+
   async listKnocks(
     tenantId: string,
     userId: string,
     agentId: string,
   ): Promise<Result<{ items: PublicKnock[] }, JacklineError>> {
-    try {
-      await assertAgentOwner(tenantId, userId, agentId);
-      const rows = await db
-        .select()
-        .from(knocks)
-        .where(and(eq(knocks.agentId, agentId), eq(knocks.tenantId, tenantId)))
-        .orderBy(sql`${knocks.createdAt} desc`);
-      return ok({ items: rows.map(toPublicKnock) });
-    } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      throw e;
-    }
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const rows = await db
+      .select()
+      .from(knocks)
+      .where(and(eq(knocks.agentId, agentId), eq(knocks.tenantId, tenantId)))
+      .orderBy(sql`${knocks.createdAt} desc`);
+    return ok({ items: rows.map(toPublicKnock) });
   },
 
   async approveKnock(
@@ -421,24 +475,27 @@ export const agentServices = {
     knockId: string,
     body: ApproveKnockBody,
   ): Promise<Result<PublicTrustGrant, JacklineError>> {
+    const [knock] = await db
+      .select()
+      .from(knocks)
+      .where(and(eq(knocks.id, knockId), eq(knocks.tenantId, tenantId)))
+      .limit(1);
+    if (!knock) return err(new NotFoundError("Knock not found"));
+    if (knock.status !== "pending") {
+      return err(new BadRequestError("Knock is not pending"));
+    }
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, knock.agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+    const agent = ownerResult.value;
+
+    const ttl = body.grantTtlSeconds ?? agent.defaultGrantTtlSeconds;
+    const expiresAt = new Date(Date.now() + ttl * 1000);
+    const skillIds =
+      body.skillIds ?? agent.publicSkills.map((skill) => skill.id);
+    const exchangeToken = generateExchangeToken();
+
     try {
-      const [knock] = await db
-        .select()
-        .from(knocks)
-        .where(and(eq(knocks.id, knockId), eq(knocks.tenantId, tenantId)))
-        .limit(1);
-      if (!knock) return err(new NotFoundError("Knock not found"));
-      if (knock.status !== "pending") {
-        return err(new BadRequestError("Knock is not pending"));
-      }
-
-      const agent = await assertAgentOwner(tenantId, userId, knock.agentId);
-      const ttl = body.grantTtlSeconds ?? agent.defaultGrantTtlSeconds;
-      const expiresAt = new Date(Date.now() + ttl * 1000);
-      const skillIds =
-        body.skillIds ?? agent.publicSkills.map((skill) => skill.id);
-      const exchangeToken = generateExchangeToken();
-
       const [grant] = await db
         .insert(trustGrants)
         .values({
@@ -482,8 +539,7 @@ export const agentServices = {
 
       return ok(toPublicTrustGrant(grant));
     } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
+      return err(fromDbWriteError(e, "Failed to approve knock"));
     }
   },
 
@@ -492,26 +548,23 @@ export const agentServices = {
     userId: string,
     knockId: string,
   ): Promise<Result<PublicKnock, JacklineError>> {
-    try {
-      const [knock] = await db
-        .select()
-        .from(knocks)
-        .where(and(eq(knocks.id, knockId), eq(knocks.tenantId, tenantId)))
-        .limit(1);
-      if (!knock) return err(new NotFoundError("Knock not found"));
-      await assertAgentOwner(tenantId, userId, knock.agentId);
+    const [knock] = await db
+      .select()
+      .from(knocks)
+      .where(and(eq(knocks.id, knockId), eq(knocks.tenantId, tenantId)))
+      .limit(1);
+    if (!knock) return err(new NotFoundError("Knock not found"));
 
-      const [row] = await db
-        .update(knocks)
-        .set({ status: "denied", updatedAt: new Date() })
-        .where(eq(knocks.id, knockId))
-        .returning();
-      if (!row) return err(new NotFoundError("Knock not found"));
-      return ok(toPublicKnock(row));
-    } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
-    }
+    const ownerResult = await assertAgentOwner(tenantId, userId, knock.agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const [row] = await db
+      .update(knocks)
+      .set({ status: "denied", updatedAt: new Date() })
+      .where(eq(knocks.id, knockId))
+      .returning();
+    if (!row) return err(new NotFoundError("Knock not found"));
+    return ok(toPublicKnock(row));
   },
 
   async listTrustGrants(
@@ -519,20 +572,17 @@ export const agentServices = {
     userId: string,
     agentId: string,
   ): Promise<Result<{ items: PublicTrustGrant[] }, JacklineError>> {
-    try {
-      await assertAgentOwner(tenantId, userId, agentId);
-      const rows = await db
-        .select()
-        .from(trustGrants)
-        .where(
-          and(eq(trustGrants.agentId, agentId), eq(trustGrants.tenantId, tenantId)),
-        )
-        .orderBy(sql`${trustGrants.createdAt} desc`);
-      return ok({ items: rows.map(toPublicTrustGrant) });
-    } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      throw e;
-    }
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const rows = await db
+      .select()
+      .from(trustGrants)
+      .where(
+        and(eq(trustGrants.agentId, agentId), eq(trustGrants.tenantId, tenantId)),
+      )
+      .orderBy(sql`${trustGrants.createdAt} desc`);
+    return ok({ items: rows.map(toPublicTrustGrant) });
   },
 
   async revokeTrustGrant(
@@ -540,30 +590,27 @@ export const agentServices = {
     userId: string,
     grantId: string,
   ): Promise<Result<PublicTrustGrant, JacklineError>> {
-    try {
-      const [grant] = await db
-        .select()
-        .from(trustGrants)
-        .where(and(eq(trustGrants.id, grantId), eq(trustGrants.tenantId, tenantId)))
-        .limit(1);
-      if (!grant) return err(new NotFoundError("Trust grant not found"));
-      await assertAgentOwner(tenantId, userId, grant.agentId);
+    const [grant] = await db
+      .select()
+      .from(trustGrants)
+      .where(and(eq(trustGrants.id, grantId), eq(trustGrants.tenantId, tenantId)))
+      .limit(1);
+    if (!grant) return err(new NotFoundError("Trust grant not found"));
 
-      const [row] = await db
-        .update(trustGrants)
-        .set({
-          status: "revoked",
-          revokedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(trustGrants.id, grantId))
-        .returning();
-      if (!row) return err(new NotFoundError("Trust grant not found"));
-      return ok(toPublicTrustGrant(row));
-    } catch (e) {
-      if (e instanceof JacklineError) return err(e);
-      return err(fromDbWriteError(e, "Handle already exists"));
-    }
+    const ownerResult = await assertAgentOwner(tenantId, userId, grant.agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const [row] = await db
+      .update(trustGrants)
+      .set({
+        status: "revoked",
+        revokedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(trustGrants.id, grantId))
+      .returning();
+    if (!row) return err(new NotFoundError("Trust grant not found"));
+    return ok(toPublicTrustGrant(row));
   },
 
   async exchangeTrustGrant(
@@ -648,8 +695,8 @@ export const agentServices = {
       return err(new BadRequestError("Knocks are disabled for this agent"));
     }
 
-    const messageError = validateKnockMessage(input.message);
-    if (messageError) return err(new BadRequestError(messageError));
+    const messageResult = validateKnockMessage(input.message);
+    if (messageResult.isErr()) return err(messageResult.error);
 
     const knockSecret = generateKnockSecret();
     const knockSecretHash = hashToken(knockSecret);
@@ -666,7 +713,6 @@ export const agentServices = {
       )
       .limit(1);
 
-    let knockRow: KnockRow;
     if (existing) {
       const [updated] = await db
         .update(knocks)
@@ -678,10 +724,10 @@ export const agentServices = {
         })
         .where(eq(knocks.id, existing.id))
         .returning();
-      knockRow = updated!;
+      if (!updated) return err(new SetupError("Failed to update knock"));
       return ok({
-        knockId: knockRow.id,
-        taskId: knockRow.a2aTaskId ?? knockRow.id,
+        knockId: updated.id,
+        taskId: updated.a2aTaskId ?? updated.id,
         knockSecret,
       });
     }
@@ -737,10 +783,12 @@ export const agentServices = {
     log: Logger,
   ): Promise<Result<{ grantId: string }, JacklineError>> {
     const bearer = extractBearerToken(authorization);
-    if (!bearer) return err(new BadRequestError("Authentication required"));
+    if (!bearer) return err(new UnauthorizedError("Authentication required"));
 
     const parsed = parsePeerGrantToken(bearer);
-    if (parsed.isErr()) return err(parsed.error);
+    if (parsed.isErr()) {
+      return err(new UnauthorizedError("Invalid peer grant token"));
+    }
 
     const { secretId, secret } = parsed.value;
     const [grant] = await db
@@ -751,18 +799,116 @@ export const agentServices = {
 
     if (!grant || !grant.credentialSecretHash) {
       log.warn({ secretId }, "peer grant: unknown credential");
-      return err(new BadRequestError("Invalid peer grant token"));
+      return err(new UnauthorizedError("Invalid peer grant token"));
     }
 
     if (!timingSafeEqualHex(grant.credentialSecretHash, hashToken(secret))) {
       log.warn({ secretId }, "peer grant: secret mismatch");
-      return err(new BadRequestError("Invalid peer grant token"));
+      return err(new UnauthorizedError("Invalid peer grant token"));
     }
 
     if (!isTrustGrantUsable(grant.status, grant.expiresAt, grant.revokedAt)) {
-      return err(new BadRequestError("Trust grant expired or revoked"));
+      return err(new UnauthorizedError("Trust grant expired or revoked"));
     }
 
     return ok({ grantId: grant.id });
+  },
+
+  async processA2aJsonRpc(input: {
+    handle: string;
+    authorization: string | undefined;
+    body: JsonRpcRequest;
+    log: Logger;
+  }): Promise<
+    Result<{ id: string | number | null; result: unknown }, JacklineError>
+  > {
+    const agentResult = await agentServices.getAgentByHandle(input.handle);
+    if (agentResult.isErr()) return err(agentResult.error);
+    const agent = agentResult.value;
+
+    const grantResult = await agentServices.resolvePeerGrant(
+      input.authorization,
+      agent.id,
+      input.log,
+    );
+    const hasValidGrant = grantResult.isOk();
+
+    const knockPayloadResult =
+      input.body.method === "message/send"
+        ? extractKnockPayload(input.body.params)
+        : null;
+
+    const decision = decideA2aAuth({
+      agentStatus: agent.status,
+      knocksEnabled: agent.knocksEnabled,
+      method: input.body.method,
+      hasValidGrant,
+      ...(grantResult.isOk() ? { trustGrantId: grantResult.value.grantId } : {}),
+      isKnockIntent: Boolean(
+        knockPayloadResult?.isOk() &&
+          isKnockIntent(knockPayloadResult.value),
+      ),
+    });
+
+    if (decision.action === "deny") {
+      return err(authDenialToError(decision.reason));
+    }
+
+    if (decision.action === "knock_only") {
+      if (!knockPayloadResult || knockPayloadResult.isErr()) {
+        return err(knockPayloadResult?.error ?? new BadRequestError("Invalid knock payload"));
+      }
+      const payload = knockPayloadResult.value;
+      const knockResult = await agentServices.createKnock({
+        agent,
+        peerAgentCardUrl: payload.peerAgentCardUrl,
+        ...(payload.peerDisplayName !== undefined
+          ? { peerDisplayName: payload.peerDisplayName }
+          : {}),
+        message: payload.message,
+      });
+      if (knockResult.isErr()) return err(knockResult.error);
+
+      const { knockId, taskId, knockSecret } = knockResult.value;
+      return ok({
+        id: input.body.id,
+        result: {
+          taskId,
+          state: "input_required",
+          knockId,
+          knockSecret,
+        },
+      });
+    }
+
+    if (input.body.method === "message/send" && knockPayloadResult?.isOk()) {
+      return ok({
+        id: input.body.id,
+        result: {
+          state: "completed",
+          message: "Message received",
+          skill: "contact.leave_message",
+        },
+      });
+    }
+
+    if (input.body.method === "tasks/get") {
+      const taskId = input.body.params?.["taskId"];
+      return ok({
+        id: input.body.id,
+        result: {
+          taskId,
+          state: "input_required",
+        },
+      });
+    }
+
+    return ok({
+      id: input.body.id,
+      result: {
+        state: "completed",
+        message: "OK",
+      },
+    });
   },
 };

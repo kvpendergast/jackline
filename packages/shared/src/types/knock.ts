@@ -1,4 +1,7 @@
+import { err, ok, type Result } from "neverthrow";
 import z from "zod";
+
+import { BadRequestError } from "../errors/index.js";
 
 export const KnockStatusSchema = z.enum(["pending", "approved", "denied"]);
 
@@ -30,11 +33,19 @@ export type KnockStatus = z.infer<typeof KnockStatusSchema>;
 export type PublicKnock = z.infer<typeof PublicKnockSchema>;
 export type CreateKnockResult = z.infer<typeof CreateKnockResultSchema>;
 
-export function validateKnockMessage(message: string): string | null {
+export function validateKnockMessage(
+  message: string,
+): Result<void, BadRequestError> {
   const bytes = new TextEncoder().encode(message);
-  if (bytes.byteLength === 0) return "Knock message is required";
-  if (bytes.byteLength > KNOCK_MESSAGE_MAX_BYTES) {
-    return `Knock message exceeds ${KNOCK_MESSAGE_MAX_BYTES} bytes`;
+  if (bytes.byteLength === 0) {
+    return err(new BadRequestError("Knock message is required"));
   }
-  return null;
+  if (bytes.byteLength > KNOCK_MESSAGE_MAX_BYTES) {
+    return err(
+      new BadRequestError(
+        `Knock message exceeds ${KNOCK_MESSAGE_MAX_BYTES} bytes`,
+      ),
+    );
+  }
+  return ok(undefined);
 }
