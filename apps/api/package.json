@@ -12,7 +12,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/features/chat/chat.test.ts src/features/authComplete/resolver.test.ts",
+    "test": "tsx --test src/features/chat/chat.test.ts src/features/authComplete/resolver.test.ts src/features/agents/trust.test.ts",
     "lint": "echo \"lint later\"",
     "smoke": "tsx scripts/smoke-golden-path.ts",
     "openapi:export": "tsx scripts/export-openapi.ts"

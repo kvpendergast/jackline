@@ -52,6 +52,21 @@ export function generateAccessToken(): string {
   return `jackline_at_${randomBytes(32).toString("base64url")}`;
 }
 
+/** Opaque secret for jka_ peer grant credentials. */
+export function generatePeerGrantSecret(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/** Knock-scoped secret presented by peer when exchanging for jka_. */
+export function generateKnockSecret(): string {
+  return `knock_${randomBytes(24).toString("base64url")}`;
+}
+
+/** One-time exchange token minted on knock approval. */
+export function generateExchangeToken(): string {
+  return `xchg_${randomBytes(24).toString("base64url")}`;
+}
+
 async function loadOAuthConfigs(): Promise<GenericOAuthConfig[]> {
   const config = getConfig();
   if (config.isErr()) throw config.error;

@@ -10,6 +10,9 @@ export {
   generateScimToken,
   generateClientSecret,
   generateAccessToken,
+  generatePeerGrantSecret,
+  generateKnockSecret,
+  generateExchangeToken,
   ssoSecretAad,
 } from "./createAuth.js";
 export {

@@ -567,4 +567,65 @@ export const jacklineApi = {
       method: "PUT",
       body,
     }),
+
+  listAgents: (tenantId: string) =>
+    api<{ items: import("@jackline/shared").PublicAgent[] }>("/api/v1/agents", {
+      tenantId,
+    }),
+
+  createAgent: (
+    tenantId: string,
+    body: import("@jackline/shared").CreateAgentBody,
+  ) =>
+    api<import("@jackline/shared").PublicAgent>("/api/v1/agents", {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  publishAgent: (tenantId: string, agentId: string) =>
+    api<import("@jackline/shared").PublicAgent>(
+      `/api/v1/agents/${agentId}/publish`,
+      { tenantId, method: "POST" },
+    ),
+
+  pauseAgent: (tenantId: string, agentId: string) =>
+    api<import("@jackline/shared").PublicAgent>(
+      `/api/v1/agents/${agentId}/pause`,
+      { tenantId, method: "POST" },
+    ),
+
+  listAgentKnocks: (tenantId: string, agentId: string) =>
+    api<{ items: import("@jackline/shared").PublicKnock[] }>(
+      `/api/v1/agents/${agentId}/knocks`,
+      { tenantId },
+    ),
+
+  approveKnock: (
+    tenantId: string,
+    knockId: string,
+    body?: import("@jackline/shared").ApproveKnockBody,
+  ) =>
+    api<import("@jackline/shared").PublicTrustGrant>(
+      `/api/v1/knocks/${knockId}/approve`,
+      { tenantId, method: "POST", body: body ?? {} },
+    ),
+
+  denyKnock: (tenantId: string, knockId: string) =>
+    api<import("@jackline/shared").PublicKnock>(
+      `/api/v1/knocks/${knockId}/deny`,
+      { tenantId, method: "POST", body: {} },
+    ),
+
+  listTrustGrants: (tenantId: string, agentId: string) =>
+    api<{ items: import("@jackline/shared").PublicTrustGrant[] }>(
+      `/api/v1/agents/${agentId}/trust-grants`,
+      { tenantId },
+    ),
+
+  revokeTrustGrant: (tenantId: string, grantId: string) =>
+    api<import("@jackline/shared").PublicTrustGrant>(
+      `/api/v1/trust-grants/${grantId}/revoke`,
+      { tenantId, method: "POST" },
+    ),
 };

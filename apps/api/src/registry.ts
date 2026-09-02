@@ -1,4 +1,8 @@
 import { accessRequestsFeature } from "./features/accessRequests/index.js";
+import {
+  agentsPublicFeature,
+  agentsTenantFeature,
+} from "./features/agents/index.js";
 import { chatFeature } from "./features/chat/index.js";
 import { platformEmailFeature } from "./features/platformEmail/index.js";
 import { signupFeature } from "./features/signup/index.js";
@@ -29,6 +33,7 @@ export const publicV1Features: AppSlice[] = [
   authCompleteFeature,
   meFeature,
   identityPublicFeature,
+  agentsPublicFeature,
 ];
 
 /** Tenant-scoped `/api/v1` routes (`X-Jackline-Tenant-Id` + membership). */
@@ -47,6 +52,7 @@ export const tenantV1Features: AppSlice[] = [
   accessRequestsFeature,
   chatFeature,
   platformEmailFeature,
+  agentsTenantFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */

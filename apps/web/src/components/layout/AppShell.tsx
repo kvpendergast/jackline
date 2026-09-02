@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
+  Bot,
   Cable,
   FileSearch,
   KeyRound,
@@ -28,6 +29,7 @@ const SHELL_VIEW_KEY = "jackline.shellView";
 
 const personalNav = [
   { to: "/my-access", label: "My Access", icon: UserRound },
+  { to: "/my-agent", label: "My Agent", icon: Bot },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/access-requests", label: "Access requests", icon: Shield },
   { to: "/notifications", label: "Notifications", icon: Bell },
@@ -101,6 +103,7 @@ function isAdminOnlyPath(pathname: string): boolean {
 function isPersonalPath(pathname: string): boolean {
   return (
     pathname === "/my-access" ||
+    pathname === "/my-agent" ||
     pathname === "/connections" ||
     pathname.startsWith("/connections/") ||
     pathname === "/access-requests"
