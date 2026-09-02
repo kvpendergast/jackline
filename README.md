@@ -484,6 +484,8 @@ The API logs structured JSON to stdout (pretty-printed in development). Set `LOG
 
 Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
 
+Error logs include a Honeycomb-style `err` object (`type`, `message`, `stack`) and a top-level `stack_trace` field for Google Cloud Logging / Error Reporting. In Logs Explorer: `jsonPayload.stack_trace:*` or `jsonPayload.err.stack:*`.
+
 Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
 
 **Alerting (self-hosted)**

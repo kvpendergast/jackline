@@ -46,6 +46,7 @@ export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
         requestId,
         errorCode: err.code,
         status,
+        ...(status >= 500 ? { err } : {}),
       },
       err.message,
     );
