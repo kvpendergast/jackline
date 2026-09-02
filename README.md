@@ -98,22 +98,26 @@ Register redirect URI in Google Cloud Console:
 
 Per-tenant SSO (Settings → SSO) can set **Require SSO**, **Allowed email domains**, and **Auto-create users** to enforce tenant OIDC over platform Google.
 
-Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
+Also: `deploy/docker-compose.yml` is the **generic Docker happy path** (Postgres + migrate + api + gateway + web + docs).
 
 ```bash
 cp .env.example .env   # set POSTGRES_PASSWORD, JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
+pnpm env:check            # optional — fail fast on missing env
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-### Production Compose (recommended self-host)
+### Production Compose (generic Docker)
 
-Multi-stage images (`deploy/Dockerfile`) + optional Caddy edge (`deploy/compose.prod.yml`).
-Default topology: **UI + API + MCP on one origin** (simplest cookies/CORS). Caddy is convenience, not required.
+Multi-stage images (`deploy/Dockerfile`) + Caddy (`deploy/compose.prod.yml`).  
+**Bundled Postgres** (default self-host): add `compose.postgres.yml`.  
+**BYO / Cloud SQL:** omit the overlay and set `DATABASE_URL`.
 
 ```bash
 cp deploy/.env.prod.example .env.prod
-# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+# set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
+
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod up --build -d
 ```
 
 | URL | Service |
@@ -125,18 +129,21 @@ docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 
 **HTTPS:** set `JACKLINE_SITE_ADDRESS` / `JACKLINE_DOCS_SITE_ADDRESS` to bare hostnames (no `http://`), align `WEB_ORIGIN` / `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_*` to `https://…`, and ensure ports 80/443 are reachable.
 
-**Other topologies** (see `apps/docs/pages/self-hosting.mdx`):
+**Recipes** (see `apps/docs/pages/self-hosting.mdx`):
 
 ```bash
+# BYO Postgres — omit compose.postgres.yml, set DATABASE_URL in .env.prod
+
 # Gateway on its own published port; Caddy = control plane only
-docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
-  --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.gateway-split.yml --env-file .env.prod up --build -d
 
 # No Caddy — publish api/gateway/web/docs for your own reverse proxy
-docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
-  --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.byo-edge.yml --env-file .env.prod up --build -d
 ```
 
+GCP VM / Cloud SQL: `deploy/pulumi/README.md`.
 Build a single target:
 
 ```bash

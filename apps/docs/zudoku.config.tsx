@@ -20,8 +20,9 @@ const config: ZudokuConfig = {
       label: "Guides",
       items: [
         "/introduction",
-        "/authentication",
         "/self-hosting",
+        "/connect-cursor",
+        "/authentication",
       ],
     },
     {

@@ -1,13 +1,13 @@
 # Production single-host stand-up for Jackline (default topology).
 #
-# Postgres: managed Cloud SQL (private IP). DATABASE_URL in .env.prod points at
-# the Cloud SQL instance — no local postgres container. Local dev uses
-# deploy/docker-compose.yml instead.
-#
-# First boot / local (from repo root):
+# Generic Docker self-host (bundled Postgres):
 #   cp deploy/.env.prod.example .env.prod
-#   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
-#   docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+#   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+#     --env-file .env.prod up --build -d
+#
+# BYO / managed Postgres: omit compose.postgres.yml and set DATABASE_URL
+# (GCP Pulumi + Cloud SQL is one recipe — see deploy/pulumi/README.md).
 #
 # Live VM updates: use deploy/scripts/remote-deploy.sh (not `up --build -d`).
 # That script builds first, starts a second replica, and only removes the old
@@ -16,7 +16,7 @@
 # HTTPS: set JACKLINE_SITE_ADDRESS / JACKLINE_DOCS_SITE_ADDRESS to bare hostnames
 # (no http://) and open ports 80 + 443. See apps/docs/pages/self-hosting.mdx.
 #
-# Dev (tsx watch) stack remains: deploy/docker-compose.yml + Dockerfile.dev
+# Dev / try-it stack: deploy/docker-compose.yml + Dockerfile.dev
 
 name: jackline
 

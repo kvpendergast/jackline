@@ -1,0 +1,74 @@
+---
+title: Connect Cursor
+---
+
+# Connect Cursor
+
+Point Cursor at your self-hosted Jackline gateway so tool calls go through policy and audit.
+
+## 1. Run Jackline
+
+Follow the [generic Docker quick start](/self-hosting). Confirm:
+
+- Admin UI: http://127.0.0.1:5173
+- MCP: http://127.0.0.1:8081/mcp (dev Compose) or http://localhost/mcp (production Compose + Caddy)
+
+## 2. Create an org and sign in
+
+Open the Admin UI and complete signup (first organization in `single` tenancy).
+
+## 3. Add an upstream server
+
+In **Servers**, quick-add a connector (or create a custom MCP server with a `baseUrl`). Sync tools when prompted so schemas are stored.
+
+## 4. Client + connection + token
+
+1. **Clients** → create an interactive client (e.g. “Cursor”).
+2. **Connections** → create a connection for that client (subject = you).
+3. Attach a **grant** role that allows the tools you want.
+4. Set the connection **active**.
+5. Open the connection → **Mint** a gateway credential (`jkl_…`).
+
+The mint response includes an MCP snippet:
+
+```json
+{
+  "url": "http://127.0.0.1:8081/mcp",
+  "headers": {
+    "Authorization": "Bearer jkl_<secretId>.<secret>"
+  }
+}
+```
+
+Copy the token once — Jackline stores only a hash.
+
+## 5. Cursor MCP config
+
+Add a server entry (Cursor Settings → MCP, or your `mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "jackline": {
+      "url": "http://127.0.0.1:8081/mcp",
+      "headers": {
+        "Authorization": "Bearer jkl_<secretId>.<secret>"
+      }
+    }
+  }
+}
+```
+
+Use the URL from the mint response (`JACKLINE_PUBLIC_MCP_URL`). On production Compose with Caddy that is typically `http://localhost/mcp` or your HTTPS origin.
+
+## 6. Verify
+
+- Cursor shows Jackline tools (names look like `serverName__toolName`).
+- A tool call succeeds only if policy allows it.
+- **Audit** in the Admin UI shows `allow` / `deny` / upstream errors.
+
+Denied or quarantined connections return errors at the gateway; fix roles/overrides on the connection, then retry.
+
+## Personal CLI alternative
+
+For a laptop-only gateway without the control-plane UI, see [`apps/cli/README.md`](https://github.com/kvpendergast/jackline/blob/main/apps/cli/README.md) (`jackline init` → `jackline serve` → paste the printed snippet into Cursor).

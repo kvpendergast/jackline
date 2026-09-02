@@ -4,46 +4,112 @@ title: Self-hosting
 
 # Self-hosting
 
-Jackline ships as separate containers (**api**, **gateway**, **web**, **docs**, plus Postgres). How you put an edge in front of them is up to you.
+**Primary path:** generic Docker Compose with Postgres in the stack.  
+**Recipes** below swap the database, edge proxy, or cloud provider without changing the product model.
 
-**Default:** one origin via Caddy (admin UI + API + MCP together — simplest cookies/CORS).  
-**Optional:** split the gateway for scale/exposure, or skip Caddy and use your own proxy.
+Jackline runs as **api**, **gateway**, **web**, and **docs**. Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `JACKLINE_PUBLIC_API_URL`, and `JACKLINE_PUBLIC_MCP_URL` to what browsers and MCP clients actually call. Cursor uses `JACKLINE_PUBLIC_MCP_URL`. In-product Chat uses `JACKLINE_INTERNAL_MCP_URL` (Compose default `http://gateway:8081/mcp`).
 
-Public URLs are the contract: set `WEB_ORIGIN`, `BETTER_AUTH_URL`, `JACKLINE_PUBLIC_API_URL`, and `JACKLINE_PUBLIC_MCP_URL` to whatever browsers and MCP clients actually call. Cursor should use `JACKLINE_PUBLIC_MCP_URL`. In-product Chat on the API uses `JACKLINE_INTERNAL_MCP_URL` (Compose default `http://gateway:8081/mcp`) so the model loop can reach `/mcp` on the Docker network.
+## Quick start (generic Docker)
 
-## Production (recommended default)
+Hot-reload stack for trying Jackline on one machine (Postgres included):
 
-Same-origin edge with Caddy:
+```bash
+cp .env.example .env
+# Required:
+#   POSTGRES_PASSWORD=…
+#   JACKLINE_MASTER_KEY=$(openssl rand -base64 32)
+#   BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+
+pnpm env:check   # optional — fail fast on missing env
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+| Surface | URL |
+| --- | --- |
+| Admin UI | http://127.0.0.1:5173 |
+| API | http://127.0.0.1:8080 |
+| Gateway MCP | http://127.0.0.1:8081/mcp |
+| Docs | http://127.0.0.1:3000 |
+| Postgres (host) | `127.0.0.1:5433` |
+
+Next: [Connect Cursor](/connect-cursor).
+
+## Production images (generic Docker)
+
+Multi-stage images (`deploy/Dockerfile`) + Caddy on one origin (simplest cookies/CORS).  
+**Include Postgres** with the overlay (default self-host story):
 
 ```bash
 cp deploy/.env.prod.example .env.prod
-# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET (openssl rand -base64 32)
+# set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
 
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod up --build -d
 ```
 
 | URL | Service |
 | --- | --- |
-| http://localhost/ | Admin UI (`/api`, `/mcp` on the same origin) |
+| http://localhost/ | Admin UI (`/api`, `/mcp` same origin) |
 | http://docs.localhost/ | Docs |
 | http://localhost/openapi.json | OpenAPI JSON |
 | http://localhost/health | API health |
 
-Clone + build is intentional for open source — no registry pull required.
+Clone + build is intentional for open source — no registry pull required yet.
+
+## Recipes
+
+Start from the generic path, then change only what the recipe names.
+
+### BYO Postgres
+
+Omit `compose.postgres.yml`. Set `DATABASE_URL` in `.env.prod` to your managed DB (RDS, Cloud SQL, etc.):
+
+```bash
+docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+```
 
 ### GCP (Pulumi)
 
 For a small always-on (or destroy-when-idle) instance on Google Cloud, see **[deploy/pulumi/README.md](https://github.com/kvpendergast/jackline/blob/main/deploy/pulumi/README.md)**:
 
-- **Default:** single VM + this Compose file (fixed machine size, predictable cost)
+- **Default:** single VM + production Compose + Cloud SQL
 - **Advanced:** GKE Autopilot (higher idle cost)
 
-CI can deploy on merge to `main` via Workload Identity Federation; configure per-repo GitHub secrets (see that README). Live VM updates go through `deploy/scripts/remote-deploy.sh`, which keeps the old app containers until the new replica passes its health check. Do not use `docker compose up --build -d` on an already-running production VM — that replaces containers in place.
+CI can deploy on merge to `main` via Workload Identity Federation. Live VM updates go through `deploy/scripts/remote-deploy.sh` (rolling health check). Do not use `docker compose up --build -d` on an already-running production VM — that replaces containers in place.
+
+### Gateway split (data plane separate)
+
+Publish MCP on its own port/host; Caddy serves UI + API only:
+
+```bash
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.gateway-split.yml --env-file .env.prod up --build -d
+```
+
+Set `JACKLINE_PUBLIC_MCP_URL` to the gateway URL clients should use (e.g. `https://mcp.example.com/mcp`). `JACKLINE_GATEWAY_PUBLISH_PORT` defaults to `8081`.
+
+### Bring your own edge
+
+No Jackline-managed proxy — ports published for your nginx / Traefik / cloud LB:
+
+```bash
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.byo-edge.yml --env-file .env.prod up --build -d
+```
+
+| Publish port env | Default | Container |
+| --- | --- | --- |
+| `JACKLINE_API_PUBLISH_PORT` | 8080 | api |
+| `JACKLINE_GATEWAY_PUBLISH_PORT` | 8081 | gateway |
+| `JACKLINE_WEB_PUBLISH_PORT` | 8088 | web |
+| `JACKLINE_DOCS_PUBLISH_PORT` | 8089 | docs |
+
+If UI and API are on different hosts, set `WEB_ORIGIN` to the UI origin and `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_API_URL` to the API origin. Use `JACKLINE_ADDITIONAL_ORIGINS` for extra browser origins.
 
 ### HTTPS on a real domain
 
 1. Point DNS for your app host and docs host at the machine (ports **80** and **443** reachable).
-2. In `.env.prod`, use **bare hostnames** for Caddy site addresses (no `http://`) so Caddy enables HTTPS:
+2. In `.env.prod`, use **bare hostnames** for Caddy site addresses (no `http://`):
 
 ```bash
 JACKLINE_SITE_ADDRESS=jackline.example.com
@@ -56,68 +122,20 @@ JACKLINE_PUBLIC_API_URL=https://jackline.example.com
 JACKLINE_PUBLIC_MCP_URL=https://jackline.example.com/mcp
 ```
 
-3. Recreate: `docker compose -f deploy/compose.prod.yml --env-file .env.prod up -d`
+3. Recreate the stack (keep `compose.postgres.yml` if you use bundled Postgres).
 
 Certificates persist in the `caddy_data` volume.
-
-## Topology recipes
-
-### Gateway split (data plane separate)
-
-Publish MCP on its own port/host; Caddy serves UI + API only:
-
-```bash
-docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
-  --env-file .env.prod up --build -d
-```
-
-Set `JACKLINE_PUBLIC_MCP_URL` to the gateway URL clients should use (e.g. `https://mcp.example.com/mcp` behind your TLS terminator, or `http://127.0.0.1:8081/mcp` locally). `JACKLINE_GATEWAY_PUBLISH_PORT` defaults to `8081`.
-
-### Bring your own edge
-
-No Jackline-managed proxy — ports published for your nginx / Traefik / cloud LB:
-
-```bash
-docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
-  --env-file .env.prod up --build -d
-```
-
-| Publish port env | Default | Container |
-| --- | --- | --- |
-| `JACKLINE_API_PUBLISH_PORT` | 8080 | api |
-| `JACKLINE_GATEWAY_PUBLISH_PORT` | 8081 | gateway |
-| `JACKLINE_WEB_PUBLISH_PORT` | 8088 | web |
-| `JACKLINE_DOCS_PUBLISH_PORT` | 8089 | docs |
-
-Route externally however you like. Same-origin UI+API remains the easiest for session cookies; if the UI and API are on different hosts, set `WEB_ORIGIN` to the UI origin and `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_API_URL` to the API origin. Use `JACKLINE_ADDITIONAL_ORIGINS` (comma-separated) for any extra browser origins.
-
-Suggested long-term shape: **gateway** on its own host when you care about scale/exposure; **UI + API** as the control plane (together by default).
-
-## Dev Compose
-
-Hot-reload stack (`tsx` / Vite):
-
-```bash
-cp .env.example .env
-docker compose -f deploy/docker-compose.yml up --build
-```
-
-| Service | Port |
-| --- | --- |
-| Postgres | 5433 → 5432 |
-| API | 8080 |
-| Gateway | 8081 |
-| Admin UI | 5173 |
-| Docs | 3000 |
 
 ## Local development (no Docker)
 
 ```bash
 pnpm install
 cp .env.example .env
+# set secrets + DATABASE_URL / POSTGRES_*
+pnpm env:check
 pnpm db:migrate
 pnpm dev          # api + web + gateway
-pnpm docs:dev     # Zudoku on :3000 (exports OpenAPI first)
+pnpm docs:dev     # Zudoku on :3000
 ```
 
 ## Regenerating the API reference
