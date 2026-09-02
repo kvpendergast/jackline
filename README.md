@@ -482,7 +482,7 @@ The API logs structured JSON to stdout (pretty-printed in development). Set `LOG
 | `X-Request-Id` | Honored if sent; otherwise generated. Echoed on every response. |
 | `traceparent` | Optional W3C header; `traceId` is extracted into logs for later gateway joining. |
 
-Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
+Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
 
 Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
 
@@ -494,7 +494,14 @@ No built-in pager. Typical setup:
 2. Probe `GET /health` for liveness
 3. Example Loki/LogQL-style filter: `{app="jackline-api"} \| json \| status >= 500`
 
-Prometheus metrics and OTEL export are follow-ons; field names stay OTEL-friendly so export is additive.
+Prometheus metrics and OTEL trace export are optional follow-ons. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
+
+| Variable | Role |
+| --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | When set, export traces to this OTLP HTTP URL (e.g. `http://127.0.0.1:4318/v1/traces`). When unset, no telemetry is exported. |
+| `OTEL_TRACES_SAMPLER_ARG` | Trace sampling ratio `0`–`1` when export is enabled (default `1`). |
+
+Prometheus metrics are a follow-on; field names stay OTEL-friendly so export is additive.
 
 ## Personal CLI
 

@@ -1,6 +1,5 @@
 import type { MiddlewareHandler } from "hono";
 import { JacklineError } from "@jackline/shared";
-import { logger } from "../logger.js";
 import { resolveConnectionFromAuthorization } from "./resolveConnection.js";
 import type { GatewayEnv } from "./types.js";
 
@@ -21,15 +20,9 @@ export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
   c,
   next,
 ) => {
-  const requestId =
-    c.req.header("X-Request-Id")?.trim() || crypto.randomUUID();
-  c.header("X-Request-Id", requestId);
-
-  const log = logger.child({
-    requestId,
-    route: c.req.path,
-    method: c.req.method,
-  });
+  const base = c.get("requestContext");
+  const requestId = base.requestId;
+  const log = base.log;
 
   const result = await resolveConnectionFromAuthorization(
     c.req.header("Authorization"),

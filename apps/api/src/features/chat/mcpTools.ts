@@ -5,6 +5,10 @@ import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
 import { toolDefinition } from "@tanstack/ai";
 import { JacklineError, SetupError } from "@jackline/shared";
+import {
+  injectOutboundHeaders,
+  type OtelConfig,
+} from "@jackline/observability";
 
 const passthroughArgs = z.object({}).passthrough();
 
@@ -43,16 +47,26 @@ export function isMcpMethodNotFound(cause: unknown): boolean {
   return message.includes("-32601") || /method not found/i.test(message);
 }
 
+export type ConnectJacklineMcpOptions = {
+  requestId?: string | undefined;
+  otel: OtelConfig;
+};
+
 export async function connectJacklineMcpTools(
   mcpUrl: string,
   gatewayToken: string,
+  options: ConnectJacklineMcpOptions,
 ): Promise<Result<ConnectedJacklineMcp, JacklineError>> {
   const client = new Client({ name: "jackline-chat", version: "0.0.0" });
+  const headers = injectOutboundHeaders(options.otel, {
+    requestId: options.requestId,
+    headers: {
+      Authorization: `Bearer ${gatewayToken}`,
+    },
+  });
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
     requestInit: {
-      headers: {
-        Authorization: `Bearer ${gatewayToken}`,
-      },
+      headers,
     },
   });
 
