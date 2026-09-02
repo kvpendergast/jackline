@@ -33,7 +33,6 @@ export const publicV1Features: AppSlice[] = [
   authCompleteFeature,
   meFeature,
   identityPublicFeature,
-  agentsPublicFeature,
 ];
 
 /** Tenant-scoped `/api/v1` routes (`X-Jackline-Tenant-Id` + membership). */
@@ -53,6 +52,7 @@ export const tenantV1Features: AppSlice[] = [
   chatFeature,
   platformEmailFeature,
   agentsTenantFeature,
+  agentsPublicFeature,
 ];
 
 /** Unversioned routes (health probes, etc.). */

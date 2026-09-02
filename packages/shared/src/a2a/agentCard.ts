@@ -85,7 +85,7 @@ export type A2aAuthInput = {
 
 /**
  * Cheap auth-before-work decision for A2A ingress.
- * Knocks are the only unauthenticated work besides discovery/card fetch.
+ * Knocks require a Jackline API credential at the handler until rate limits ship.
  */
 export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
   if (input.agentStatus === "paused") {

@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { NotFoundError } from "@jackline/shared";
 import type { JacklineEnv } from "../../lib/http/env.js";
+import { requireTenantContext } from "../../lib/request/requireTenantContext.js";
 import { agentServices } from "./service.js";
 import {
   jsonRpcError,
@@ -12,6 +13,9 @@ import type { JsonRpcRequest } from "./a2aProtocol.js";
 export async function agentCardHandler(c: Context<JacklineEnv>) {
   const handle = c.req.param("handle");
   if (!handle) throw new NotFoundError("Agent not found");
+
+  const authResult = await requireTenantContext(c);
+  if (authResult.isErr()) throw authResult.error;
 
   const result = await agentServices.buildAgentCardForHandle(handle);
   if (result.isErr()) throw result.error;
@@ -34,11 +38,14 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
   }
 
   const { log } = c.get("requestContext");
+  const authResult = await requireTenantContext(c);
+  const hasApiCredential = authResult.isOk();
   const result = await agentServices.processA2aJsonRpc({
     handle,
     authorization: c.req.header("Authorization"),
     body,
     log,
+    hasApiCredential,
   });
 
   if (result.isErr()) {

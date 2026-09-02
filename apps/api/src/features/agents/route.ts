@@ -308,6 +308,7 @@ export const agentRoutes = {
     tags: ["AgentDirectory"],
     summary: "Search public agent directory",
     request: {
+      headers: TenantIdHeaderSchema,
       query: z.object({
         q: z.string().optional(),
         handle: z.string().optional(),
@@ -319,6 +320,7 @@ export const agentRoutes = {
         content: { "application/json": { schema: DirectoryResponseSchema } },
         description: "Directory results",
       },
+      ...tenantScopedErrors,
     },
   }),
 
@@ -328,6 +330,7 @@ export const agentRoutes = {
     tags: ["AgentDirectory"],
     summary: "Alias for public agent directory search",
     request: {
+      headers: TenantIdHeaderSchema,
       query: z.object({
         q: z.string().optional(),
         handle: z.string().optional(),
@@ -339,6 +342,7 @@ export const agentRoutes = {
         content: { "application/json": { schema: DirectoryResponseSchema } },
         description: "Directory results",
       },
+      ...tenantScopedErrors,
     },
   }),
 
@@ -348,6 +352,7 @@ export const agentRoutes = {
     tags: ["AgentDirectory"],
     summary: "Exchange knock credentials for a jka_ peer grant token",
     request: {
+      headers: TenantIdHeaderSchema,
       body: {
         content: {
           "application/json": { schema: ExchangeTrustGrantBodySchema },
@@ -359,6 +364,7 @@ export const agentRoutes = {
         content: { "application/json": { schema: ExchangeResponseSchema } },
         description: "Minted peer credential",
       },
+      ...tenantScopedErrors,
     },
   }),
 } as const;
