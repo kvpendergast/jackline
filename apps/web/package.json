@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview",
+    "smoke:preview": "bash scripts/smoke-preview.sh",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"lint later\""
   },

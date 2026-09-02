@@ -18,6 +18,7 @@ import {
   generatePeerGrantSecret,
   hashToken,
 } from "@jackline/auth";
+import { timingSafeEqualHex } from "@jackline/crypto";
 import {
   a2aEndpointUrl,
   agentCardUrl,
@@ -32,7 +33,6 @@ import {
   PUBLIC_NETWORK_SLUG,
   publicApiBaseUrl,
   SetupError,
-  timingSafeEqualHex,
   UnauthorizedError,
   extractBearerToken,
   parsePeerGrantToken,
