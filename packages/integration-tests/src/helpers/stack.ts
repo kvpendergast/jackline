@@ -3,6 +3,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolvePostgresUrl } from "@jackline/shared";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -97,10 +98,12 @@ function spawnService(
 }
 
 async function startManagedStack(): Promise<IntegrationStack> {
-  const databaseUrl =
-    process.env["INTEGRATION_DATABASE_URL"] ??
-    process.env["DATABASE_URL"] ??
-    "postgresql://jackline:jackline@127.0.0.1:5432/jackline";
+  const databaseUrl = resolvePostgresUrl(process.env);
+  if (!databaseUrl) {
+    throw new Error(
+      "Set DATABASE_URL or POSTGRES_* (see .env.example and README)",
+    );
+  }
 
   process.env["DATABASE_URL"] = databaseUrl;
   runMigrate(databaseUrl);

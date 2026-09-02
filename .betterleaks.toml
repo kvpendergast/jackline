@@ -11,8 +11,5 @@ useDefault = true
 description = "Known non-secret fixtures and local example credentials"
 paths = [
   '''(?:^|/)_design_preview(?:/.*)?$''',
-  '''(?:^|/)deploy/docker-compose\.yml$''',
-  '''(?:^|/)packages/integration-tests(?:/.*)?$''',
-  '''(?:^|/)\.github/workflows/ci\.yml$''',
   '''(?i)\.security\.test\.ts$''',
 ]

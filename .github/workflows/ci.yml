@@ -69,13 +69,12 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: jackline
-          POSTGRES_PASSWORD: jackline
           POSTGRES_DB: jackline
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U jackline -d jackline"
+          --health-cmd "pg_isready -U postgres -d jackline"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -98,7 +97,10 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
         env:
-          INTEGRATION_DATABASE_URL: postgresql://jackline:jackline@127.0.0.1:5432/jackline
+          POSTGRES_USER: postgres
+          POSTGRES_DB: jackline
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
 
   betterleaks:
     name: betterleaks
@@ -107,8 +109,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       # Official Betterleaks binary (Gitleaks successor). No license secret
       # required for private repos.
@@ -126,7 +126,8 @@ jobs:
       # while still failing on GitHub PATs, cloud keys, etc.
       - name: Scan for secrets
         run: >
-          betterleaks git .
+          betterleaks detect .
+          --no-git
           --config .betterleaks.toml
           --verbose
           --redact
