@@ -4,6 +4,10 @@ export const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
+  /** When set, Jackline exports traces to this OTLP HTTP endpoint. Logs stay on stdout. */
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  /** Trace sampling ratio 0–1 when OTEL export is enabled. Default 1. */
+  OTEL_TRACES_SAMPLER_ARG: z.string().optional(),
   JACKLINE_TENANCY: z.enum(["single", "multi"]).default("single"),
   JACKLINE_MASTER_KEY: z.string().min(1),
   JACKLINE_SECRET_STORAGE_LOCATION: z.enum(["local", "aws_kms", "gcp_kms"]).default("local"),

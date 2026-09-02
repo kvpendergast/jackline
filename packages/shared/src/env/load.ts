@@ -6,6 +6,8 @@ import { EnvSchema, type Env } from "./schema.js";
 const ENV_KEYS = [
   "NODE_ENV",
   "LOG_LEVEL",
+  "OTEL_EXPORTER_OTLP_ENDPOINT",
+  "OTEL_TRACES_SAMPLER_ARG",
   "JACKLINE_TENANCY",
   "JACKLINE_MASTER_KEY",
   "JACKLINE_SECRET_STORAGE_LOCATION",

@@ -1,4 +1,5 @@
 import type { Connection } from "@jackline/db";
+import type { HttpObservabilityEnv, HttpRequestContext } from "@jackline/observability";
 import type { Logger } from "pino";
 
 export type GatewayConnectionContext = {
@@ -9,8 +10,10 @@ export type GatewayConnectionContext = {
   log: Logger;
 };
 
-export type GatewayEnv = {
-  Variables: {
+export type GatewayEnv = HttpObservabilityEnv & {
+  Variables: HttpObservabilityEnv["Variables"] & {
     gatewayContext: GatewayConnectionContext;
   };
 };
+
+export type { HttpRequestContext };

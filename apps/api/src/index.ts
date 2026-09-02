@@ -16,10 +16,22 @@ const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
 const { initAuth, setVerificationEmailSender } = await import("@jackline/auth");
+const { initObservability, shutdownObservability } = await import(
+  "@jackline/observability"
+);
 const { platformEmailServices } = await import(
   "./features/platformEmail/service.js"
 );
-const { logger } = await import("./lib/logger.js");
+const { logger, otelConfig } = await import("./lib/observability.js");
+
+const initOtelResult = await initObservability(otelConfig);
+if (initOtelResult.isErr()) {
+  throw initOtelResult.error;
+}
+
+process.on("SIGTERM", () => {
+  void shutdownObservability();
+});
 
 setVerificationEmailSender(async ({ to, url }) => {
   const result = await platformEmailServices.sendVerification(logger, to, url);
