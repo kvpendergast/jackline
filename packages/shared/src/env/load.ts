@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 
 import { SetupError } from "../errors/index.js";
+import { resolvePostgresUrl } from "./postgresUrl.js";
 import { EnvSchema, type Env } from "./schema.js";
 
 const ENV_KEYS = [
@@ -38,6 +39,10 @@ export function loadConfig(
   const picked = Object.fromEntries(
     ENV_KEYS.map((key) => [key, source[key]]),
   );
+  if (!picked["DATABASE_URL"]?.trim()) {
+    const built = resolvePostgresUrl(source);
+    if (built) picked["DATABASE_URL"] = built;
+  }
   const parsed = EnvSchema.safeParse(picked);
   if (!parsed.success) {
     return err(new SetupError(parsed.error.message));

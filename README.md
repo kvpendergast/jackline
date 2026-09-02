@@ -63,20 +63,14 @@ openssl rand -base64 32   # JACKLINE_MASTER_KEY (base64)
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 ```
 
-Set `DATABASE_URL` to your Postgres instance, for example:
+Configure Postgres in `.env` (see `.env.example` for variable names):
 
 ```bash
-# local Postgres on default port
-DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5432/jackline
+# Required: set a local dev password (not committed)
+POSTGRES_PASSWORD=your-dev-password
 
-# or Docker (example: publish container 5432 → host 5433)
-docker run -d --name jackline-pg \
-  -e POSTGRES_USER=jackline \
-  -e POSTGRES_PASSWORD=jackline \
-  -e POSTGRES_DB=jackline \
-  -p 5433:5432 postgres:16
-
-DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5433/jackline
+# Optional: leave DATABASE_URL empty — it is built from POSTGRES_* at startup.
+# For Docker Compose on host port 5433, set POSTGRES_PORT=5433 when running natively.
 ```
 
 Also set:
@@ -105,7 +99,7 @@ Per-tenant SSO (Settings → SSO) can set **Require SSO**, **Allowed email domai
 Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
 
 ```bash
-cp .env.example .env   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
+cp .env.example .env   # set POSTGRES_PASSWORD, JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
