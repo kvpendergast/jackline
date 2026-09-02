@@ -24,6 +24,10 @@ import {
   rootFeatures,
   tenantV1Features,
 } from "./registry.js";
+import {
+  agentCardHandler,
+  a2aIngressHandler,
+} from "./features/agents/a2aHandler.js";
 
 const configResult = getConfig();
 if (configResult.isErr()) throw configResult.error;
@@ -125,6 +129,12 @@ for (const feature of tenantV1Features) {
   }
 }
 v1.route("/", tenantV1);
+
+app.get(
+  "/agents/:handle/.well-known/agent-card.json",
+  agentCardHandler,
+);
+app.post("/a2a/:handle", a2aIngressHandler);
 
 app.route("/api/v1", v1);
 

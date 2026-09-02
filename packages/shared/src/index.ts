@@ -58,3 +58,4 @@ export {
   formatUpstreamCredentialFailure,
   type UpstreamCredentialFailureKind,
 } from "./myAccess/reconnectUrl.js";
+export { timingSafeEqualHex } from "./crypto/timingSafe.js";

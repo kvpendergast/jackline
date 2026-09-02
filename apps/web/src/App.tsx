@@ -12,6 +12,8 @@ import { LoginPage, SignupPage } from "@/pages/LoginPage";
 import { AuthCompletePage } from "@/pages/AuthCompletePage";
 import { VerifyEmailPage } from "@/pages/VerifyEmailPage";
 import { MyAccessPage } from "@/pages/MyAccessPage";
+import { AgentsPage } from "@/pages/AgentsPage";
+import { AgentDetailPage } from "@/pages/AgentDetailPage";
 import { RolesPage } from "@/pages/RolesPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SecretsPage } from "@/pages/SecretsPage";
@@ -92,6 +94,9 @@ export function App() {
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/my-access" element={<MyAccessPage />} />
+          <Route path="/my-agents" element={<AgentsPage />} />
+          <Route path="/my-agents/:id" element={<AgentDetailPage />} />
+          <Route path="/my-agent" element={<Navigate to="/my-agents" replace />} />
           <Route
             path="/dashboard"
             element={
