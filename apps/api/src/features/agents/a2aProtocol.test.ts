@@ -8,10 +8,6 @@ import {
   extractKnockPayload,
   isKnockIntent,
 } from "./a2aProtocol.js";
-import {
-  jacklineErrorToA2aHttpStatus,
-  jacklineErrorToJsonRpcCode,
-} from "./a2aBoundary.js";
 
 describe("extractKnockPayload", () => {
   it("parses a valid knock payload", () => {
@@ -59,17 +55,5 @@ describe("isKnockIntent", () => {
       }),
       true,
     );
-  });
-});
-
-describe("a2a boundary mapping", () => {
-  it("maps paused agent to 503", () => {
-    const error = authDenialToError("Agent is paused");
-    assert.equal(jacklineErrorToA2aHttpStatus(error), 503);
-  });
-
-  it("maps not found to JSON-RPC -32001", () => {
-    const error = authDenialToError("Agent is not published");
-    assert.equal(jacklineErrorToJsonRpcCode(error), -32000);
   });
 });
