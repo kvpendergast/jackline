@@ -1,0 +1,22 @@
+{
+  "name": "@jackline/integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"no unit tests\"",
+    "test:integration": "node --import tsx --import ./src/hooks.ts --test --test-concurrency=1 --test-force-exit \"src/**/*.integration.test.ts\"",
+    "lint": "echo \"lint later\""
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "dependencies": {
+    "@jackline/auth": "workspace:*",
+    "@jackline/db": "workspace:*",
+    "@jackline/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  }
+}
