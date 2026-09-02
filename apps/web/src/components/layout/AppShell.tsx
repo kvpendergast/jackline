@@ -29,7 +29,7 @@ const SHELL_VIEW_KEY = "jackline.shellView";
 
 const personalNav = [
   { to: "/my-access", label: "My Access", icon: UserRound },
-  { to: "/my-agent", label: "My Agent", icon: Bot },
+  { to: "/my-agents", label: "Agents", icon: Bot },
   { to: "/connections", label: "Connections", icon: Cable },
   { to: "/access-requests", label: "Access requests", icon: Shield },
   { to: "/notifications", label: "Notifications", icon: Bell },
@@ -103,7 +103,8 @@ function isAdminOnlyPath(pathname: string): boolean {
 function isPersonalPath(pathname: string): boolean {
   return (
     pathname === "/my-access" ||
-    pathname === "/my-agent" ||
+    pathname === "/my-agents" ||
+    pathname.startsWith("/my-agents/") ||
     pathname === "/connections" ||
     pathname.startsWith("/connections/") ||
     pathname === "/access-requests"
