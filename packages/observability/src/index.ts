@@ -25,7 +25,7 @@ export {
   headersToCarrier,
   type OutboundTraceHeaders,
 } from "./propagation.js";
-export { setHttpSpanStatus, recordSpanException } from "./span.js";
+export { setHttpSpanStatus, recordSpanException, setSpanAttributes } from "./span.js";
 export {
   createHttpObservabilityMiddleware,
   type HttpRequestContext,
