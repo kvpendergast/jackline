@@ -1,17 +1,22 @@
 # Production single-host stand-up for Jackline (default topology).
 #
-# Generic Docker self-host (bundled Postgres):
+# Prefer pulling published GHCR images (fast path):
 #   cp deploy/.env.prod.example .env.prod
-#   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
+#   # set secrets + POSTGRES_PASSWORD (or DATABASE_URL)
 #   docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-#     --env-file .env.prod up --build -d
+#     --env-file .env.prod pull
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+#     --env-file .env.prod up -d
+#
+# Build from source instead (no registry):
+#   docker compose ... up --build -d
+#
+# Override images for a private registry / mirror via JACKLINE_*_IMAGE in .env.prod.
 #
 # BYO / managed Postgres: omit compose.postgres.yml and set DATABASE_URL
 # (GCP Pulumi + Cloud SQL is one recipe — see deploy/pulumi/README.md).
 #
 # Live VM updates: use deploy/scripts/remote-deploy.sh (not `up --build -d`).
-# That script builds first, starts a second replica, and only removes the old
-# container after Docker health is green. `up --build -d` replaces in place.
 #
 # HTTPS: set JACKLINE_SITE_ADDRESS / JACKLINE_DOCS_SITE_ADDRESS to bare hostnames
 # (no http://) and open ports 80 + 443. See apps/docs/pages/self-hosting.mdx.
@@ -22,6 +27,7 @@ name: jackline
 
 services:
   migrate:
+    image: ${JACKLINE_MIGRATE_IMAGE:-ghcr.io/kvpendergast/jackline-migrate:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -33,6 +39,7 @@ services:
     restart: "no"
 
   api:
+    image: ${JACKLINE_API_IMAGE:-ghcr.io/kvpendergast/jackline-api:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -57,6 +64,7 @@ services:
     restart: unless-stopped
 
   gateway:
+    image: ${JACKLINE_GATEWAY_IMAGE:-ghcr.io/kvpendergast/jackline-gateway:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -80,6 +88,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: ${JACKLINE_WEB_IMAGE:-ghcr.io/kvpendergast/jackline-web:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -95,6 +104,7 @@ services:
     restart: unless-stopped
 
   docs:
+    image: ${JACKLINE_DOCS_IMAGE:-ghcr.io/kvpendergast/jackline-docs:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile

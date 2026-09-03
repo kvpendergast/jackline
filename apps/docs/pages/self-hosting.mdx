@@ -36,7 +36,8 @@ Next: [Connect Cursor](/connect-cursor).
 
 ## Production images (generic Docker)
 
-Multi-stage images (`deploy/Dockerfile`) + Caddy on one origin (simplest cookies/CORS).  
+Multi-stage images (`deploy/Dockerfile`) are published to **GitHub Container Registry** (`ghcr.io/kvpendergast/jackline-*`) on every `main` push and on `v*` tags. Compose still includes `build:` so `up --build` works offline.
+
 **Include Postgres** with the overlay (default self-host story):
 
 ```bash
@@ -44,7 +45,9 @@ cp deploy/.env.prod.example .env.prod
 # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
 
 docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-  --env-file .env.prod up --build -d
+  --env-file .env.prod pull
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod up -d
 ```
 
 | URL | Service |
@@ -54,18 +57,53 @@ docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
 | http://localhost/openapi.json | OpenAPI JSON |
 | http://localhost/health | API health |
 
-Clone + build is intentional for open source — no registry pull required yet.
+While the GitHub repo is private, GHCR packages default to **private** — either make each package Public in GitHub → Packages, or `docker login ghcr.io` before `pull`. Build from source anytime with `up --build`.
+
+Pin or retarget images via `.env.prod`:
+
+```bash
+JACKLINE_API_IMAGE=ghcr.io/kvpendergast/jackline-api:sha-abcdef0
+JACKLINE_GATEWAY_IMAGE=ghcr.io/kvpendergast/jackline-gateway:sha-abcdef0
+# …
+```
 
 ## Recipes
 
 Start from the generic path, then change only what the recipe names.
+
+### Mirror images to your registry
+
+Enterprises often pull only from ECR / GCR / ACR / Harbor. Mirror once, then point Compose at your tags:
+
+```bash
+SRC=ghcr.io/kvpendergast
+DST=123456789012.dkr.ecr.us-east-1.amazonaws.com
+TAG=latest   # or sha-… / semver from GHCR
+
+for name in api gateway web docs migrate; do
+  docker pull "$SRC/jackline-$name:$TAG"
+  docker tag  "$SRC/jackline-$name:$TAG" "$DST/jackline-$name:$TAG"
+  docker push "$DST/jackline-$name:$TAG"
+done
+```
+
+In `.env.prod`:
+
+```bash
+JACKLINE_API_IMAGE=123456789012.dkr.ecr.us-east-1.amazonaws.com/jackline-api:latest
+JACKLINE_GATEWAY_IMAGE=123456789012.dkr.ecr.us-east-1.amazonaws.com/jackline-gateway:latest
+JACKLINE_WEB_IMAGE=123456789012.dkr.ecr.us-east-1.amazonaws.com/jackline-web:latest
+JACKLINE_DOCS_IMAGE=123456789012.dkr.ecr.us-east-1.amazonaws.com/jackline-docs:latest
+JACKLINE_MIGRATE_IMAGE=123456789012.dkr.ecr.us-east-1.amazonaws.com/jackline-migrate:latest
+```
 
 ### BYO Postgres
 
 Omit `compose.postgres.yml`. Set `DATABASE_URL` in `.env.prod` to your managed DB (RDS, Cloud SQL, etc.):
 
 ```bash
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml --env-file .env.prod pull
+docker compose -f deploy/compose.prod.yml --env-file .env.prod up -d
 ```
 
 ### GCP (Pulumi)
