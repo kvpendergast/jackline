@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Update Jackline on a VM (CI via gcloud compute ssh / scp, or manual).
 #
+# Default mode: pull prebuilt images from GHCR, then rolling cutover.
+# Fallback:     JACKLINE_BUILD_ON_VM=1 builds images locally (slow on small VMs).
+#
 # Rolling cutover (app services) — the live container is never replaced in place:
-#   1. Build new images first. Running containers keep serving the old image.
+#   1. Pull (or build) new images. Running containers keep serving the old image.
 #   2. `compose up --scale=2 --no-recreate` starts a *second* replica from the
 #      new image. Compose will not recreate the existing replica.
 #   3. Wait until Docker health (compose/Dockerfile HEALTHCHECK) is `healthy`
@@ -20,6 +23,7 @@
 #   GITHUB_TOKEN_FILE   Optional path to a token file (read once, then shredded)
 #   GITHUB_TOKEN        Optional token in env (prefer TOKEN_FILE — avoids argv leaks)
 #   ENV_PROD_SRC        Optional path to a rendered .env.prod to install at ROOT
+#   JACKLINE_BUILD_ON_VM  Set to 1 to build images on the VM instead of pulling
 #   JACKLINE_DEPLOY_INNER  Set by systemd-run re-exec (do not set manually)
 set -euo pipefail
 
@@ -46,7 +50,7 @@ if [[ -z "${JACKLINE_DEPLOY_INNER:-}" && -d /run/systemd/system ]] && command -v
   fi
   systemctl reset-failed jackline-deploy.service 2>/dev/null || true
   extra=()
-  for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT; do
+  for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT JACKLINE_BUILD_ON_VM; do
     if [[ -n "${!k:-}" ]]; then
       extra+=(-E "${k}=${!k}")
     fi
@@ -383,15 +387,27 @@ fi
 
 SITE_HOST="$(grep -E '^JACKLINE_SITE_ADDRESS=' .env.prod | head -1 | cut -d= -f2- | tr -d '\r' || true)"
 
-# Serial builds on e2-small — parallel vite/zudoku OOMs and wedges the VM.
-export COMPOSE_PARALLEL_LIMIT=1
-export BUILDKIT_MAX_PARALLELISM=1
+ghcr_login() {
+  if [[ -z "${TOKEN}" ]]; then
+    echo "warning: no GitHub token — GHCR pull may fail for private packages" >&2
+    return 0
+  fi
+  echo "${TOKEN}" | docker login ghcr.io -u x-access-token --password-stdin
+}
 
-echo "Building images serially (running containers stay up)…"
-for svc in migrate api gateway web docs; do
-  echo "Building ${svc}…"
-  compose build "${svc}"
-done
+if [[ "${JACKLINE_BUILD_ON_VM:-0}" == "1" ]]; then
+  export COMPOSE_PARALLEL_LIMIT=1
+  export BUILDKIT_MAX_PARALLELISM=1
+  echo "Building images serially on VM (running containers stay up)…"
+  for svc in migrate api gateway web docs; do
+    echo "Building ${svc}…"
+    compose build "${svc}"
+  done
+else
+  echo "Pulling prebuilt GHCR images…"
+  ghcr_login
+  compose pull
+fi
 
 echo "Running migrations (one-shot; does not replace api/gateway)…"
 compose run --rm --no-deps migrate

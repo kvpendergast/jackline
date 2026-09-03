@@ -36,17 +36,31 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: read
 
 concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  wait-for-images:
+    name: Wait for GHCR images
     runs-on: ubuntu-latest
-    # e2-small serial image builds can exceed 60m; remote-deploy also re-execs
-    # under systemd so a cancelled SSH session does not kill docker.
-    timeout-minutes: 120
+    timeout-minutes: 30
+    steps:
+      - name: Wait for Publish images workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          check-name: api
+          wait-interval: 15
+          allowed-conclusions: success
+
+  deploy:
+    needs: wait-for-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
     env:
       DEPLOY_PATH: ${{ github.event.inputs.deploy_path || vars.JACKLINE_DEPLOY_PATH || 'vm' }}
@@ -188,6 +202,11 @@ jobs:
           fi
           gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600
           sleep 15
+
+          # Pin images to this commit's SHA tag (published by Publish images workflow).
+          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
+          export JACKLINE_IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "Image tag: ${JACKLINE_IMAGE_TAG}"
 
           # Render .env.prod on the runner from Secret Manager (never log contents).
           ENV_FILE="$(mktemp)"
