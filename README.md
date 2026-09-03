@@ -28,7 +28,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
-| Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod; optional gateway-split / byo-edge overlays) |
+| Compose stand-up | Done — generic Docker + Postgres overlay; prod images on GHCR (`jackline-*`) with overridable `JACKLINE_*_IMAGE` |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 | Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
@@ -108,7 +108,7 @@ docker compose -f deploy/docker-compose.yml up --build
 
 ### Production Compose (generic Docker)
 
-Multi-stage images (`deploy/Dockerfile`) + Caddy (`deploy/compose.prod.yml`).  
+Multi-stage images on **GHCR** (`ghcr.io/kvpendergast/jackline-*`) + Caddy (`deploy/compose.prod.yml`).  
 **Bundled Postgres** (default self-host): add `compose.postgres.yml`.  
 **BYO / Cloud SQL:** omit the overlay and set `DATABASE_URL`.
 
@@ -117,8 +117,12 @@ cp deploy/.env.prod.example .env.prod
 # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
 
 docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-  --env-file .env.prod up --build -d
+  --env-file .env.prod pull
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod up -d
 ```
+
+`up --build` still works if you prefer building from source. Override `JACKLINE_*_IMAGE` to pin a tag or use a private mirror (see `apps/docs/pages/self-hosting.mdx`).
 
 | URL | Service |
 | --- | --- |
@@ -136,11 +140,11 @@ docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
 
 # Gateway on its own published port; Caddy = control plane only
 docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-  -f deploy/compose.gateway-split.yml --env-file .env.prod up --build -d
+  -f deploy/compose.gateway-split.yml --env-file .env.prod up -d
 
 # No Caddy — publish api/gateway/web/docs for your own reverse proxy
 docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-  -f deploy/compose.byo-edge.yml --env-file .env.prod up --build -d
+  -f deploy/compose.byo-edge.yml --env-file .env.prod up -d
 ```
 
 GCP VM / Cloud SQL: `deploy/pulumi/README.md`.

@@ -7,7 +7,9 @@
 #   cp deploy/.env.prod.example .env.prod
 #   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
 #   docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
-#     --env-file .env.prod up --build -d
+#     --env-file .env.prod pull
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+#     --env-file .env.prod up -d
 #
 # BYO Postgres: omit this overlay and set DATABASE_URL in .env.prod instead.
 

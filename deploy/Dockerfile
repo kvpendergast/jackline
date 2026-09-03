@@ -6,6 +6,9 @@
 #   docker build -f deploy/Dockerfile --target web -t jackline-web .
 #   docker build -f deploy/Dockerfile --target docs -t jackline-docs .
 #   docker build -f deploy/Dockerfile --target migrate -t jackline-migrate .
+#
+# Published to GHCR by .github/workflows/publish-images.yml:
+#   ghcr.io/kvpendergast/jackline-{api,gateway,web,docs,migrate}
 
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
