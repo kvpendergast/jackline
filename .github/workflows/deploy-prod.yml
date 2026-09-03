@@ -1,4 +1,7 @@
-# Deploy Jackline to GCP on push to main (Pulumi + optional VM compose update).
+# Deploy Jackline to GCP after GHCR images are published (Pulumi + VM compose update).
+#
+# Triggers after "Publish images" succeeds on main (not on every push — that would
+# race ahead of the image build). Manual runs via workflow_dispatch still work.
 #
 # Prerequisites (per-repo — not inherited by forks):
 #   Secrets:
@@ -24,7 +27,9 @@
 name: Deploy prod
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Publish images"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -37,28 +42,17 @@ permissions:
   contents: read
   id-token: write
   packages: read
+  actions: read
 
 concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
 jobs:
-  wait-for-images:
-    name: Wait for GHCR images
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Wait for Publish images workflow
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          check-name: api
-          wait-interval: 15
-          allowed-conclusions: success
-
   deploy:
-    needs: wait-for-images
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -76,9 +70,13 @@ jobs:
       JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
       JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
+      # Prefer the commit that Publish images built; fall back for manual runs.
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -164,7 +162,7 @@ jobs:
 
           if [[ -n "${CLOUD_SQL_INSTANCE}" ]]; then
             CLOUD_SQL_INSTANCE_NAME="${CLOUD_SQL_INSTANCE}" \
-              GIT_SHA="${GITHUB_SHA}" \
+              GIT_SHA="${DEPLOY_SHA}" \
               JACKLINE_CLOUDSQL_ON_DEMAND_KEEP="${{ vars.JACKLINE_CLOUDSQL_ON_DEMAND_KEEP || '7' }}" \
               bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-cloudsql-backup.sh"
           else
@@ -203,9 +201,10 @@ jobs:
           gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600
           sleep 15
 
-          # Pin images to this commit's SHA tag (published by Publish images workflow).
-          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
+          # Pin images to the commit Publish images built (sha-<short> tag).
+          SHORT_SHA="$(echo "${DEPLOY_SHA}" | cut -c1-7)"
           export JACKLINE_IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "Deploy SHA: ${DEPLOY_SHA}"
           echo "Image tag: ${JACKLINE_IMAGE_TAG}"
 
           # Render .env.prod on the runner from Secret Manager (never log contents).
@@ -261,7 +260,7 @@ jobs:
           shred -u "${ENV_FILE}" "${TOKEN_FILE}" 2>/dev/null || rm -f "${ENV_FILE}" "${TOKEN_FILE}"
 
           "${SSH[@]}" --command="sudo \
-            GIT_SHA='${GITHUB_SHA}' \
+            GIT_SHA='${DEPLOY_SHA}' \
             GIT_REPO='${JACKLINE_GIT_REPO}' \
             GIT_REF='${JACKLINE_GIT_REF:-main}' \
             ENV_PROD_SRC=/tmp/jackline.env.prod \
