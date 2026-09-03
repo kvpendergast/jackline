@@ -18,6 +18,9 @@ set -euo pipefail
 : "${GCP_PROJECT_ID:?GCP_PROJECT_ID is required}"
 : "${JACKLINE_DOMAIN:?JACKLINE_DOMAIN is required}"
 
+GHCR_OWNER="$(echo "${JACKLINE_GHCR_OWNER:-kvpendergast}" | tr '[:upper:]' '[:lower:]')"
+IMAGE_TAG="${JACKLINE_IMAGE_TAG:-latest}"
+
 PREFIX="${JACKLINE_SECRET_PREFIX:-jackline-pulumi-}"
 OUT="${1:-}"
 
@@ -113,6 +116,11 @@ API_HOST=0.0.0.0
 API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
+JACKLINE_API_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-api:${IMAGE_TAG}
+JACKLINE_GATEWAY_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-gateway:${IMAGE_TAG}
+JACKLINE_WEB_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-web:${IMAGE_TAG}
+JACKLINE_DOCS_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-docs:${IMAGE_TAG}
+JACKLINE_MIGRATE_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-migrate:${IMAGE_TAG}
 ${GOOGLE_ENV_BLOCK}
 ${EMAIL_ENV_BLOCK}
 EOF
