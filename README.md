@@ -8,7 +8,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 
 ## Status
 
-**Phase 1 — foundation (in progress)**
+**Phase 1 — foundation (self-host usable)**
 
 | Area | Status |
 | --- | --- |
@@ -18,13 +18,14 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Better Auth (email/password + sessions) | Done |
 | Control-plane API (`@jackline/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
+| Signup lock after first org | Done — public Better Auth email signup closed; org create still allowed in `multi` |
 | Request context + structured logging | Done |
 | Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Chat drawer, Servers quick-add catalog, connections, access requests, audit |
 | In-product Chat | TanStack AI on the API; tools via existing `/mcp` gateway; Settings → Chat (full_admin) |
 | Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry, Robinhood Trading/Banking |
 | MCP gateway (`@jackline/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
-| Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |
+| Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh); mTLS deferred |
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
 | Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
@@ -36,6 +37,13 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
 
 Next: rate limits, Prometheus metrics.
+
+## Community
+
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- License: [MIT](LICENSE)
 
 ## Stack
 
