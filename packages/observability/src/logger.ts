@@ -1,4 +1,5 @@
 import pino, { type Logger } from "pino";
+import { withGcpStackTrace } from "./logFormatters.js";
 import { activeTraceLogFields } from "./traceContext.js";
 
 export type CreateLoggerOptions = {
@@ -11,6 +12,14 @@ export function createLogger(options: CreateLoggerOptions): Logger {
 
   return pino({
     level: options.logLevel,
+    serializers: {
+      err: pino.stdSerializers.err,
+    },
+    formatters: {
+      log(object) {
+        return withGcpStackTrace(object);
+      },
+    },
     mixin() {
       return activeTraceLogFields();
     },
