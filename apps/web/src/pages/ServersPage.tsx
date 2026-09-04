@@ -806,8 +806,18 @@ function ServerForm({
           >
             <option value="api_key">api_key</option>
             <option value="oauth">oauth</option>
-            <option value="mtls">mtls</option>
+            {authMethod === "mtls" ? (
+              <option value="mtls" disabled>
+                mtls (unavailable)
+              </option>
+            ) : null}
           </FieldSelect>
+          {authMethod === "mtls" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              mTLS is not available yet. Switch to api_key or oauth to
+              keep using this server.
+            </p>
+          ) : null}
         </Field>
       </div>
       <Field label="Credential ownership">
@@ -1072,11 +1082,12 @@ function ServerForm({
             </>
           )}
         </div>
-      ) : (
+      ) : authMethod === "mtls" ? (
         <p className="text-xs text-muted-foreground">
-          mTLS upstream auth is not supported yet.
+          mTLS credential storage is not available yet. Switch auth to
+          api_key or oauth above.
         </p>
-      )}
+      ) : null}
 
       <Button type="submit" className="w-full" disabled={busy}>
         {busy

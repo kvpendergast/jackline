@@ -417,7 +417,8 @@ function ConnectForm({
   if (authMethod === "mtls") {
     return (
       <p className="text-sm text-muted-foreground">
-        mTLS upstream auth is not supported yet.
+        mTLS is not available yet. Ask an admin to switch this server to
+        api_key or oauth.
       </p>
     );
   }

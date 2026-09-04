@@ -35,7 +35,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
 | Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
 
-Next: rate limits, mTLS, Prometheus metrics.
+Next: rate limits, signup lock after bootstrap, Prometheus metrics.
 
 ## Stack
 
