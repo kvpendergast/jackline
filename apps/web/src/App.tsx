@@ -21,6 +21,7 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { ServersPage } from "@/pages/ServersPage";
 import { ToolsPage } from "@/pages/ToolsPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { ShellPreviewPage } from "@/pages/ShellPreviewPage";
 
 function ProtectedLayout() {
   const { loading, user, tenantId } = useAuth();
@@ -91,6 +92,7 @@ export function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/complete" element={<AuthCompletePage />} />
+        <Route path="/__preview/shell" element={<ShellPreviewPage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/my-access" element={<MyAccessPage />} />
