@@ -1,21 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 32" fill="none" aria-label="Jackline">
-  <circle cx="21" cy="5.5" r="2" stroke="currentColor" stroke-width="1.75" />
   <path
-    d="M21 8v9.25c0 5.75-7.25 8.5-12.25 5.25L6 24.5"
-    stroke="currentColor"
-    stroke-width="2.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+    fill="currentColor"
+    d="M12 5.5h11.5a1.25 1.25 0 0 1 0 2.5H20.5v13.25c0 3.45-2.2 5.75-5.75 5.75-3.4 0-5.75-2.15-5.75-5.5a1.25 1.25 0 1 1 2.5 0c0 1.85 1.2 3 3.25 3 2.05 0 3.25-1.2 3.25-3.25V8H12A1.25 1.25 0 0 1 12 5.5Z"
   />
-  <circle cx="6" cy="24.5" r="1.65" stroke="currentColor" stroke-width="1.5" />
-  <path
-    d="M18.25 15.75V13.1c0-1.55 2.55-1.55 2.55 0v4.35c0 1.55-2.55 1.55-2.55 0v-1.7"
-    stroke="currentColor"
-    stroke-width="1.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <path d="M18.25 13.1V15.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
   <text
     x="38"
     y="21.5"

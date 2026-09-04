@@ -2,34 +2,51 @@ const THEME_KEY = "jackline-marketing-theme";
 const LOGO_KEY = "jackline-marketing-logo";
 
 const LOGO_SYMBOLS = {
-  j: "#jackline-mark-j",
-  line: "#jackline-mark-line",
+  solid: "#mark-solid",
+  line: "#mark-line",
+  tile: "#mark-tile",
+  word: null,
 };
 
 function setLogo(variant) {
-  const symbol = LOGO_SYMBOLS[variant] ?? LOGO_SYMBOLS.j;
-  localStorage.setItem(LOGO_KEY, variant);
+  const key = LOGO_SYMBOLS[variant] !== undefined ? variant : "solid";
+  const symbol = LOGO_SYMBOLS[key];
+  localStorage.setItem(LOGO_KEY, key);
+
+  document.documentElement.dataset.logo = key;
 
   document.querySelectorAll(".logo-use use").forEach((use) => {
-    use.setAttribute("href", symbol);
+    if (symbol) use.setAttribute("href", symbol);
+  });
+
+  document.querySelectorAll(".brand").forEach((brand) => {
+    brand.dataset.logoMode = key;
   });
 
   document.querySelectorAll(".logo-variant-btn").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.logo === variant);
+    btn.classList.toggle("is-active", btn.dataset.logo === key);
   });
 
   document.querySelectorAll("[data-logo-card]").forEach((card) => {
-    card.classList.toggle("is-featured", card.dataset.logoCard === variant);
+    card.classList.toggle("is-featured", card.dataset.logoCard === key);
   });
 }
 
 function initLogo() {
   const stored = localStorage.getItem(LOGO_KEY);
-  const variant = stored === "line" ? "line" : "j";
+  const variant =
+    stored === "line" || stored === "tile" || stored === "word" || stored === "solid"
+      ? stored
+      : "solid";
   setLogo(variant);
 
   document.querySelectorAll(".logo-variant-btn").forEach((btn) => {
-    btn.addEventListener("click", () => setLogo(btn.dataset.logo ?? "j"));
+    btn.addEventListener("click", () => setLogo(btn.dataset.logo ?? "solid"));
+  });
+
+  document.querySelectorAll("[data-logo-card]").forEach((card) => {
+    card.addEventListener("click", () => setLogo(card.dataset.logoCard ?? "solid"));
+    card.style.cursor = "pointer";
   });
 }
 

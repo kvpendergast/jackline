@@ -266,16 +266,67 @@ a {
   outline-offset: 2px;
 }
 
-.logo-concepts {
+.logo-principles {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.logo-principles h3 {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.logo-principles ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.logo-principles li + li {
+  margin-top: 0.4rem;
+}
+
+.logo-principles strong {
+  color: var(--text);
+}
+
+html[data-logo="word"] [data-hide-when-word],
+html[data-logo="word"] .brand .brand-mark,
+.brand[data-logo-mode="word"] .brand-mark {
+  display: none;
+}
+
+.logo-concepts-4 {
   display: grid;
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
-@media (min-width: 640px) {
-  .logo-concepts {
+@media (min-width: 900px) {
+  .logo-concepts-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 640px) and (max-width: 899px) {
+  .logo-concepts-4 {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.logo-concept-word {
+  padding-top: 2rem;
+  padding-bottom: 0.5rem;
+}
+
+.logo-concept-word .logo-lockup-name {
+  font-size: 1.75rem;
 }
 
 .logo-concept-card {
