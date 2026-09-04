@@ -24,6 +24,7 @@
     "@jackline/db": "workspace:*",
     "@jackline/observability": "workspace:*",
     "@jackline/policy": "workspace:*",
+    "@jackline/quotas": "workspace:*",
     "@jackline/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "drizzle-orm": "^0.45.2",

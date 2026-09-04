@@ -10,6 +10,7 @@ export {
   ForbiddenError,
   NotFoundError,
   BadRequestError,
+  RateLimitedError,
   TenantLimitReachedError,
   NotImplementedError,
   EncryptionError,

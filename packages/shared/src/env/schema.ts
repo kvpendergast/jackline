@@ -77,6 +77,15 @@ export const EnvSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASS: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).optional(),
+  /**
+   * Optional Redis URL for shared rate-limit counters across API/gateway replicas.
+   * When unset, quotas use in-process memory (single-node).
+   */
+  REDIS_URL: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().url().optional(),
+  ),
 }).strict()
   .superRefine((env, ctx) => {
     const any =
