@@ -41,6 +41,8 @@ export const jacklineApi = {
   signup: (body: SignupInput) =>
     api<SignupResult>("/api/v1/signup", { method: "POST", body }),
 
+  signupStatus: () => api<{ open: boolean }>("/api/v1/signup/status"),
+
   signupSocial: (body: { organizationName: string }) =>
     api<SignupResult>("/api/v1/signup/social", { method: "POST", body }),
 

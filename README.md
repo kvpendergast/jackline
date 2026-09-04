@@ -35,7 +35,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
 | Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
 
-Next: rate limits, signup lock after bootstrap, Prometheus metrics.
+Next: rate limits, Prometheus metrics.
 
 ## Stack
 
@@ -209,6 +209,8 @@ curl -sS -c /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signu
 Expect `201` with `user`, `tenant`, `membership`, and session cookies.
 
 In **`JACKLINE_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
+
+After the first organization exists, Better Auth’s public email signup (`POST /api/auth/sign-up/email`) is **disabled** so strangers cannot create orphan user accounts. Additional humans should use invites (sign in + accept invite) or admin-created service users. Check availability with `GET /api/v1/signup/status`.
 
 ### Sign in (if an org already exists)
 
