@@ -3,16 +3,17 @@ import { useSearchParams } from "react-router-dom";
 import { encodeOAuthSecretValue, upstreamSecretKind } from "@jackline/shared";
 import type { MyAccessServer, ServerAuthMethod } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
+import {
+  DataList,
+  DataListEmpty,
+  DataListRow,
+  ResponsiveTable,
+} from "@/components/jackline/DataList";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { ResponsiveDialog } from "@/components/jackline/ResponsiveDialog";
 import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -189,52 +190,22 @@ export function MyAccessPage() {
         </p>
       ) : null}
 
-      <div className="border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Server</TableHead>
-              <TableHead>Ownership</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : null}
+      <ResponsiveTable
+        list={
+          <DataList>
+            {loading ? <DataListEmpty>Loading…</DataListEmpty> : null}
             {!loading && items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
-                  No active servers yet. Ask an admin to enable apps for your
-                  organization.
-                </TableCell>
-              </TableRow>
+              <DataListEmpty>
+                No active servers yet. Ask an admin to enable apps for your
+                organization.
+              </DataListEmpty>
             ) : null}
             {items.map((row) => (
-              <TableRow key={row.serverId}>
-                <TableCell>
-                  <div className="font-medium">{row.name}</div>
-                  <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
-                  <div className="mt-1">
-                    <KindBadge kind={row.authMethod} />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm">{modeLabel(row.credentialMode)}</div>
-                  {row.credentialMode === "either" &&
-                  row.sharedFallbackAvailable ? (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Shared org credential available as fallback
-                    </p>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  {row.credentialMode === "shared" ? (
+              <DataListRow
+                key={row.serverId}
+                title={row.name}
+                status={
+                  row.credentialMode === "shared" ? (
                     <KindBadge kind="org_managed" />
                   ) : (
                     <KindBadge
@@ -242,11 +213,24 @@ export function MyAccessPage() {
                         row.status === "connected" ? "connected" : "missing"
                       }
                     />
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {row.canConnect ? (
-                    <div className="flex justify-end gap-2">
+                  )
+                }
+                meta={
+                  <>
+                    <div>
+                      {modeLabel(row.credentialMode)} ·{" "}
+                      <KindBadge kind={row.authMethod} />
+                    </div>
+                    <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
+                    {row.credentialMode === "either" &&
+                    row.sharedFallbackAvailable ? (
+                      <p>Shared org credential available as fallback</p>
+                    ) : null}
+                  </>
+                }
+                actions={
+                  row.canConnect ? (
+                    <>
                       {row.oauthConnectAvailable ? (
                         <Button
                           size="sm"
@@ -281,50 +265,157 @@ export function MyAccessPage() {
                           Disconnect
                         </Button>
                       ) : null}
-                    </div>
+                    </>
                   ) : (
                     <span className="text-xs text-muted-foreground">
                       Managed by your organization
                     </span>
-                  )}
-                </TableCell>
-              </TableRow>
+                  )
+                }
+              />
             ))}
-          </TableBody>
-        </Table>
-      </div>
+          </DataList>
+        }
+        table={
+          <DataList>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Server</TableHead>
+                  <TableHead>Ownership</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-muted-foreground">
+                      Loading…
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {!loading && items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-muted-foreground">
+                      No active servers yet. Ask an admin to enable apps for your
+                      organization.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {items.map((row) => (
+                  <TableRow key={row.serverId}>
+                    <TableCell>
+                      <div className="font-medium">{row.name}</div>
+                      <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
+                      <div className="mt-1">
+                        <KindBadge kind={row.authMethod} />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {modeLabel(row.credentialMode)}
+                      </div>
+                      {row.credentialMode === "either" &&
+                      row.sharedFallbackAvailable ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Shared org credential available as fallback
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      {row.credentialMode === "shared" ? (
+                        <KindBadge kind="org_managed" />
+                      ) : (
+                        <KindBadge
+                          kind={
+                            row.status === "connected" ? "connected" : "missing"
+                          }
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.canConnect ? (
+                        <div className="flex justify-end gap-2">
+                          {row.oauthConnectAvailable ? (
+                            <Button
+                              size="sm"
+                              onClick={() => void onOauthConnect(row)}
+                            >
+                              {row.status === "connected"
+                                ? "Reconnect"
+                                : "Connect with OAuth"}
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setError(null);
+                              setInfo(null);
+                              setConnecting(row);
+                            }}
+                          >
+                            {row.oauthConnectAvailable
+                              ? "Paste instead"
+                              : row.status === "connected"
+                                ? "Rotate"
+                                : "Connect"}
+                          </Button>
+                          {row.status === "connected" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void onDisconnect(row)}
+                            >
+                              Disconnect
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Managed by your organization
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataList>
+        }
+      />
 
-      <Dialog
+      <ResponsiveDialog
         open={!!connecting}
         onOpenChange={(open) => {
           if (!open) setConnecting(null);
         }}
+        title={
+          <>
+            {connecting?.status === "connected" ? "Rotate" : "Connect"}{" "}
+            {connecting?.name}
+          </>
+        }
+        description="Upstream credential for tools you can use through Jackline policy."
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {connecting?.status === "connected" ? "Rotate" : "Connect"}{" "}
-              {connecting?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {connecting ? (
-            <ConnectForm
-              server={connecting}
-              onDone={async () => {
-                setConnecting(null);
-                setInfo(`Connected ${connecting.name}`);
-                await load();
-              }}
-              onError={setError}
-              onOauthConnect={
-                connecting.oauthConnectAvailable
-                  ? () => void onOauthConnect(connecting)
-                  : undefined
-              }
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+        {connecting ? (
+          <ConnectForm
+            server={connecting}
+            onDone={async () => {
+              setConnecting(null);
+              setInfo(`Connected ${connecting.name}`);
+              await load();
+            }}
+            onError={setError}
+            onOauthConnect={
+              connecting.oauthConnectAvailable
+                ? () => void onOauthConnect(connecting)
+                : undefined
+            }
+          />
+        ) : null}
+      </ResponsiveDialog>
     </div>
   );
 }

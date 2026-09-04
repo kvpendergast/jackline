@@ -344,8 +344,8 @@ function AuthScreen({
   children: ReactNode;
 }) {
   return (
-    <div className="lattice-bg flex min-h-svh items-center justify-center p-6">
-      <div className="w-full max-w-md border border-border bg-card p-6 shadow-none">
+    <div className="lattice-bg flex min-h-svh items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+      <div className="w-full max-w-md border border-border bg-card p-5 shadow-none sm:p-6">
         <div className="mb-6 space-y-1">
           <p className="section-label">Jackline</p>
           <h1 className="text-2xl font-medium tracking-[-0.03em]">{title}</h1>

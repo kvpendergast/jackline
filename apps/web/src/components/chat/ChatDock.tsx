@@ -24,6 +24,7 @@ import { jacklineApi } from "@/lib/jackline-api";
 import { cn } from "@/lib/utils";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { useChatAutoScroll } from "@/components/chat/useChatAutoScroll";
+import { useIsDesktop } from "@/hooks/use-media-query";
 
 type Layout = "closed" | "drawer" | "expanded";
 
@@ -413,14 +414,14 @@ function ChatOverlay({
 
   if (layout === "drawer") {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 flex w-[min(100%,400px)] border-l border-border shadow-none">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-[min(100%,400px)] border-l border-border pb-[env(safe-area-inset-bottom)] shadow-none pt-[env(safe-area-inset-top)]">
         {children}
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
       {children}
     </div>
   );
@@ -428,10 +429,31 @@ function ChatOverlay({
 
 function ChatDockInner({ tenantId }: { tenantId: string }) {
   const { membership } = useAuth();
+  const isDesktop = useIsDesktop();
   const isFullAdmin = membership?.role === "full_admin";
   const [layout, setLayout] = useState<Layout>("closed");
   const [session, setSession] = useState<PublicChatSession | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+
+  function openChat() {
+    setLayout(isDesktop ? "drawer" : "expanded");
+  }
+
+  function toggleChat() {
+    if (layout === "closed") {
+      openChat();
+      return;
+    }
+    setLayout("closed");
+  }
+
+  // If the viewport grows while in expanded-from-mobile, keep expanded;
+  // if it shrinks while in drawer, promote to expanded for usability.
+  useEffect(() => {
+    if (!isDesktop && layout === "drawer") {
+      setLayout("expanded");
+    }
+  }, [isDesktop, layout]);
 
   const connection = useMemo(
     () =>
@@ -490,7 +512,7 @@ function ChatDockInner({ tenantId }: { tenantId: string }) {
         size="icon-sm"
         aria-label="Open Chat"
         aria-pressed={layout !== "closed"}
-        onClick={() => setLayout(layout === "closed" ? "drawer" : "closed")}
+        onClick={toggleChat}
       >
         <MessageSquare className="size-3.5" />
       </Button>
