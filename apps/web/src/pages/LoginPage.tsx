@@ -23,6 +23,7 @@ export function LoginPage() {
   const tenantProviders = providers.filter(
     (p) => p.providerId !== PLATFORM_GOOGLE_ID,
   );
+  const [signupOpen, setSignupOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,6 +32,10 @@ export function LoginPage() {
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
   }, []);
 
   if (!loading && user?.emailVerified) {
@@ -107,12 +112,16 @@ export function LoginPage() {
       title="Sign in"
       subtitle="Access your Jackline control plane."
       footer={
-        <>
-          No organization yet?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
-            Create one
-          </Link>
-        </>
+        signupOpen ? (
+          <>
+            No organization yet?{" "}
+            <Link to="/signup" className="text-primary hover:underline">
+              Create one
+            </Link>
+          </>
+        ) : (
+          <>Need access? Ask an admin for an invite.</>
+        )
       }
     >
       {googleProvider ? (
@@ -193,6 +202,7 @@ export function SignupPage() {
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signupOpen, setSignupOpen] = useState<boolean | null>(null);
 
   const googleProvider = providers.find((p) => p.providerId === PLATFORM_GOOGLE_ID);
 
@@ -201,10 +211,18 @@ export function SignupPage() {
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
   }, []);
 
   if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (signupOpen === false) {
+    return <Navigate to="/login" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -233,6 +251,14 @@ export function SignupPage() {
       setError(err instanceof Error ? err.message : "Google sign-up failed");
       setSubmitting(false);
     }
+  }
+
+  if (signupOpen === null) {
+    return (
+      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   return (
