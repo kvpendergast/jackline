@@ -3,17 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import type { PublicAgent } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
+import {
+  DataList,
+  DataListEmpty,
+  DataListRow,
+  DataListToolbar,
+  ResponsiveTable,
+} from "@/components/jackline/DataList";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { ResponsiveDialog } from "@/components/jackline/ResponsiveDialog";
 import { KindBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -127,70 +128,68 @@ export function AgentsPage() {
         title="Agents"
         description="Create and manage A2A front doors. Each agent has one handle and its own knock inbox."
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 size-4" />
-                New agent
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create agent</DialogTitle>
-              </DialogHeader>
-              <form className="space-y-4" onSubmit={onCreate}>
-                <Field label="Handle (lowercase slug, 3–32 characters)">
-                  <Input
-                    value={handle}
-                    onChange={(e) => setHandle(e.target.value)}
-                    placeholder="alice"
-                    pattern="[a-z0-9-]{3,32}"
-                    required
-                  />
-                </Field>
-                <Field label="Display name">
-                  <Input
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Alice Chen"
-                    required
-                  />
-                </Field>
-                <Field label="Description (optional)">
-                  <Input
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Scheduling and intake"
-                  />
-                </Field>
-                <Field label="Default grant duration">
-                  <FieldSelect
-                    value={defaultGrantTtlSeconds}
-                    onChange={(e) => setDefaultGrantTtlSeconds(e.target.value)}
-                  >
-                    {GRANT_TTL_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </Field>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={knocksEnabled}
-                    onChange={(e) => setKnocksEnabled(e.target.checked)}
-                  />
-                  Require knocks from strangers
-                </label>
-                <Button type="submit" disabled={creating}>
-                  {creating ? "Creating…" : "Create agent"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+            <Plus className="size-4" />
+            New agent
+          </Button>
         }
       />
+
+      <ResponsiveDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Create agent"
+      >
+        <form className="space-y-4" onSubmit={(e) => void onCreate(e)}>
+          <Field label="Handle (lowercase slug, 3–32 characters)">
+            <Input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="alice"
+              pattern="[a-z0-9-]{3,32}"
+              required
+            />
+          </Field>
+          <Field label="Display name">
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Alice Chen"
+              required
+            />
+          </Field>
+          <Field label="Description (optional)">
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Scheduling and intake"
+            />
+          </Field>
+          <Field label="Default grant duration">
+            <FieldSelect
+              value={defaultGrantTtlSeconds}
+              onChange={(e) => setDefaultGrantTtlSeconds(e.target.value)}
+            >
+              {GRANT_TTL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </FieldSelect>
+          </Field>
+          <label className="flex min-h-10 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={knocksEnabled}
+              onChange={(e) => setKnocksEnabled(e.target.checked)}
+            />
+            Require knocks from strangers
+          </label>
+          <Button type="submit" className="w-full" disabled={creating}>
+            {creating ? "Creating…" : "Create agent"}
+          </Button>
+        </form>
+      </ResponsiveDialog>
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -198,63 +197,111 @@ export function AgentsPage() {
         </p>
       ) : null}
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Filter by handle or name…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-      </div>
+      <DataList>
+        <DataListToolbar>
+          <div className="relative w-full max-w-sm flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder="Filter by handle or name…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+        </DataListToolbar>
 
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Handle</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Knocks</TableHead>
-              <TableHead>ID</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
+        {loading ? (
+          <DataListEmpty>Loading…</DataListEmpty>
+        ) : (
+          <ResponsiveTable
+            list={
+              filtered.length === 0 ? (
+                <DataListEmpty>
                   {agents.length === 0
                     ? "No agents yet. Create one to get started."
                     : "No agents match your filter."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((agent) => (
-                <TableRow key={agent.id}>
-                  <TableCell>
-                    <Link
-                      className="font-medium text-primary hover:underline"
-                      to={`/my-agents/${agent.id}`}
-                    >
-                      @{agent.handle}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{agent.displayName}</TableCell>
-                  <TableCell>
-                    <AgentStatusBadge status={agent.status} />
-                  </TableCell>
-                  <TableCell>{agent.knocksEnabled ? "On" : "Off"}</TableCell>
-                  <TableCell>
-                    <MonoId>{agent.id}</MonoId>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      )}
+                </DataListEmpty>
+              ) : (
+                filtered.map((agent) => (
+                  <DataListRow
+                    key={agent.id}
+                    title={
+                      <Link
+                        className="text-primary hover:underline"
+                        to={`/my-agents/${agent.id}`}
+                      >
+                        @{agent.handle}
+                      </Link>
+                    }
+                    status={<AgentStatusBadge status={agent.status} />}
+                    meta={
+                      <>
+                        <div>{agent.displayName}</div>
+                        <div>
+                          Knocks {agent.knocksEnabled ? "on" : "off"} ·{" "}
+                          <MonoId>{agent.id.slice(0, 8)}…</MonoId>
+                        </div>
+                      </>
+                    }
+                    actions={
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/my-agents/${agent.id}`}>Open</Link>
+                      </Button>
+                    }
+                  />
+                ))
+              )
+            }
+            table={
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Handle</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Knocks</TableHead>
+                    <TableHead>ID</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-muted-foreground">
+                        {agents.length === 0
+                          ? "No agents yet. Create one to get started."
+                          : "No agents match your filter."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filtered.map((agent) => (
+                      <TableRow key={agent.id}>
+                        <TableCell>
+                          <Link
+                            className="font-medium text-primary hover:underline"
+                            to={`/my-agents/${agent.id}`}
+                          >
+                            @{agent.handle}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{agent.displayName}</TableCell>
+                        <TableCell>
+                          <AgentStatusBadge status={agent.status} />
+                        </TableCell>
+                        <TableCell>
+                          {agent.knocksEnabled ? "On" : "Off"}
+                        </TableCell>
+                        <TableCell>
+                          <MonoId>{agent.id}</MonoId>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            }
+          />
+        )}
+      </DataList>
     </div>
   );
 }

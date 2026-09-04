@@ -122,22 +122,43 @@ export function SettingsPage() {
         <p className="text-sm text-muted-foreground">Loading settings…</p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
-        {tabs.map(([id, label]) => (
-          <Button
-            key={id}
-            type="button"
-            variant={tab === id ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setTab(id);
-              setInfo(null);
-              setError(null);
-            }}
-          >
-            {label}
-          </Button>
-        ))}
+      <div className="border-b border-border pb-3">
+        <label className="sr-only" htmlFor="settings-tab">
+          Settings section
+        </label>
+        <select
+          id="settings-tab"
+          className="w-full border border-border bg-background px-3 py-2.5 text-sm lg:hidden"
+          value={tab}
+          onChange={(e) => {
+            setTab(e.target.value as typeof tab);
+            setInfo(null);
+            setError(null);
+          }}
+        >
+          {tabs.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <div className="hidden flex-wrap gap-2 lg:flex">
+          {tabs.map(([id, label]) => (
+            <Button
+              key={id}
+              type="button"
+              variant={tab === id ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setTab(id);
+                setInfo(null);
+                setError(null);
+              }}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {tab === "sso" && sso ? (

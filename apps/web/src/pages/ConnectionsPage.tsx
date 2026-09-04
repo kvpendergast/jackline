@@ -2,17 +2,18 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import {
+  DataList,
+  DataListEmpty,
+  DataListRow,
+  DataListToolbar,
+  ResponsiveTable,
+} from "@/components/jackline/DataList";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
+import { ResponsiveDialog } from "@/components/jackline/ResponsiveDialog";
 import { KindBadge, OutcomeBadge, StatusBadge } from "@/components/jackline/StatusBadge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -110,30 +111,32 @@ export function ConnectionsPage() {
         title="Connections"
         description="Each connection binds a client to a subject. Gateway credentials and effective tool policy live here."
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button disabled={clients.length === 0 || users.length === 0}>
-                <Plus className="size-4" />
-                New connection
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-none sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create connection</DialogTitle>
-              </DialogHeader>
-              <CreateConnectionForm
-                clients={clients}
-                users={users}
-                onCreated={async (connectionId) => {
-                  setOpen(false);
-                  navigate(`/connections/${connectionId}`);
-                }}
-                onError={setError}
-              />
-            </DialogContent>
-          </Dialog>
+          <Button
+            className="w-full sm:w-auto"
+            disabled={clients.length === 0 || users.length === 0}
+            onClick={() => setOpen(true)}
+          >
+            <Plus className="size-4" />
+            New connection
+          </Button>
         }
       />
+
+      <ResponsiveDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Create connection"
+      >
+        <CreateConnectionForm
+          clients={clients}
+          users={users}
+          onCreated={async (connectionId) => {
+            setOpen(false);
+            navigate(`/connections/${connectionId}`);
+          }}
+          onError={setError}
+        />
+      </ResponsiveDialog>
 
       {error ? <p className="text-sm text-deny">{error}</p> : null}
 
@@ -168,9 +171,9 @@ export function ConnectionsPage() {
         )}
       </section>
 
-      <section className="border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative max-w-sm flex-1">
+      <DataList>
+        <DataListToolbar>
+          <div className="relative w-full max-w-sm flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Filter by client, subject, or id"
@@ -182,75 +185,130 @@ export function ConnectionsPage() {
           <div className="section-label">
             {loading ? "Loading…" : `${filtered.length} connections`}
           </div>
-        </div>
+        </DataListToolbar>
 
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Connection
-              </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Client
-              </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Subject
-              </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Status
-              </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
-                Updated
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!loading && filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  No connections yet. Create a client, ensure the subject is a tenant member, then POST /connections.
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {filtered.map((row) => {
-              const client = clientById.get(row.clientId);
-              const subject = userById.get(row.userId);
-              return (
-                <TableRow key={row.id} className="group">
-                  <TableCell>
-                    <Link
-                      to={`/connections/${row.id}`}
-                      className="font-mono text-[13px] text-primary group-hover:underline"
-                    >
-                      {row.id.slice(0, 8)}…
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{client?.name ?? row.clientId.slice(0, 8)}</span>
-                      {client ? <KindBadge kind={client.kind} /> : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[13px]">
-                        {subject?.email ?? row.userId.slice(0, 8)}
-                      </span>
-                      {subject ? <KindBadge kind={subject.kind} /> : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={row.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(row.updatedAt).toLocaleString()}
-                  </TableCell>
+        <ResponsiveTable
+          list={
+            !loading && filtered.length === 0 ? (
+              <DataListEmpty>
+                No connections yet. Create a client, ensure the subject is a
+                tenant member, then create a connection.
+              </DataListEmpty>
+            ) : (
+              filtered.map((row) => {
+                const client = clientById.get(row.clientId);
+                const subject = userById.get(row.userId);
+                return (
+                  <DataListRow
+                    key={row.id}
+                    title={
+                      <Link
+                        to={`/connections/${row.id}`}
+                        className="font-mono text-[13px] text-primary hover:underline"
+                      >
+                        {row.id.slice(0, 8)}…
+                      </Link>
+                    }
+                    status={<StatusBadge status={row.status} />}
+                    meta={
+                      <>
+                        <div>
+                          {client?.name ?? row.clientId.slice(0, 8)}
+                          {client ? (
+                            <>
+                              {" "}
+                              <KindBadge kind={client.kind} />
+                            </>
+                          ) : null}
+                        </div>
+                        <div className="font-mono">
+                          {subject?.email ?? row.userId.slice(0, 8)}
+                        </div>
+                        <div>
+                          Updated {new Date(row.updatedAt).toLocaleString()}
+                        </div>
+                      </>
+                    }
+                    actions={
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/connections/${row.id}`}>Open</Link>
+                      </Button>
+                    }
+                  />
+                );
+              })
+            )
+          }
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Connection
+                  </TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Client
+                  </TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Subject
+                  </TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Status
+                  </TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Updated
+                  </TableHead>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </section>
+              </TableHeader>
+              <TableBody>
+                {!loading && filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-muted-foreground">
+                      No connections yet. Create a client, ensure the subject is a tenant member, then POST /connections.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {filtered.map((row) => {
+                  const client = clientById.get(row.clientId);
+                  const subject = userById.get(row.userId);
+                  return (
+                    <TableRow key={row.id} className="group">
+                      <TableCell>
+                        <Link
+                          to={`/connections/${row.id}`}
+                          className="font-mono text-[13px] text-primary group-hover:underline"
+                        >
+                          {row.id.slice(0, 8)}…
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{client?.name ?? row.clientId.slice(0, 8)}</span>
+                          {client ? <KindBadge kind={client.kind} /> : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[13px]">
+                            {subject?.email ?? row.userId.slice(0, 8)}
+                          </span>
+                          {subject ? <KindBadge kind={subject.kind} /> : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(row.updatedAt).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          }
+        />
+      </DataList>
     </div>
   );
 }
