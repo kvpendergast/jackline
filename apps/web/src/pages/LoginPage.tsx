@@ -64,7 +64,11 @@ export function LoginPage() {
       const result = await authClient.signIn.email({
         email,
         password,
-        callbackURL: authCompleteRedirect("login", inviteToken.trim() || undefined),
+        callbackURL: authCompleteRedirect(
+          "login",
+          inviteToken.trim() || undefined,
+          returnTo,
+        ),
       });
       if (result.error) {
         const code = result.error.code ?? "";
