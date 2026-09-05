@@ -132,13 +132,13 @@ async function completeMcpOauth(input: {
     },
     redirect: "manual",
   });
+  const authorizeBody = await authorizeRes.text();
   assert.equal(
     authorizeRes.status,
     200,
-    `authorize expected 200, got ${authorizeRes.status}: ${await authorizeRes.text()}`,
+    `authorize expected 200, got ${authorizeRes.status}: ${authorizeBody}`,
   );
-  const html = await authorizeRes.text();
-  assert.match(html, /Allow MCP access/);
+  assert.match(authorizeBody, /Allow MCP access/);
 
   const consentBody = new URLSearchParams({
     response_type: "code",
@@ -389,7 +389,10 @@ describe("MCP OAuth (CIMD + DCR)", () => {
     });
     assert.equal(res.status, 401);
     const www = res.headers.get("www-authenticate") ?? "";
-    assert.match(www, /resource_metadata=/);
+    assert.ok(
+      www.includes("resource_metadata="),
+      `expected resource_metadata= in WWW-Authenticate, got: ${www}`,
+    );
     assert.match(www, /oauth-protected-resource/);
   });
 });

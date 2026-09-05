@@ -26,7 +26,7 @@ function wwwAuthenticateHeader(): string | null {
   if (config.isErr()) return null;
   const resource = publicMcpUrl(config.value);
   const metadataUrl = mcpOauthProtectedResourceMetadataUrl(resource);
-  return `Bearer FAKESECRET_g3h4i5j6k7l8m9n0o1p2="${metadataUrl}"`;
+  return `Bearer resource_metadata="${metadataUrl}"`;
 }
 
 export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
