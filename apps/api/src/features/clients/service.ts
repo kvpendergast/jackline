@@ -17,6 +17,7 @@ import {
 } from "@jackline/db";
 import {
   BadRequestError,
+  ClientRegistrationTypeSchema,
   ForbiddenError,
   getConfig,
   JacklineError,
@@ -27,6 +28,7 @@ import {
   SetupError,
   UnauthorizedError,
   type ClientKind,
+  type ClientRegistrationType,
   type CursorPage,
   type MembershipRole,
   type MintedClientCredentials,
@@ -46,6 +48,8 @@ export type CreateClientInput = {
   kind: ClientKind;
   /** Member owner; admins may set on behalf of a user. */
   ownerUserId?: string | null | undefined;
+  /** MCP OAuth registration mode (interactive clients). Defaults to static. */
+  registrationType?: ClientRegistrationType | undefined;
 };
 
 export type UpdateClientInput = {
@@ -77,6 +81,13 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 
 function toPublicClient(row: ClientRow): PublicClient {
   const apiRole = MembershipRoleSchema.parse(row.apiRole);
+  const registrationType = ClientRegistrationTypeSchema.parse(
+    row.registrationType ?? "static",
+  );
+  const applicationType =
+    row.applicationType === "native" || row.applicationType === "web"
+      ? row.applicationType
+      : null;
   return {
     id: row.id,
     name: row.name,
@@ -88,6 +99,11 @@ function toPublicClient(row: ClientRow): PublicClient {
     apiTeam: row.apiTeam ?? null,
     clientSecretRotatedAt: row.clientSecretRotatedAt?.toISOString() ?? null,
     systemKey: row.systemKey ?? null,
+    registrationType,
+    redirectUris: row.redirectUris ?? [],
+    applicationType,
+    metadataUrl: row.metadataUrl ?? null,
+    oauthClientId: row.oauthClientId ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -215,6 +231,17 @@ async function create(
     ownerUserId = input.ownerUserId;
   }
 
+  let registrationType: ClientRegistrationType = "static";
+  if (input.kind === "interactive" && input.registrationType) {
+    registrationType = input.registrationType;
+  } else if (input.kind === "service" && input.registrationType) {
+    return err(
+      new BadRequestError(
+        "registrationType is only valid for interactive clients",
+      ),
+    );
+  }
+
   try {
     const [row] = await db
       .insert(clients)
@@ -223,6 +250,7 @@ async function create(
         kind: input.kind,
         tenantId,
         ownerUserId,
+        registrationType,
       })
       .returning();
 

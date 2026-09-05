@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,8 @@ const PLATFORM_GOOGLE_ID = "google";
 export function LoginPage() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("return_to");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -38,7 +40,19 @@ export function LoginPage() {
       .catch(() => setSignupOpen(false));
   }, []);
 
+  function finishLoginRedirect() {
+    if (returnTo) {
+      window.location.assign(returnTo);
+      return;
+    }
+    navigate("/auth/complete?intent=login", { replace: true });
+  }
+
   if (!loading && user?.emailVerified) {
+    if (returnTo) {
+      window.location.assign(returnTo);
+      return null;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -50,7 +64,11 @@ export function LoginPage() {
       const result = await authClient.signIn.email({
         email,
         password,
-        callbackURL: authCompleteRedirect("login", inviteToken.trim() || undefined),
+        callbackURL: authCompleteRedirect(
+          "login",
+          inviteToken.trim() || undefined,
+          returnTo,
+        ),
       });
       if (result.error) {
         const code = result.error.code ?? "";
@@ -65,7 +83,7 @@ export function LoginPage() {
         await jacklineApi.acceptInvite(inviteToken.trim());
       }
       await refresh();
-      navigate("/auth/complete?intent=login", { replace: true });
+      finishLoginRedirect();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
@@ -82,6 +100,7 @@ export function LoginPage() {
         callbackURL: authCompleteRedirect(
           intent,
           intent === "login" ? inviteToken.trim() || undefined : undefined,
+          returnTo,
         ),
       });
     } catch (err) {
@@ -99,6 +118,7 @@ export function LoginPage() {
         callbackURL: authCompleteRedirect(
           "login",
           inviteToken.trim() || undefined,
+          returnTo,
         ),
       });
     } catch (err) {

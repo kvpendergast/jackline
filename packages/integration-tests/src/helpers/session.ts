@@ -2,6 +2,8 @@ import type { ApiClient } from "./client.js";
 
 export type AuthenticatedAdmin = {
   tenantId: string;
+  /** Tenant slug — required for multi-tenant MCP OAuth DCR / CIMD. */
+  tenantSlug: string;
   email: string;
 };
 
@@ -29,7 +31,7 @@ export async function createAuthenticatedAdmin(
 
   const signupJson = (await signup.json()) as {
     success?: boolean;
-    data?: { tenant: { id: string } };
+    data?: { tenant: { id: string; slug: string } };
     error?: { message?: string };
   };
   if (!signup.ok || !signupJson.success || !signupJson.data) {
@@ -39,6 +41,7 @@ export async function createAuthenticatedAdmin(
   }
 
   const tenantId = signupJson.data.tenant.id;
+  const tenantSlug = signupJson.data.tenant.slug;
 
   const { db, user: userTable } = await import("@jackline/db");
   const { eq } = await import("drizzle-orm");
@@ -49,5 +52,5 @@ export async function createAuthenticatedAdmin(
 
   await client.signIn(email, password);
 
-  return { tenantId, email };
+  return { tenantId, tenantSlug, email };
 }

@@ -29,6 +29,8 @@ import type {
   UpstreamCredentialStatus,
 } from "@jackline/shared";
 
+const OAUTH_REGISTRATION_TYPES = new Set(["cimd", "dcr"]);
+
 export function ConnectionDetailPage() {
   const { id = "" } = useParams();
   const { tenantId, user, membership } = useAuth();
@@ -278,6 +280,8 @@ export function ConnectionDetailPage() {
   }
 
   const credential = credentials[0] ?? null;
+  const isOauthClient =
+    client != null && OAUTH_REGISTRATION_TYPES.has(client.registrationType);
 
   return (
     <div className="space-y-6">
@@ -326,10 +330,12 @@ export function ConnectionDetailPage() {
                   Disable
                 </Button>
               ) : null}
-              <Button disabled={busy || !!credential} onClick={() => void onMint()}>
-                <KeyRound className="size-4" />
-                Mint credential
-              </Button>
+              {!isOauthClient ? (
+                <Button disabled={busy || !!credential} onClick={() => void onMint()}>
+                  <KeyRound className="size-4" />
+                  Mint credential
+                </Button>
+              ) : null}
             </>
           }
         />
@@ -373,6 +379,9 @@ export function ConnectionDetailPage() {
                   {client?.name ?? "Unknown"}
                 </span>
                 {client ? <KindBadge kind={client.kind} /> : null}
+                {client ? (
+                  <KindBadge kind={client.registrationType} />
+                ) : null}
               </div>
               <MonoId>{detail.clientId}</MonoId>
             </div>
@@ -399,10 +408,38 @@ export function ConnectionDetailPage() {
 
         <section className="border border-border bg-card">
           <div className="border-b border-border px-4 py-2.5">
-            <p className="section-label">Gateway credential</p>
+            <p className="section-label">
+              {isOauthClient ? "MCP OAuth" : "Gateway credential"}
+            </p>
           </div>
           <div className="space-y-3 p-4">
-            {credential ? (
+            {isOauthClient ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  This client uses{" "}
+                  <code className="font-mono text-xs">
+                    {client?.registrationType}
+                  </code>{" "}
+                  registration. MCP hosts obtain{" "}
+                  <code className="font-mono text-xs">jackline_mcp_</code>{" "}
+                  tokens via OAuth — gateway token minting is disabled.
+                </p>
+                <pre className="overflow-x-auto border border-border bg-background p-3 font-mono text-[11px]">
+                  {JSON.stringify(
+                    {
+                      url: "http://127.0.0.1:8081/mcp",
+                    },
+                    null,
+                    2,
+                  )}
+                </pre>
+                <p className="text-xs text-muted-foreground">
+                  Point the host at your{" "}
+                  <code className="font-mono">JACKLINE_PUBLIC_MCP_URL</code>.
+                  Auth is negotiated via protected-resource metadata.
+                </p>
+              </>
+            ) : credential ? (
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Token</span>

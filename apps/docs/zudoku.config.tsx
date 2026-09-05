@@ -23,6 +23,7 @@ const config: ZudokuConfig = {
         "/self-hosting",
         "/connect-cursor",
         "/authentication",
+        "/mcp-oauth",
       ],
     },
     {

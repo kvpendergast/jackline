@@ -125,8 +125,12 @@ async function startManagedStack(): Promise<IntegrationStack> {
     GATEWAY_PORT: String(gatewayPort),
     WEB_ORIGIN: webOrigin,
     BETTER_AUTH_URL: `http://127.0.0.1:${apiPort}`,
+    JACKLINE_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+    JACKLINE_PUBLIC_MCP_URL: `http://127.0.0.1:${gatewayPort}/mcp`,
     JACKLINE_INTERNAL_MCP_URL: `http://127.0.0.1:${gatewayPort}/mcp`,
     EMAIL_CONNECTOR: "console",
+    // Integration CIMD tests serve metadata over local HTTPS with a self-signed cert.
+    NODE_TLS_REJECT_UNAUTHORIZED: "0",
   };
 
   for (const [key, value] of Object.entries(serviceEnv)) {

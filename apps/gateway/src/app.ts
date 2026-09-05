@@ -7,7 +7,15 @@ import {
   clientIpFromHeaders,
   enforceQuota,
 } from "@jackline/quotas";
-import { ErrorCode, JacklineError, RateLimitedError } from "@jackline/shared";
+import {
+  ErrorCode,
+  getConfig,
+  JacklineError,
+  mcpOauthIssuerUrl,
+  publicApiBaseUrl,
+  publicMcpUrl,
+  RateLimitedError,
+} from "@jackline/shared";
 import { requireConnection } from "./lib/auth/requireConnection.js";
 import type { GatewayEnv } from "./lib/auth/types.js";
 import { createJacklineMcpServer } from "./lib/mcp/createJacklineMcpServer.js";
@@ -60,6 +68,29 @@ app.get("/health", async (c) => {
   } catch {
     return c.json({ ok: false, db: false }, 503);
   }
+});
+
+function protectedResourceMetadata() {
+  const config = getConfig();
+  if (config.isErr()) throw config.error;
+  const resource = publicMcpUrl(config.value);
+  const authorizationServer = mcpOauthIssuerUrl(publicApiBaseUrl(config.value));
+  return {
+    resource,
+    authorization_servers: [authorizationServer],
+    bearer_methods_supported: ["header"],
+    scopes_supported: ["mcp"],
+  };
+}
+
+/** RFC 9728 OAuth Protected Resource Metadata (root). */
+app.get("/.well-known/oauth-protected-resource", (c) => {
+  return c.json(protectedResourceMetadata(), 200);
+});
+
+/** Path-aware variant when resource is …/mcp. */
+app.get("/.well-known/oauth-protected-resource/mcp", (c) => {
+  return c.json(protectedResourceMetadata(), 200);
 });
 
 app.use("/mcp", requireConnection);
