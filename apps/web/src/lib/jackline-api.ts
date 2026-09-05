@@ -1,6 +1,7 @@
 import { api, apiPage } from "@/lib/api";
 import type {
   ClientKind,
+  ClientRegistrationType,
   MeData,
   MintedGatewayCredential,
   MyAccessServer,
@@ -198,6 +199,7 @@ export const jacklineApi = {
       name: string;
       kind: ClientKind;
       ownerUserId?: string | null;
+      registrationType?: ClientRegistrationType;
     },
   ) => api<PublicClient>("/api/v1/clients", { tenantId, method: "POST", body }),
 

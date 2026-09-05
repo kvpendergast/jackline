@@ -3,6 +3,13 @@ import { MembershipRoleSchema } from "./membership.js";
 
 export const ClientKindSchema = z.enum(["interactive", "service"]);
 
+export const ClientRegistrationTypeSchema = z.enum([
+  "static",
+  "cimd",
+  "dcr",
+  "pre_registered",
+]);
+
 export const PublicClientSchema = z.strictObject({
   id: z.uuid(),
   name: z.string(),
@@ -18,6 +25,11 @@ export const PublicClientSchema = z.strictObject({
   clientSecretRotatedAt: z.iso.datetime().nullable(),
   /** First-party system client key; null for user-created clients. */
   systemKey: z.string().nullable(),
+  registrationType: ClientRegistrationTypeSchema,
+  redirectUris: z.array(z.string()),
+  applicationType: z.enum(["native", "web"]).nullable(),
+  metadataUrl: z.string().nullable(),
+  oauthClientId: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -43,6 +55,9 @@ export const OauthTokenResponseSchema = z.strictObject({
 
 export type PublicClient = z.infer<typeof PublicClientSchema>;
 export type ClientKind = z.infer<typeof ClientKindSchema>;
+export type ClientRegistrationType = z.infer<
+  typeof ClientRegistrationTypeSchema
+>;
 export type MintedClientCredentials = z.infer<
   typeof MintedClientCredentialsSchema
 >;

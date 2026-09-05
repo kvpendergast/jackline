@@ -11,6 +11,7 @@ export * from "./auditEvents.js";
 export * from "./identity.js";
 export * from "./oauthStates.js";
 export * from "./oauthAccessTokens.js";
+export * from "./oauthAuthorizationCodes.js";
 export * from "./accessRequests.js";
 export * from "./notifications.js";
 export * from "./chatSettings.js";

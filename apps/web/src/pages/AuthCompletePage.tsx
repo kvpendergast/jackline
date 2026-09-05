@@ -8,17 +8,23 @@ import { authClient } from "@/lib/auth-client";
 import { jacklineApi } from "@/lib/jackline-api";
 import type { AuthCompleteIntent, AuthCompleteResult } from "@jackline/shared";
 
-function authCompleteUrl(intent: AuthCompleteIntent, invite?: string) {
+function authCompleteUrl(
+  intent: AuthCompleteIntent,
+  invite?: string,
+  returnTo?: string | null,
+) {
   const params = new URLSearchParams({ intent });
   if (invite) params.set("invite", invite);
+  if (returnTo) params.set("return_to", returnTo);
   return `${window.location.origin}/auth/complete?${params.toString()}`;
 }
 
 export function authCompleteRedirect(
   intent: AuthCompleteIntent,
   inviteToken?: string,
+  returnTo?: string | null,
 ): string {
-  return authCompleteUrl(intent, inviteToken);
+  return authCompleteUrl(intent, inviteToken, returnTo);
 }
 
 export function AuthCompletePage() {
@@ -32,6 +38,7 @@ export function AuthCompletePage() {
 
   const intent = (searchParams.get("intent") ?? "login") as AuthCompleteIntent;
   const inviteToken = searchParams.get("invite") ?? undefined;
+  const returnTo = searchParams.get("return_to");
   const oauthError = searchParams.get("error");
 
   useEffect(() => {
@@ -73,6 +80,10 @@ export function AuthCompletePage() {
     }
     if (result.status === "ok") {
       await refresh();
+      if (returnTo) {
+        window.location.assign(returnTo);
+        return;
+      }
       navigate("/dashboard", { replace: true });
       return;
     }
@@ -80,7 +91,7 @@ export function AuthCompletePage() {
       await authClient.signOut();
       await authClient.signIn.oauth2({
         providerId: result.providerId,
-        callbackURL: authCompleteUrl(intent, inviteToken),
+        callbackURL: authCompleteUrl(intent, inviteToken, returnTo),
       });
       return;
     }
@@ -98,6 +109,10 @@ export function AuthCompletePage() {
     try {
       await jacklineApi.signupSocial({ organizationName });
       await refresh();
+      if (returnTo) {
+        window.location.assign(returnTo);
+        return;
+      }
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create organization");

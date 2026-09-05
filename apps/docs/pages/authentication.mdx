@@ -54,3 +54,5 @@ Used by the admin UI. Sign up / sign in via Better Auth (`/api/auth/*`), then se
 ## Gateway MCP tokens
 
 Connection credentials (`jkl_…`) authenticate the **MCP gateway**, not the Admin API. Do not reuse them for `/api/v1`.
+
+For OAuth-based MCP hosts (CIMD / DCR), see [MCP OAuth](/mcp-oauth). Those flows mint `jackline_mcp_…` tokens at `POST /oauth/token` (not `/api/v1/oauth/token`).

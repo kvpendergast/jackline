@@ -52,6 +52,21 @@ export function generateAccessToken(): string {
   return `jackline_at_${randomBytes(32).toString("base64url")}`;
 }
 
+/** Opaque MCP gateway access token (authorization_code / refresh). */
+export function generateMcpAccessToken(): string {
+  return `jackline_mcp_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque MCP OAuth refresh token. */
+export function generateMcpRefreshToken(): string {
+  return `jackline_mrt_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque authorization code for MCP OAuth. */
+export function generateMcpAuthorizationCode(): string {
+  return `jackline_ac_${randomBytes(32).toString("base64url")}`;
+}
+
 /** Opaque secret for jka_ peer grant credentials. */
 export function generatePeerGrantSecret(): string {
   return randomBytes(32).toString("base64url");

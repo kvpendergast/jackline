@@ -20,6 +20,13 @@ import { oauthCallbackHandler } from "./features/oauth/handler.js";
 import { oauthTokenHandler } from "./features/clients/tokenHandler.js";
 import { oauthTokenRoute } from "./features/clients/tokenRoute.js";
 import {
+  asMetadataHandler,
+  authorizeConsentHandler,
+  authorizeGetHandler,
+  dcrRegisterHandler,
+  mcpTokenHandler,
+} from "./features/mcpOauth/index.js";
+import {
   publicV1Features,
   rootFeatures,
   tenantV1Features,
@@ -108,6 +115,16 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
 
 app.route("/scim/v2", scimApp);
 
+/**
+ * MCP OAuth authorization server (CIMD + DCR).
+ * Outside /api/v1 and tenant middleware — public discovery + browser authorize.
+ */
+app.get("/.well-known/oauth-authorization-server", asMetadataHandler);
+app.post("/oauth/register", ipQuotaMiddleware("api.auth"), dcrRegisterHandler);
+app.get("/oauth/authorize", authorizeGetHandler);
+app.post("/oauth/authorize/consent", authorizeConsentHandler);
+app.post("/oauth/token", ipQuotaMiddleware("api.auth"), mcpTokenHandler);
+
 const v1 = createJacklineApp();
 
 /** Browser OAuth redirect — must stay outside tenant middleware. */
@@ -117,6 +134,7 @@ v1.get("/oauth/callback", oauthCallbackHandler);
  * OAuth2 client_credentials token endpoint — public (client secret auth).
  * Registered with plain post so form-urlencoded + Basic auth are not run
  * through the JSON OpenAPI validation hook; path is registered for /docs.
+ * Admin API only — MCP tokens use POST /oauth/token on the app root.
  */
 v1.post("/oauth/token", ipQuotaMiddleware("api.auth"), oauthTokenHandler);
 v1.openAPIRegistry.registerPath(oauthTokenRoute);

@@ -1,5 +1,10 @@
 import type { MiddlewareHandler } from "hono";
-import { JacklineError } from "@jackline/shared";
+import {
+  getConfig,
+  JacklineError,
+  mcpOauthProtectedResourceMetadataUrl,
+  publicMcpUrl,
+} from "@jackline/shared";
 import { resolveConnectionFromAuthorization } from "./resolveConnection.js";
 import type { GatewayEnv } from "./types.js";
 
@@ -14,6 +19,14 @@ function errorStatus(error: JacklineError): number {
     default:
       return 500;
   }
+}
+
+function wwwAuthenticateHeader(): string | null {
+  const config = getConfig();
+  if (config.isErr()) return null;
+  const resource = publicMcpUrl(config.value);
+  const metadataUrl = mcpOauthProtectedResourceMetadataUrl(resource);
+  return `Bearer FAKESECRET_g3h4i5j6k7l8m9n0o1p2="${metadataUrl}"`;
 }
 
 export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
@@ -34,6 +47,10 @@ export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
     const status = errorStatus(error);
     if (status >= 500) {
       log.error({ err: error }, "gateway auth failed");
+    }
+    if (status === 401) {
+      const www = wwwAuthenticateHeader();
+      if (www) c.header("WWW-Authenticate", www);
     }
     return c.json(
       {

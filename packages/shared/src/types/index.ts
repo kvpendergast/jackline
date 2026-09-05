@@ -68,6 +68,8 @@ export {
   PublicClientSchema,
   type ClientKind,
   ClientKindSchema,
+  type ClientRegistrationType,
+  ClientRegistrationTypeSchema,
   type MintedClientCredentials,
   MintedClientCredentialsSchema,
   type RotateClientCredentialsBody,
@@ -80,6 +82,32 @@ export {
   OAUTH_TOKEN_PATH,
   oauthTokenUrl,
 } from './client.js';
+export {
+  JACKLINE_MCP_ACCESS_TOKEN_PREFIX,
+  JACKLINE_MCP_ACCESS_TOKEN_TTL_SECONDS,
+  JACKLINE_MCP_AUTH_CODE_TTL_SECONDS,
+  MCP_OAUTH_AUTHORIZE_PATH,
+  MCP_OAUTH_AUTHORIZE_CONSENT_PATH,
+  MCP_OAUTH_TOKEN_PATH,
+  MCP_OAUTH_REGISTER_PATH,
+  MCP_OAUTH_AS_METADATA_PATH,
+  MCP_OAUTH_PROTECTED_RESOURCE_PATH,
+  mcpOauthIssuerUrl,
+  mcpOauthAuthorizeUrl,
+  mcpOauthTokenUrl,
+  mcpOauthRegisterUrl,
+  mcpOauthAsMetadataUrl,
+  mcpOauthProtectedResourceMetadataUrl,
+} from './mcpOauth.js';
+export {
+  isCimdClientId,
+  CimdMetadataSchema,
+  type CimdMetadata,
+  validateCimdMetadata,
+  DcrRegistrationBodySchema,
+  type DcrRegistrationBody,
+  validateDcrRegistrationBody,
+} from './mcpOauthValidation.js';
 export {
   type PublicConnection,
   PublicConnectionSchema,

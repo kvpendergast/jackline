@@ -1,0 +1,36 @@
+---
+title: MCP OAuth
+---
+
+# MCP OAuth
+
+Jackline can act as an **OAuth authorization server** for MCP hosts. Clients obtain short-lived `jackline_mcp_…` access tokens bound to a connection and the public MCP resource URL (`JACKLINE_PUBLIC_MCP_URL`).
+
+Admin API machine auth (`jackline_at_…` via `POST /api/v1/oauth/token`) is unchanged.
+
+## Prefer CIMD
+
+**Client ID Metadata Documents (CIMD)** are the preferred registration path:
+
+1. The MCP host publishes an HTTPS JSON document as its `client_id`.
+2. On authorize, Jackline fetches that URL, validates redirect URIs / public-client auth (`token_endpoint_auth_method=none`), and upserts a client with `registrationType=cimd`.
+3. The user signs in and consents; Jackline issues an authorization code (PKCE S256), then MCP tokens at `POST /oauth/token`.
+
+Discovery:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET {API}/.well-known/oauth-authorization-server` | AS metadata (`client_id_metadata_document_supported: true`) |
+| `GET {MCP}/.well-known/oauth-protected-resource` | Resource metadata (`authorization_servers`, `resource`) |
+| `GET {API}/oauth/authorize` | Browser authorize + consent |
+| `POST {API}/oauth/token` | `authorization_code` / `refresh_token` (requires `resource` = public MCP URL) |
+
+## DCR (deprecated)
+
+`POST /oauth/register` implements RFC 7591 Dynamic Client Registration for hosts that cannot publish CIMD yet (notably some Grok flows). It registers **public** clients only (`application_type` `native` or `web`, `token_endpoint_auth_method=none`) with `registrationType=dcr`.
+
+DCR is **deprecated** for new integrations — prefer CIMD when the host supports it. Multi-tenant deployments must pass a `tenant` slug (body or query).
+
+## Static gateway tokens
+
+Interactive clients with `registrationType=static` (default) still mint long-lived `jkl_…` gateway credentials from the Admin UI. CIMD/DCR connections disable minting and rely on OAuth instead.
