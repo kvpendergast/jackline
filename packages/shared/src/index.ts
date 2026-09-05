@@ -52,9 +52,12 @@ export {
   CONNECTOR_PRESETS,
   CONNECTOR_CATEGORIES,
   getConnectorPreset,
+  connectorLogoKey,
   connectorUsesPublicOAuthClient,
   ConnectorPresetSchema,
+  ConnectorCategorySchema,
   type ConnectorPreset,
+  type ConnectorCategory,
 } from "./connectors/catalog.js";
 export {
   myAccessReconnectUrl,

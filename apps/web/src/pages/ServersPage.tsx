@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ExternalLink, Pencil, Plus, RefreshCw } from "lucide-react";
+import { ExternalLink, Pencil, RefreshCw } from "lucide-react";
 import {
-  CONNECTOR_CATEGORIES,
   CONNECTOR_PRESETS,
   encodeOAuthSecretValue,
   getConnectorPreset,
@@ -13,6 +12,7 @@ import {
   type ServerKind,
 } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
+import { ConnectorCatalog } from "@/components/jackline/ConnectorCatalog";
 import { ConnectorLogo } from "@/components/jackline/ConnectorLogo";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
@@ -129,76 +129,11 @@ export function ServersPage() {
       {error ? <p className="text-sm text-deny">{error}</p> : null}
       {info ? <p className="text-sm text-allow">{info}</p> : null}
 
-      <section className="border border-border bg-card">
-        <div className="border-b border-border px-4 py-3">
-          <p className="section-label">Quick add</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            One-click catalog connectors. You still supply credentials after
-            create.
-          </p>
-        </div>
-
-        {CONNECTOR_CATEGORIES.map((category) => {
-          const presets = CONNECTOR_PRESETS.filter(
-            (p) => p.category === category.id,
-          );
-          if (presets.length === 0) return null;
-
-          return (
-            <div
-              key={category.id}
-              className="border-b border-border px-4 py-4 last:border-b-0"
-            >
-              <p className="section-label mb-3">{category.label}</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {presets.map((preset) => {
-                  const added = addedConnectorKeys.has(preset.key);
-                  return (
-                    <button
-                      key={preset.key}
-                      type="button"
-                      disabled={added}
-                      onClick={() => openCreate(preset)}
-                      className="border border-border bg-card p-4 text-left transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="flex size-8 shrink-0 items-center justify-center border border-border bg-background">
-                            <ConnectorLogo
-                              connectorKey={preset.key}
-                              name={preset.name}
-                            />
-                          </span>
-                          <span className="font-medium">{preset.name}</span>
-                        </div>
-                        {added ? (
-                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Added
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {preset.description}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <KindBadge kind={preset.kind} />
-                        <KindBadge kind={preset.authMethod} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        <div className="border-t border-border px-4 py-3">
-          <Button variant="outline" onClick={() => openCreate(null)}>
-            <Plus className="size-4" />
-            Custom server
-          </Button>
-        </div>
-      </section>
+      <ConnectorCatalog
+        addedConnectorKeys={addedConnectorKeys}
+        onSelect={(preset) => openCreate(preset)}
+        onCustom={() => openCreate(null)}
+      />
 
       <section className="border border-border bg-card">
         <Table>
