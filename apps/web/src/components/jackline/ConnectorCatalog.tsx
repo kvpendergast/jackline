@@ -101,7 +101,7 @@ export function ConnectorCatalog({
           </label>
         </div>
 
-        <div className="mt-3 flex gap-1 overflow-x-auto pb-0.5">
+        <div className="mt-3 flex flex-wrap gap-1">
           <CategoryChip
             label="All"
             count={
@@ -171,8 +171,7 @@ export function ConnectorCatalog({
                             {preset.description}
                           </span>
                         </span>
-                        <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                          <KindBadge kind={preset.kind} />
+                        <span className="hidden shrink-0 sm:block">
                           <KindBadge kind={preset.authMethod} />
                         </span>
                         {added ? (
