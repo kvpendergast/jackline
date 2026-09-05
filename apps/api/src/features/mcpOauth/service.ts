@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
@@ -39,22 +39,10 @@ import {
   validateCimdMetadata,
   validateDcrRegistrationBody,
 } from "@jackline/shared";
+import { verifyPkceS256 } from "./pkce.js";
 
-function base64Url(buf: Buffer | Uint8Array): string {
-  return Buffer.from(buf)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
+export { verifyPkceS256 } from "./pkce.js";
 
-export function verifyPkceS256(
-  codeVerifier: string,
-  codeChallenge: string,
-): boolean {
-  const digest = createHash("sha256").update(codeVerifier, "utf8").digest();
-  return base64Url(digest) === codeChallenge;
-}
 
 export type AsMetadata = {
   issuer: string;

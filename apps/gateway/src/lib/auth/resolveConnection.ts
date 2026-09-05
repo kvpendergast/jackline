@@ -1,8 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { hashToken } from "@jackline/auth";
 import {
   connections,
   db,
@@ -28,6 +27,10 @@ export type ResolvedGatewayAuth = {
   /** Gateway secret id, or MCP oauth access token id. */
   secretId: string;
 };
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 function safeEqualString(a: string, b: string): boolean {
   const left = Buffer.from(a);
