@@ -18,7 +18,7 @@ const { serve } = await import("@hono/node-server");
 const { initObservability, shutdownObservability } = await import(
   "@jackline/observability"
 );
-const { app } = await import("./app.js");
+const { initQuotas, shutdownQuotas } = await import("./lib/quotas.js");
 const { logger, otelConfig } = await import("./lib/observability.js");
 
 const initOtelResult = await initObservability(otelConfig);
@@ -26,9 +26,14 @@ if (initOtelResult.isErr()) {
   throw initOtelResult.error;
 }
 
+await initQuotas(config.REDIS_URL);
+
 process.on("SIGTERM", () => {
   void shutdownObservability();
+  void shutdownQuotas();
 });
+
+const { app } = await import("./app.js");
 
 serve(
   {
@@ -38,7 +43,11 @@ serve(
   },
   () => {
     logger.info(
-      { host: config.GATEWAY_HOST, port: config.GATEWAY_PORT },
+      {
+        host: config.GATEWAY_HOST,
+        port: config.GATEWAY_PORT,
+        quotaStore: config.REDIS_URL ? "redis" : "memory",
+      },
       "gateway listening",
     );
   },

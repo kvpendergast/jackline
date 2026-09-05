@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { ErrorCode, JacklineError } from "@jackline/shared";
+import { ErrorCode, JacklineError, RateLimitedError } from "@jackline/shared";
 import {
   recordSpanException,
   setHttpSpanStatus,
@@ -40,6 +40,8 @@ export function jacklineErrorToJsonRpcCode(error: JacklineError): number {
     case ErrorCode.NOT_FOUND:
       return -32001;
     case ErrorCode.UNAUTHORIZED:
+      return -32000;
+    case ErrorCode.RATE_LIMITED:
       return -32000;
     default:
       return -32000;
@@ -128,6 +130,9 @@ export function respondA2aError(
     error,
     ...(context ? { context } : {}),
   });
+  if (error instanceof RateLimitedError) {
+    c.header("Retry-After", String(error.retryAfterSeconds));
+  }
   return c.json(jsonRpcError(id, jsonRpcCode, error.message), status);
 }
 

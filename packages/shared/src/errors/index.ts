@@ -4,6 +4,7 @@ export const ErrorCode = {
   FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
   BAD_REQUEST: "BAD_REQUEST",
+  RATE_LIMITED: "RATE_LIMITED",
   TENANT_LIMIT_REACHED: "TENANT_LIMIT_REACHED",
   NOT_IMPLEMENTED: "NOT_IMPLEMENTED",
   INTERNAL: "INTERNAL",
@@ -55,6 +56,16 @@ export class BadRequestError extends JacklineError {
   constructor(message = "Bad Request") {
     super(ErrorCode.BAD_REQUEST, message);
     this.name = "BadRequestError";
+  }
+}
+
+export class RateLimitedError extends JacklineError {
+  readonly retryAfterSeconds: number;
+
+  constructor(message = "Rate limit exceeded", retryAfterSeconds = 60) {
+    super(ErrorCode.RATE_LIMITED, message);
+    this.name = "RateLimitedError";
+    this.retryAfterSeconds = Math.max(1, retryAfterSeconds);
   }
 }
 

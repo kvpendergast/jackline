@@ -23,14 +23,18 @@ const { platformEmailServices } = await import(
   "./features/platformEmail/service.js"
 );
 const { logger, otelConfig } = await import("./lib/observability.js");
+const { initQuotas, shutdownQuotas } = await import("./lib/quotas.js");
 
 const initOtelResult = await initObservability(otelConfig);
 if (initOtelResult.isErr()) {
   throw initOtelResult.error;
 }
 
+await initQuotas(config.REDIS_URL);
+
 process.on("SIGTERM", () => {
   void shutdownObservability();
+  void shutdownQuotas();
 });
 
 setVerificationEmailSender(async ({ to, url }) => {
@@ -45,7 +49,11 @@ const { app } = await import("./app.js");
 
 serve({ fetch: app.fetch, hostname: config.API_HOST, port: config.API_PORT }, () => {
   logger.info(
-    { host: config.API_HOST, port: config.API_PORT },
+    {
+      host: config.API_HOST,
+      port: config.API_PORT,
+      quotaStore: config.REDIS_URL ? "redis" : "memory",
+    },
     "api listening",
   );
 });

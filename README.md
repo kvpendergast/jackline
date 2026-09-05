@@ -35,8 +35,9 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
 | Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
 | Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
+| Rate limits (`@jackline/quotas`) | Done — memory or Redis; env overrides via `JACKLINE_RL_*` |
 
-Next: rate limits, Prometheus metrics.
+Next: Prometheus metrics.
 
 ## Community
 

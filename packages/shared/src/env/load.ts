@@ -30,6 +30,7 @@ const ENV_KEYS = [
   "JACKLINE_OIDC_CLIENT_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "REDIS_URL",
 ] as const;
 
 let config: Env | undefined;

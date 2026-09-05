@@ -28,6 +28,10 @@ import {
   agentCardHandler,
   a2aIngressHandler,
 } from "./features/agents/a2aHandler.js";
+import {
+  ipQuotaMiddleware,
+  tenantQuotaMiddleware,
+} from "./lib/request/quotaMiddleware.js";
 
 const configResult = getConfig();
 if (configResult.isErr()) throw configResult.error;
@@ -59,6 +63,8 @@ for (const feature of rootFeatures) {
     app.openapi(route, handler);
   }
 }
+
+app.use("/api/auth/*", ipQuotaMiddleware("api.auth"));
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => {
   const response = await auth.handler(c.req.raw);
@@ -112,8 +118,11 @@ v1.get("/oauth/callback", oauthCallbackHandler);
  * Registered with plain post so form-urlencoded + Basic auth are not run
  * through the JSON OpenAPI validation hook; path is registered for /docs.
  */
-v1.post("/oauth/token", oauthTokenHandler);
+v1.post("/oauth/token", ipQuotaMiddleware("api.auth"), oauthTokenHandler);
 v1.openAPIRegistry.registerPath(oauthTokenRoute);
+
+v1.use("/signup", ipQuotaMiddleware("api.auth"));
+v1.use("/signup/*", ipQuotaMiddleware("api.auth"));
 
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {
@@ -123,6 +132,7 @@ for (const feature of publicV1Features) {
 
 const tenantV1 = createJacklineApp();
 tenantV1.use("*", tenantContextMiddleware);
+tenantV1.use("*", tenantQuotaMiddleware());
 for (const feature of tenantV1Features) {
   for (const { route, handler } of feature.routes) {
     tenantV1.openapi(route, handler);
