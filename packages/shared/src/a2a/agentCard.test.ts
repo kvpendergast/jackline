@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { decideA2aAuth } from "./agentCard.js";
+import { buildAgentCard, decideA2aAuth } from "./agentCard.js";
+
+describe("buildAgentCard", () => {
+  it("advertises public skills on the card", () => {
+    const card = buildAgentCard({
+      handle: "alice",
+      displayName: "Alice",
+      description: "Demo",
+      publicSkills: [
+        {
+          id: "calendar.book",
+          name: "Book meeting",
+          description: "Schedule on the owner calendar",
+        },
+      ],
+      knocksEnabled: true,
+      publicBaseUrl: "https://example.test",
+      status: "published",
+    });
+    assert.deepEqual(card.skills, [
+      {
+        id: "calendar.book",
+        name: "Book meeting",
+        description: "Schedule on the owner calendar",
+        tags: [],
+      },
+    ]);
+  });
+});
 
 describe("decideA2aAuth", () => {
   it("allows granted peers", () => {

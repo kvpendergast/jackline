@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { PublicAgent } from "@jackline/shared";
+import type { PublicAgent, PublicTrustGrant } from "@jackline/shared";
 
 import { createApiClient } from "./helpers/fixtures.js";
 import { createAuthenticatedAdmin } from "./helpers/session.js";
@@ -47,6 +47,8 @@ describe("agents instructions + tool bindings", () => {
     });
     assert.equal(created.data.instructions, "Use calendar tools carefully.");
     assert.deepEqual(created.data.toolIds, []);
+    assert.equal(created.data.publicSkills.length, 1);
+    assert.equal(created.data.publicSkills[0]?.id, "contact.leave_message");
 
     const withTools = await client.api<PublicAgent>(
       `/api/v1/agents/${created.data.id}/tools`,
@@ -65,11 +67,27 @@ describe("agents instructions + tool bindings", () => {
         tenantId,
         body: JSON.stringify({
           instructions: "Updated instructions for peers.",
+          publicSkills: [
+            {
+              id: "calendar.book",
+              name: "Book meeting",
+              description: "Schedule on the owner calendar",
+            },
+            {
+              id: "contact.leave_message",
+              name: "Leave a message",
+              description: "Send a short message to the agent owner",
+            },
+          ],
         }),
       },
     );
     assert.equal(updated.data.instructions, "Updated instructions for peers.");
     assert.deepEqual(updated.data.toolIds, [access.toolId]);
+    assert.deepEqual(
+      updated.data.publicSkills.map((skill) => skill.id),
+      ["calendar.book", "contact.leave_message"],
+    );
 
     const fetched = await client.api<PublicAgent>(
       `/api/v1/agents/${created.data.id}`,
@@ -77,6 +95,38 @@ describe("agents instructions + tool bindings", () => {
     );
     assert.equal(fetched.data.instructions, "Updated instructions for peers.");
     assert.deepEqual(fetched.data.toolIds, [access.toolId]);
+
+    await client.api(`/api/v1/agents/${created.data.id}/publish`, {
+      method: "POST",
+      tenantId,
+    });
+
+    const directory = await client.api<{
+      agents: Array<{ handle: string; publicSkills: string[] }>;
+    }>(`/api/v1/networks/public/directory?handle=${created.data.handle}`, {
+      tenantId,
+    });
+    const listed = directory.data.agents.find(
+      (row) => row.handle === created.data.handle,
+    );
+    assert.ok(listed, "expected published agent in directory");
+    assert.deepEqual(listed.publicSkills, [
+      "calendar.book",
+      "contact.leave_message",
+    ]);
+
+    const cardRes = await fetch(
+      `${client.apiUrl}/agents/${created.data.handle}/.well-known/agent-card.json`,
+    );
+    assert.equal(cardRes.ok, true, await cardRes.text());
+    const card = (await cardRes.json()) as {
+      skills: Array<{ id: string; name: string; description: string }>;
+    };
+    assert.deepEqual(
+      card.skills.map((skill) => skill.id),
+      ["calendar.book", "contact.leave_message"],
+    );
+    assert.equal(card.skills[0]?.name, "Book meeting");
 
     const cleared = await client.api<PublicAgent>(
       `/api/v1/agents/${created.data.id}/tools`,
@@ -118,6 +168,18 @@ describe("A2A trust handoff via tasks/get", () => {
         handle,
         displayName: "Trust Agent",
         instructions: "Help approved peers.",
+        publicSkills: [
+          {
+            id: "contact.leave_message",
+            name: "Leave a message",
+            description: "Send a short message",
+          },
+          {
+            id: "calendar.book",
+            name: "Book meeting",
+            description: "Schedule",
+          },
+        ],
       }),
     });
     await ownerClient.api(`/api/v1/agents/${agent.data.id}/publish`, {
@@ -162,11 +224,32 @@ describe("A2A trust handoff via tasks/get", () => {
     assert.ok(knockResult.knockSecret);
     assert.ok(knockResult.taskId);
 
-    await ownerClient.api(`/api/v1/knocks/${knockResult.knockId}/approve`, {
-      method: "POST",
-      tenantId: owner.tenantId,
-      body: JSON.stringify({ grantTtlSeconds: 3600 }),
-    });
+    await assert.rejects(
+      () =>
+        ownerClient.api(`/api/v1/knocks/${knockResult.knockId}/approve`, {
+          method: "POST",
+          tenantId: owner.tenantId,
+          body: JSON.stringify({
+            grantTtlSeconds: 3600,
+            skillIds: ["not.a.skill"],
+          }),
+        }),
+      (err: unknown) =>
+        err instanceof Error && /→ 400:/.test(err.message),
+    );
+
+    const approved = await ownerClient.api<PublicTrustGrant>(
+      `/api/v1/knocks/${knockResult.knockId}/approve`,
+      {
+        method: "POST",
+        tenantId: owner.tenantId,
+        body: JSON.stringify({
+          grantTtlSeconds: 3600,
+          skillIds: ["calendar.book"],
+        }),
+      },
+    );
+    assert.deepEqual(approved.data.skillPolicy.skillIds, ["calendar.book"]);
 
     const tasksGet = await a2aJsonRpc(
       peerClient.apiUrl,

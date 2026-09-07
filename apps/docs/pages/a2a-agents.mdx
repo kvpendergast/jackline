@@ -15,16 +15,16 @@ Publish an agent peers can authenticate with, then request actions that run **on
 ## Owner setup
 
 1. Open **Agents** → **New agent**. Pick a handle (public A2A path is `/a2a/<handle>`).
-2. On the agent page, set **instructions** (system prompt).
+2. On the agent page, set **instructions** (system prompt) and **public skills** (advertised on the agent card / directory).
 3. Under **Tools**, select the MCP tools this agent may use. Save tools.
-   - Tool bindings are **agent-level**: every approved peer shares the same surface.
+   - Tool bindings are **agent-level**: every approved peer shares the same surface. Skills are separate from tools.
 4. **Publish** the agent to the public directory.
 
 ## Peer knock → trust credential
 
 1. Peer discovers the agent (directory or known handle) and sends an A2A `message/send` knock with intent `jackline.trust.request` (session-authenticated to the peer’s tenant).
 2. Owner gets a notification linking to `/my-agents/<id>#knocks`.
-3. Owner **Approves** (sets grant TTL). Approving trusts the peer; it does **not** change tools.
+3. Owner **Approves** (sets grant TTL and optionally scopes advertised skill IDs). Approving trusts the peer; it does **not** change MCP tools.
 4. Peer polls A2A `tasks/get` for the knock task, reads `exchangeToken`, then calls `POST /api/v1/trust/exchange` with the knock secret + exchange token.
 5. Peer receives a `jka_` bearer token for subsequent A2A calls.
 
