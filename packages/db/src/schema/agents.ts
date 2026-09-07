@@ -7,12 +7,14 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
 import { user } from "./auth.js";
+import { tools } from "./tools.js";
 
 export const agentStatusEnum = pgEnum("agent_status", [
   "draft",
@@ -106,6 +108,8 @@ export const agents = pgTable(
     defaultGrantTtlSeconds: integer("default_grant_ttl_seconds")
       .notNull()
       .default(86400),
+    /** Owner system prompt / instructions for hosted runtime. */
+    instructions: text("instructions"),
     publicSkills: jsonb("public_skills")
       .$type<AgentPublicSkill[]>()
       .notNull()
@@ -115,6 +119,31 @@ export const agents = pgTable(
     uniqueIndex("agents_tenant_handle_unique").on(t.tenantId, t.handle),
     index("agents_owner_idx").on(t.ownerUserId),
     index("agents_tenant_status_idx").on(t.tenantId, t.status),
+  ],
+);
+
+/**
+ * Agent-level MCP tool allowlist (fixed for all peers).
+ * Knock approval does not change this set for MVP.
+ */
+export const agentToolBindings = pgTable(
+  "agent_tool_bindings",
+  {
+    ...baseColumns,
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    toolId: uuid("tool_id")
+      .notNull()
+      .references(() => tools.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    unique("agent_tool_bindings_agent_tool_unique").on(t.agentId, t.toolId),
+    index("agent_tool_bindings_agent_idx").on(t.agentId),
+    index("agent_tool_bindings_tenant_idx").on(t.tenantId),
   ],
 );
 
@@ -234,6 +263,8 @@ export type Network = typeof networks.$inferSelect;
 export type NewNetwork = typeof networks.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
+export type AgentToolBinding = typeof agentToolBindings.$inferSelect;
+export type NewAgentToolBinding = typeof agentToolBindings.$inferInsert;
 export type AgentNetwork = typeof agentNetworks.$inferSelect;
 export type NewAgentNetwork = typeof agentNetworks.$inferInsert;
 export type TrustGrant = typeof trustGrants.$inferSelect;

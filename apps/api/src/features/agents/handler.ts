@@ -49,6 +49,22 @@ const update: RouteHandler<typeof agentRoutes.update, JacklineEnv> = async (
   return c.json(okEnvelope(result.value), 200);
 };
 
+const setTools: RouteHandler<typeof agentRoutes.setTools, JacklineEnv> = async (
+  c,
+) => {
+  const { auth } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const { toolIds } = c.req.valid("json");
+  const result = await agentServices.setTools(
+    auth.tenantId,
+    auth.userId,
+    id,
+    toolIds,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
 const publish: RouteHandler<typeof agentRoutes.publish, JacklineEnv> = async (
   c,
 ) => {
@@ -178,6 +194,7 @@ export const agentHandlers = {
   create,
   get,
   update,
+  setTools,
   publish,
   pause,
   listKnocks,

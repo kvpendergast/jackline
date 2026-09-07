@@ -608,6 +608,16 @@ export const jacklineApi = {
       body,
     }),
 
+  setAgentTools: (tenantId: string, agentId: string, toolIds: string[]) =>
+    api<import("@jackline/shared").PublicAgent>(
+      `/api/v1/agents/${agentId}/tools`,
+      {
+        tenantId,
+        method: "PUT",
+        body: { toolIds },
+      },
+    ),
+
   publishAgent: (tenantId: string, agentId: string) =>
     api<import("@jackline/shared").PublicAgent>(
       `/api/v1/agents/${agentId}/publish`,
