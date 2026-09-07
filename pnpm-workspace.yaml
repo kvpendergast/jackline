@@ -8,6 +8,13 @@ overrides:
   "@opentelemetry/exporter-prometheus": ">=0.217.0"
   "@opentelemetry/propagator-jaeger": ">=2.9.0"
   "@opentelemetry/core": ">=2.8.0"
+  # MCP SDK / Ajv / Express transitives (Dependabot wave 3).
+  fast-uri: "3.1.6"
+  ip-address: ">=10.3.1"
+  qs: "6.16.0"
+  "js-yaml@^4.0.0": "4.3.1"
+  "nanoid@^3.0.0": "3.3.18"
+  "@hono/node-server@^1.0.0": "^2.0.10"
 
 # Supply-chain hardening (see https://pnpm.io/supply-chain-security)
 # Delay new versions so malicious publishes can be yanked before we resolve them.
