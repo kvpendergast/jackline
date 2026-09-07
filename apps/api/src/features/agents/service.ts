@@ -623,10 +623,14 @@ export const agentServices = {
     const agentResult = await agentServices.getAgentByHandle(handle);
     if (agentResult.isErr()) return err(agentResult.error);
 
+    const agent = agentResult.value;
+    if (agent.status === "draft") {
+      return err(new NotFoundError("Agent not found"));
+    }
+
     const baseResult = configPublicBaseUrl();
     if (baseResult.isErr()) return err(baseResult.error);
 
-    const agent = agentResult.value;
     return ok(
       buildAgentCard({
         handle: agent.handle,

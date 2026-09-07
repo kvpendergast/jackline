@@ -59,6 +59,9 @@ Free-text messages use the hosted LLM path when chat is configured and tools are
 
 Unbound tool names are rejected.
 
+Agent cards are public for published (and paused) agents at
+`/agents/<handle>/.well-known/agent-card.json`.
+
 ## Audit
 
 Peer-initiated tool calls appear under **Audit** with reason prefix `a2a.peer` (and an **A2A peer** tag). They run through the owner’s gateway policy and connections.

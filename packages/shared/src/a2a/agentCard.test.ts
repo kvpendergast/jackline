@@ -20,7 +20,7 @@ describe("buildAgentCard", () => {
       publicBaseUrl: "https://example.test",
       status: "published",
     });
-    assert.deepEqual(card.skills, [
+    assert.deepEqual(card["skills"], [
       {
         id: "calendar.book",
         name: "Book meeting",
