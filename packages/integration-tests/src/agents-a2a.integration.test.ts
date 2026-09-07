@@ -118,7 +118,9 @@ describe("agents instructions + tool bindings", () => {
     const cardRes = await fetch(
       `${client.apiUrl}/agents/${created.data.handle}/.well-known/agent-card.json`,
     );
-    assert.equal(cardRes.ok, true, await cardRes.text());
+    if (!cardRes.ok) {
+      assert.fail(`agent card HTTP ${cardRes.status}: ${await cardRes.text()}`);
+    }
     const card = (await cardRes.json()) as {
       skills: Array<{ id: string; name: string; description: string }>;
     };
