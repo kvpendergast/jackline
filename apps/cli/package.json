@@ -60,7 +60,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
-    "hono": "^4.12.30",
+    "hono": "^4.13.5",
     "neverthrow": "^8.2.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
