@@ -127,7 +127,14 @@ function resolveFromEnv(): ResolvedPlatformEmail | null {
   if (configResult.isErr()) return null;
   const env = configResult.value;
 
-  const connectorKey = env.EMAIL_CONNECTOR;
+  let connectorKey = env.EMAIL_CONNECTOR;
+  // If Resend credentials are present, prefer Resend even when EMAIL_CONNECTOR
+  // was left at the schema default ("console").
+  if (connectorKey === "console" && env.RESEND_API_KEY && env.EMAIL_FROM) {
+    connectorKey = "resend";
+  } else if (connectorKey === "console" && env.SMTP_HOST && env.EMAIL_FROM) {
+    connectorKey = "smtp";
+  }
   const fromEmail = env.EMAIL_FROM ?? null;
   const hasCredentials =
     (connectorKey === "resend" && Boolean(env.RESEND_API_KEY)) ||
