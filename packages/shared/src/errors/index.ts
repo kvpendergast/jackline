@@ -1,6 +1,7 @@
 export const ErrorCode = {
   UNAUTHORIZED: "UNAUTHORIZED",
   EMAIL_NOT_VERIFIED: "EMAIL_NOT_VERIFIED",
+  EMAIL_NOT_CONFIGURED: "EMAIL_NOT_CONFIGURED",
   FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
   BAD_REQUEST: "BAD_REQUEST",
@@ -42,6 +43,15 @@ export class EmailNotVerifiedError extends JacklineError {
   constructor(message = "Email address is not verified") {
     super(ErrorCode.EMAIL_NOT_VERIFIED, message);
     this.name = "EmailNotVerifiedError";
+  }
+}
+
+export class EmailNotConfiguredError extends JacklineError {
+  constructor(
+    message = "Outbound email is not configured. Set a Resend or SMTP connector before sending mail.",
+  ) {
+    super(ErrorCode.EMAIL_NOT_CONFIGURED, message);
+    this.name = "EmailNotConfiguredError";
   }
 }
 

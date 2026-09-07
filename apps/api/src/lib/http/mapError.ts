@@ -13,6 +13,8 @@ export function toHttpStatus(error: JacklineError): ContentfulStatusCode {
       return 401;
     case ErrorCode.EMAIL_NOT_VERIFIED:
       return 403;
+    case ErrorCode.EMAIL_NOT_CONFIGURED:
+      return 503;
     case ErrorCode.FORBIDDEN:
       return 403;
     case ErrorCode.NOT_FOUND:

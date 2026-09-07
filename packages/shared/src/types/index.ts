@@ -192,10 +192,12 @@ export {
   getEmailConnectorPreset,
   PLATFORM_EMAIL_API_KEY_AAD,
   PublicPlatformEmailSettingsSchema,
+  PublicEmailDeliveryStatusSchema,
   UpdatePlatformEmailSettingsBodySchema,
   type EmailConnectorKey,
   type EmailConnectorPreset,
   type PublicPlatformEmailSettings,
+  type PublicEmailDeliveryStatus,
   type UpdatePlatformEmailSettingsBody,
 } from './platformEmail.js';
 export {

@@ -40,6 +40,15 @@ process.on("SIGTERM", () => {
 setVerificationEmailSender(async ({ to, url }) => {
   const result = await platformEmailServices.sendVerification(logger, to, url);
   if (result.isErr()) {
+    if (result.error.code === "EMAIL_NOT_CONFIGURED") {
+      // Allow Better Auth to continue (e.g. EMAIL_NOT_VERIFIED on sign-in).
+      // The verify-email UI loads /platform/email/status and shows a clear error.
+      logger.error(
+        { to },
+        "outbound email is not configured — verification message was not sent",
+      );
+      return;
+    }
     throw result.error;
   }
 });

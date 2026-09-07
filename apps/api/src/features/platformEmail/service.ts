@@ -12,11 +12,13 @@ import { db, platformEmailSettings } from "@jackline/db";
 import {
   BadRequestError,
   EmailConnectorKeySchema,
+  EmailNotConfiguredError,
   getConfig,
   getEmailConnectorPreset,
   JacklineError,
   PLATFORM_EMAIL_API_KEY_AAD,
   SetupError,
+  type PublicEmailDeliveryStatus,
   type PublicPlatformEmailSettings,
   type UpdatePlatformEmailSettingsBody,
 } from "@jackline/shared";
@@ -66,6 +68,51 @@ function decryptApiKey(
   return new TextDecoder().decode(decrypted.value);
 }
 
+function isDeliveryReady(runtime: ResolvedEmailConnectorConfig): boolean {
+  if (!runtime.fromEmail || runtime.fromEmail === "noreply@localhost") {
+    return false;
+  }
+  if (runtime.connectorKey === "resend") {
+    return Boolean(runtime.apiKey);
+  }
+  if (runtime.connectorKey === "smtp") {
+    return Boolean(runtime.smtpHost);
+  }
+  return false;
+}
+
+function toPublic(
+  runtime: ResolvedEmailConnectorConfig,
+  extras: {
+    fromEmail: string | null;
+    fromName: string | null;
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpSecure: boolean;
+    smtpUser: string | null;
+    hasApiKey: boolean;
+    source: PublicPlatformEmailSettings["source"];
+    updatedAt: string;
+  },
+): PublicPlatformEmailSettings {
+  const deliveryReady = isDeliveryReady(runtime);
+  const connectorParse = EmailConnectorKeySchema.safeParse(runtime.connectorKey);
+  return {
+    connectorKey: connectorParse.success ? connectorParse.data : "console",
+    fromEmail: extras.fromEmail,
+    fromName: extras.fromName,
+    smtpHost: extras.smtpHost,
+    smtpPort: extras.smtpPort,
+    smtpSecure: extras.smtpSecure,
+    smtpUser: extras.smtpUser,
+    hasApiKey: extras.hasApiKey,
+    deliveryReady,
+    configured: deliveryReady,
+    source: extras.source,
+    updatedAt: extras.updatedAt,
+  };
+}
+
 function rowHasSavedConfig(row: typeof platformEmailSettings.$inferSelect): boolean {
   return (
     row.connectorKey !== "console" ||
@@ -90,9 +137,20 @@ function resolveFromEnv(): ResolvedPlatformEmail | null {
     return null;
   }
 
+  const runtime: ResolvedEmailConnectorConfig = {
+    connectorKey,
+    fromEmail: fromEmail ?? "noreply@localhost",
+    fromName: null,
+    apiKey: env.RESEND_API_KEY ?? null,
+    smtpHost: env.SMTP_HOST ?? null,
+    smtpPort: env.SMTP_PORT ?? null,
+    smtpSecure: env.SMTP_SECURE,
+    smtpUser: env.SMTP_USER ?? null,
+    smtpPass: env.SMTP_PASS ?? null,
+  };
+
   return {
-    public: {
-      connectorKey,
+    public: toPublic(runtime, {
       fromEmail,
       fromName: null,
       smtpHost: env.SMTP_HOST ?? null,
@@ -100,21 +158,10 @@ function resolveFromEnv(): ResolvedPlatformEmail | null {
       smtpSecure: env.SMTP_SECURE,
       smtpUser: env.SMTP_USER ?? null,
       hasApiKey: Boolean(env.RESEND_API_KEY || env.SMTP_PASS),
-      configured: hasCredentials || Boolean(fromEmail),
       source: "environment",
       updatedAt: new Date(0).toISOString(),
-    },
-    runtime: {
-      connectorKey,
-      fromEmail: fromEmail ?? "noreply@localhost",
-      fromName: null,
-      apiKey: env.RESEND_API_KEY ?? null,
-      smtpHost: env.SMTP_HOST ?? null,
-      smtpPort: env.SMTP_PORT ?? null,
-      smtpSecure: env.SMTP_SECURE,
-      smtpUser: env.SMTP_USER ?? null,
-      smtpPass: env.SMTP_PASS ?? null,
-    },
+    }),
+    runtime,
   };
 }
 
@@ -126,9 +173,20 @@ async function resolvePlatformEmail(): Promise<ResolvedPlatformEmail> {
     const connectorKey = connectorParse.success ? connectorParse.data : "console";
     const secret = decryptApiKey(row);
 
+    const runtime: ResolvedEmailConnectorConfig = {
+      connectorKey,
+      fromEmail: row.fromEmail ?? "noreply@localhost",
+      fromName: row.fromName,
+      apiKey: connectorKey === "resend" ? secret : null,
+      smtpHost: row.smtpHost,
+      smtpPort: row.smtpPort,
+      smtpSecure: row.smtpSecure,
+      smtpUser: row.smtpUser,
+      smtpPass: connectorKey === "smtp" ? secret : null,
+    };
+
     return {
-      public: {
-        connectorKey,
+      public: toPublic(runtime, {
         fromEmail: row.fromEmail,
         fromName: row.fromName,
         smtpHost: row.smtpHost,
@@ -136,30 +194,24 @@ async function resolvePlatformEmail(): Promise<ResolvedPlatformEmail> {
         smtpSecure: row.smtpSecure,
         smtpUser: row.smtpUser,
         hasApiKey: secret != null,
-        configured: connectorKey !== "console" || row.fromEmail != null,
         source: "database",
         updatedAt: row.updatedAt.toISOString(),
-      },
-      runtime: {
-        connectorKey,
-        fromEmail: row.fromEmail ?? "noreply@localhost",
-        fromName: row.fromName,
-        apiKey: connectorKey === "resend" ? secret : null,
-        smtpHost: row.smtpHost,
-        smtpPort: row.smtpPort,
-        smtpSecure: row.smtpSecure,
-        smtpUser: row.smtpUser,
-        smtpPass: connectorKey === "smtp" ? secret : null,
-      },
+      }),
+      runtime,
     };
   }
 
   const fromEnv = resolveFromEnv();
   if (fromEnv) return fromEnv;
 
+  const runtime: ResolvedEmailConnectorConfig = {
+    connectorKey: "console",
+    fromEmail: "noreply@localhost",
+    fromName: null,
+  };
+
   return {
-    public: {
-      connectorKey: "console",
+    public: toPublic(runtime, {
       fromEmail: null,
       fromName: null,
       smtpHost: null,
@@ -167,16 +219,28 @@ async function resolvePlatformEmail(): Promise<ResolvedPlatformEmail> {
       smtpSecure: false,
       smtpUser: null,
       hasApiKey: false,
-      configured: false,
       source: "default",
       updatedAt: row.updatedAt.toISOString(),
-    },
-    runtime: {
-      connectorKey: "console",
-      fromEmail: "noreply@localhost",
-      fromName: null,
-    },
+    }),
+    runtime,
   };
+}
+
+async function getStatus(
+  log: Logger,
+): Promise<Result<PublicEmailDeliveryStatus, JacklineError>> {
+  const resolved = await resolvePlatformEmail();
+  log.debug(
+    {
+      deliveryReady: resolved.public.deliveryReady,
+      connectorKey: resolved.public.connectorKey,
+    },
+    "getEmailDeliveryStatus",
+  );
+  return ok({
+    deliveryReady: resolved.public.deliveryReady,
+    connectorKey: resolved.public.connectorKey,
+  });
 }
 
 async function get(
@@ -270,6 +334,9 @@ async function send(
 ): Promise<Result<void, JacklineError>> {
   try {
     const resolved = await resolvePlatformEmail();
+    if (!resolved.public.deliveryReady) {
+      return err(new EmailNotConfiguredError());
+    }
     const connector = createEmailConnector(resolved.runtime);
     await connector.send(message);
     log.debug(
@@ -278,6 +345,9 @@ async function send(
     );
     return ok(undefined);
   } catch (cause) {
+    if (cause instanceof JacklineError) {
+      return err(cause);
+    }
     const messageText =
       cause instanceof Error ? cause.message : "Failed to send email";
     log.warn({ err: cause }, "platform email send failed");
@@ -300,6 +370,7 @@ async function sendVerification(
 
 export const platformEmailServices = {
   get,
+  getStatus,
   update,
   send,
   sendVerification,

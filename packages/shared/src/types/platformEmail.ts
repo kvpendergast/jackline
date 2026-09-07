@@ -54,9 +54,17 @@ export const PublicPlatformEmailSettingsSchema = z.strictObject({
   smtpSecure: z.boolean(),
   smtpUser: z.string().nullable(),
   hasApiKey: z.boolean(),
+  /** True when a real outbound connector (Resend/SMTP) has the credentials needed to send. */
+  deliveryReady: z.boolean(),
   configured: z.boolean(),
   source: z.enum(["database", "environment", "default"]),
   updatedAt: z.iso.datetime(),
+});
+
+/** Public readiness probe for verify-email / signup UX (no secrets). */
+export const PublicEmailDeliveryStatusSchema = z.strictObject({
+  deliveryReady: z.boolean(),
+  connectorKey: EmailConnectorKeySchema,
 });
 
 export const UpdatePlatformEmailSettingsBodySchema = z.strictObject({
@@ -74,6 +82,9 @@ export const UpdatePlatformEmailSettingsBodySchema = z.strictObject({
 
 export type PublicPlatformEmailSettings = z.infer<
   typeof PublicPlatformEmailSettingsSchema
+>;
+export type PublicEmailDeliveryStatus = z.infer<
+  typeof PublicEmailDeliveryStatusSchema
 >;
 export type UpdatePlatformEmailSettingsBody = z.infer<
   typeof UpdatePlatformEmailSettingsBodySchema
