@@ -207,6 +207,7 @@ export {
   CreateKnockResultSchema,
   KNOCK_MESSAGE_MAX_BYTES,
   JACKLINE_TRUST_REQUEST_INTENT,
+  JACKLINE_TOOL_CALL_INTENT,
   validateKnockMessage,
 } from './knock.js';
 export {

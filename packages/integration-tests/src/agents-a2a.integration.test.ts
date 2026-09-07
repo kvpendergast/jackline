@@ -230,3 +230,153 @@ describe("A2A trust handoff via tasks/get", () => {
     assert.equal(messageResult.state, "completed");
   });
 });
+
+describe("hosted A2A tool execution", () => {
+  it("runs a bound tool for a granted peer via jackline.tool.call", async () => {
+    const { startMockUpstreamMcp } = await import("./helpers/mockUpstream.js");
+    const mock = await startMockUpstreamMcp("echo");
+    try {
+      const ownerClient = await createApiClient();
+      const peerClient = await createApiClient();
+      const owner = await createAuthenticatedAdmin(ownerClient, "hosted-owner");
+      const peer = await createAuthenticatedAdmin(peerClient, "hosted-peer");
+
+      const access = await provisionInteractiveMcpAccess(
+        ownerClient,
+        owner.tenantId,
+        "hosted-echo",
+        {
+          baseUrl: mock.baseUrl,
+          toolName: "echo",
+          inputSchema: {
+            type: "object",
+            properties: { message: { type: "string" } },
+          },
+        },
+      );
+
+      const handle = `hosted-${Date.now()}`.slice(0, 32);
+      const agent = await ownerClient.api<PublicAgent>("/api/v1/agents", {
+        method: "POST",
+        tenantId: owner.tenantId,
+        body: JSON.stringify({
+          handle,
+          displayName: "Hosted Agent",
+          instructions: "Call the echo tool when asked.",
+        }),
+      });
+      await ownerClient.api(`/api/v1/agents/${agent.data.id}/tools`, {
+        method: "PUT",
+        tenantId: owner.tenantId,
+        body: JSON.stringify({ toolIds: [access.toolId] }),
+      });
+      await ownerClient.api(`/api/v1/agents/${agent.data.id}/publish`, {
+        method: "POST",
+        tenantId: owner.tenantId,
+      });
+
+      const peerCardUrl = `http://127.0.0.1/agents/peer-hosted/card.json`;
+      const knockRes = await a2aJsonRpc(
+        peerClient.apiUrl,
+        handle,
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "message/send",
+          params: {
+            peerAgentCardUrl: peerCardUrl,
+            message: {
+              role: "user",
+              parts: [{ kind: "text", text: "knock please" }],
+              metadata: {
+                intent: "jackline.trust.request",
+                peerAgentCardUrl: peerCardUrl,
+              },
+            },
+          },
+        },
+        {
+          Cookie: peerClient.cookieHeader(),
+          "X-Jackline-Tenant-Id": peer.tenantId,
+        },
+      );
+      assert.equal(knockRes.status, 200, JSON.stringify(knockRes.json));
+      const knockResult = knockRes.json["result"] as {
+        knockId: string;
+        taskId: string;
+        knockSecret: string;
+      };
+
+      await ownerClient.api(`/api/v1/knocks/${knockResult.knockId}/approve`, {
+        method: "POST",
+        tenantId: owner.tenantId,
+        body: JSON.stringify({ grantTtlSeconds: 3600 }),
+      });
+
+      const tasksGet = await a2aJsonRpc(
+        peerClient.apiUrl,
+        handle,
+        {
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tasks/get",
+          params: { taskId: knockResult.taskId },
+        },
+        {
+          Cookie: peerClient.cookieHeader(),
+          "X-Jackline-Tenant-Id": peer.tenantId,
+        },
+      );
+      const taskPayload = tasksGet.json["result"] as {
+        result?: { exchangeToken?: string };
+      };
+
+      const exchanged = await peerClient.api<{ token: string }>(
+        "/api/v1/trust/exchange",
+        {
+          method: "POST",
+          tenantId: peer.tenantId,
+          body: JSON.stringify({
+            knockSecret: knockResult.knockSecret,
+            exchangeToken: taskPayload.result!.exchangeToken,
+          }),
+        },
+      );
+
+      const toolCall = await a2aJsonRpc(
+        peerClient.apiUrl,
+        handle,
+        {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "message/send",
+          params: {
+            message: {
+              role: "user",
+              parts: [{ kind: "text", text: "please echo" }],
+              metadata: {
+                intent: "jackline.tool.call",
+                tool: {
+                  name: access.mcpToolName,
+                  arguments: { message: "on-behalf" },
+                },
+              },
+            },
+          },
+        },
+        { Authorization: `Bearer ${exchanged.data.token}` },
+      );
+      assert.equal(toolCall.status, 200, JSON.stringify(toolCall.json));
+      const toolResult = toolCall.json["result"] as {
+        state: string;
+        result?: { mode?: string; tool?: string; output?: unknown };
+      };
+      assert.equal(toolResult.state, "completed");
+      assert.equal(toolResult.result?.mode, "tool_call");
+      assert.equal(toolResult.result?.tool, access.mcpToolName);
+      assert.match(String(toolResult.result?.output), /echo:on-behalf/);
+    } finally {
+      await mock.stop();
+    }
+  });
+});

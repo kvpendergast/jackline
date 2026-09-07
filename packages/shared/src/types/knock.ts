@@ -28,6 +28,8 @@ export const CreateKnockResultSchema = z.strictObject({
 
 export const KNOCK_MESSAGE_MAX_BYTES = 4096;
 export const JACKLINE_TRUST_REQUEST_INTENT = "jackline.trust.request" as const;
+/** Peer requests a specific bound MCP tool (structured A2A tool call). */
+export const JACKLINE_TOOL_CALL_INTENT = "jackline.tool.call" as const;
 
 export type KnockStatus = z.infer<typeof KnockStatusSchema>;
 export type PublicKnock = z.infer<typeof PublicKnockSchema>;

@@ -50,6 +50,8 @@ export function isMcpMethodNotFound(cause: unknown): boolean {
 export type ConnectJacklineMcpOptions = {
   requestId?: string | undefined;
   otel: OtelConfig;
+  /** When set, only expose these gateway MCP tool names to the caller. */
+  allowedToolNames?: ReadonlySet<string>;
 };
 
 export async function connectJacklineMcpTools(
@@ -81,6 +83,15 @@ export async function connectJacklineMcpTools(
         throw cause;
       }
     }
+
+    if (options.allowedToolNames && options.allowedToolNames.size > 0) {
+      listedTools = listedTools.filter((tool) =>
+        options.allowedToolNames!.has(tool.name),
+      );
+    } else if (options.allowedToolNames) {
+      listedTools = [];
+    }
+
     const tools = listedTools.map((tool) => {
       const def = toolDefinition({
         name: tool.name,

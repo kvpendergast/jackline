@@ -52,10 +52,11 @@ const update: RouteHandler<typeof agentRoutes.update, JacklineEnv> = async (
 const setTools: RouteHandler<typeof agentRoutes.setTools, JacklineEnv> = async (
   c,
 ) => {
-  const { auth } = c.get("tenantContext");
+  const { auth, log } = c.get("tenantContext");
   const { id } = c.req.valid("param");
   const { toolIds } = c.req.valid("json");
   const result = await agentServices.setTools(
+    log,
     auth.tenantId,
     auth.userId,
     id,
