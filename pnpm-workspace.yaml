@@ -5,6 +5,9 @@ packages:
 # Force patched hono everywhere (zudoku still pins 4.12.32 otherwise).
 overrides:
   hono: ">=4.12.34"
+  "@opentelemetry/exporter-prometheus": ">=0.217.0"
+  "@opentelemetry/propagator-jaeger": ">=2.9.0"
+  "@opentelemetry/core": ">=2.8.0"
 
 # Supply-chain hardening (see https://pnpm.io/supply-chain-security)
 # Delay new versions so malicious publishes can be yanked before we resolve them.
