@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { BadRequestError, JACKLINE_TOOL_CALL_INTENT } from "@jackline/shared";
+import {
+  BadRequestError,
+  formatA2aPeerAuditReason,
+  isA2aPeerAuditReason,
+  JACKLINE_TOOL_CALL_INTENT,
+} from "@jackline/shared";
 
 import {
   extractPeerMessageText,
@@ -102,5 +107,22 @@ describe("resolveBoundToolName", () => {
 
   it("returns undefined for unbound tools", () => {
     assert.equal(resolveBoundToolName(bound, "other"), undefined);
+  });
+});
+
+describe("formatA2aPeerAuditReason", () => {
+  it("builds a stable a2a.peer reason string", () => {
+    const reason = formatA2aPeerAuditReason({
+      agentHandle: "alice",
+      agentId: "11111111-1111-1111-1111-111111111111",
+      trustGrantId: "22222222-2222-2222-2222-222222222222",
+      peerAgentCardUrl: "https://peer.example/card.json",
+    });
+    assert.equal(
+      reason,
+      "a2a.peer agent=alice agentId=11111111-1111-1111-1111-111111111111 grant=22222222-2222-2222-2222-222222222222 peer=https://peer.example/card.json",
+    );
+    assert.equal(isA2aPeerAuditReason(reason), true);
+    assert.equal(isA2aPeerAuditReason(null), false);
   });
 });

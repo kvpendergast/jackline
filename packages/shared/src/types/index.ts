@@ -208,6 +208,10 @@ export {
   KNOCK_MESSAGE_MAX_BYTES,
   JACKLINE_TRUST_REQUEST_INTENT,
   JACKLINE_TOOL_CALL_INTENT,
+  JACKLINE_AUDIT_REASON_HEADER,
+  A2A_PEER_AUDIT_REASON_PREFIX,
+  formatA2aPeerAuditReason,
+  isA2aPeerAuditReason,
   validateKnockMessage,
 } from './knock.js';
 export {

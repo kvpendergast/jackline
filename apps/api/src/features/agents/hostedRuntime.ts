@@ -10,13 +10,16 @@ import {
   db,
   servers,
   tools,
+  trustGrants,
   type Agent as AgentRow,
 } from "@jackline/db";
 import {
   BadRequestError,
   ForbiddenError,
+  formatA2aPeerAuditReason,
   getConfig,
   internalMcpUrl,
+  JACKLINE_AUDIT_REASON_HEADER,
   JacklineError,
   SetupError,
 } from "@jackline/shared";
@@ -125,6 +128,7 @@ async function callBoundToolViaGateway(input: {
   mcpName: string;
   args: Record<string, unknown>;
   requestId?: string;
+  auditReason?: string;
 }): Promise<Result<unknown, JacklineError>> {
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StreamableHTTPClientTransport } = await import(
@@ -135,7 +139,12 @@ async function callBoundToolViaGateway(input: {
   const client = new Client({ name: "jackline-agent", version: "0.0.0" });
   const headers = injectOutboundHeaders(otelConfig, {
     requestId: input.requestId,
-    headers: { Authorization: `Bearer ${input.gatewayToken}` },
+    headers: {
+      Authorization: `Bearer ${input.gatewayToken}`,
+      ...(input.auditReason
+        ? { [JACKLINE_AUDIT_REASON_HEADER]: input.auditReason }
+        : {}),
+    },
   });
   const transport = new StreamableHTTPClientTransport(new URL(input.mcpUrl), {
     requestInit: { headers },
@@ -181,6 +190,7 @@ async function runLlmHostedTurn(input: {
   mcpUrl: string;
   gatewayToken: string;
   requestId?: string;
+  auditReason?: string;
   log: Logger;
 }): Promise<Result<{ text: string; toolNames: string[] }, JacklineError>> {
   const resolved = await chatServices.resolveRun(
@@ -198,6 +208,7 @@ async function runLlmHostedTurn(input: {
     requestId: input.requestId,
     otel: otelConfig,
     allowedToolNames: allowed,
+    ...(input.auditReason ? { auditReason: input.auditReason } : {}),
   });
   if (mcp.isErr()) return err(mcp.error);
 
@@ -265,6 +276,23 @@ export async function runHostedPeerMessage(input: {
   const mcpUrl = internalMcpUrl(configResult.value);
   const gatewayToken = chatBinding.value.gatewayToken;
 
+  const [grant] = await db
+    .select({
+      peerAgentCardUrl: trustGrants.peerAgentCardUrl,
+    })
+    .from(trustGrants)
+    .where(eq(trustGrants.id, input.trustGrantId))
+    .limit(1);
+
+  const auditReason = formatA2aPeerAuditReason({
+    agentHandle: input.agent.handle,
+    agentId: input.agent.id,
+    trustGrantId: input.trustGrantId,
+    ...(grant?.peerAgentCardUrl
+      ? { peerAgentCardUrl: grant.peerAgentCardUrl }
+      : {}),
+  });
+
   const [task] = await db
     .insert(a2aTasks)
     .values({
@@ -294,6 +322,7 @@ export async function runHostedPeerMessage(input: {
         gatewayToken,
         mcpName: match.mcpName,
         args: requested.arguments,
+        auditReason,
         ...(input.requestId !== undefined
           ? { requestId: input.requestId }
           : {}),
@@ -320,6 +349,7 @@ export async function runHostedPeerMessage(input: {
           bound,
           mcpUrl,
           gatewayToken,
+          auditReason,
           ...(input.requestId !== undefined
             ? { requestId: input.requestId }
             : {}),

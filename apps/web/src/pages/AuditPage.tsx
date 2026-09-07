@@ -14,6 +14,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
 import type { PublicAuditEvent, PublicClient, PublicUser } from "@jackline/shared";
+import { isA2aPeerAuditReason } from "@jackline/shared";
 
 export function AuditPage() {
   const { tenantId } = useAuth();
@@ -85,6 +86,7 @@ export function AuditPage() {
         e.toolName.toLowerCase().includes(q) ||
         e.id.toLowerCase().includes(q) ||
         e.connectionId?.toLowerCase().includes(q) ||
+        e.reason?.toLowerCase().includes(q) ||
         client?.name.toLowerCase().includes(q) ||
         subject?.email.toLowerCase().includes(q)
       );
@@ -96,7 +98,7 @@ export function AuditPage() {
       <PageHeader
         eyebrow="Visibility"
         title="Audit"
-        description="Every tools/call through the gateway — allow, deny, or upstream error."
+        description="Every tools/call through the gateway — allow, deny, or upstream error. Peer A2A actions are tagged in the reason field."
       />
 
       {error ? <p className="text-sm text-deny">{error}</p> : null}
@@ -187,7 +189,14 @@ export function AuditPage() {
                       <OutcomeBadge outcome={row.outcome} />
                     </TableCell>
                     <TableCell className="font-mono text-[13px]">
-                      {row.toolName}
+                      <div className="flex flex-col gap-1">
+                        <span>{row.toolName}</span>
+                        {isA2aPeerAuditReason(row.reason) ? (
+                          <span className="w-fit rounded border border-border px-1.5 py-0.5 font-sans text-[10px] uppercase tracking-wide text-muted-foreground">
+                            A2A peer
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {row.connectionId ? (
@@ -230,8 +239,17 @@ export function AuditPage() {
                             </pre>
                           </div>
                           {row.reason ? (
-                            <p className="text-xs text-deny md:col-span-2">
-                              Reason: {row.reason}
+                            <p
+                              className={
+                                isA2aPeerAuditReason(row.reason)
+                                  ? "text-xs text-muted-foreground md:col-span-2"
+                                  : "text-xs text-deny md:col-span-2"
+                              }
+                            >
+                              {isA2aPeerAuditReason(row.reason)
+                                ? "A2A: "
+                                : "Reason: "}
+                              {row.reason}
                             </p>
                           ) : null}
                         </div>

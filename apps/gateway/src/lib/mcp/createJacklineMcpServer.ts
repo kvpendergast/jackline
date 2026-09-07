@@ -52,7 +52,9 @@ export async function createJacklineMcpServer(
             toolName: tool.name,
             serverId: tool.serverId,
             outcome: outcomeFromProxyError(proxied.error),
-            reason: proxied.error.message,
+            reason: ctx.auditReason
+              ? `${ctx.auditReason}; ${proxied.error.message}`
+              : proxied.error.message,
             requestId: ctx.requestId,
             latencyMs,
             requestArgs,
@@ -77,7 +79,7 @@ export async function createJacklineMcpServer(
           toolName: tool.name,
           serverId: tool.serverId,
           outcome: "allow",
-          reason: null,
+          reason: ctx.auditReason,
           requestId: ctx.requestId,
           latencyMs,
           requestArgs,

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type {
   PublicAgent,
   PublicKnock,
+  PublicServer,
   PublicTool,
   PublicTrustGrant,
 } from "@jackline/shared";
@@ -47,6 +48,7 @@ function formatTtl(seconds: number): string {
 
 export function AgentDetailPage() {
   const { id = "" } = useParams();
+  const location = useLocation();
   const { tenantId } = useAuth();
   const [agent, setAgent] = useState<PublicAgent | null>(null);
   const [knocks, setKnocks] = useState<PublicKnock[]>([]);
@@ -65,21 +67,25 @@ export function AgentDetailPage() {
   const [approveTtlSeconds, setApproveTtlSeconds] = useState("86400");
   const [instructions, setInstructions] = useState("");
   const [tools, setTools] = useState<PublicTool[]>([]);
+  const [servers, setServers] = useState<PublicServer[]>([]);
   const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
   const [savingTools, setSavingTools] = useState(false);
 
   async function loadAgent() {
     if (!tenantId || !id) return null;
-    const [agentData, knockData, grantData, toolsData] = await Promise.all([
-      jacklineApi.getAgent(tenantId, id),
-      jacklineApi.listAgentKnocks(tenantId, id),
-      jacklineApi.listTrustGrants(tenantId, id),
-      jacklineApi.listTools(tenantId),
-    ]);
+    const [agentData, knockData, grantData, toolsData, serversData] =
+      await Promise.all([
+        jacklineApi.getAgent(tenantId, id),
+        jacklineApi.listAgentKnocks(tenantId, id),
+        jacklineApi.listTrustGrants(tenantId, id),
+        jacklineApi.listTools(tenantId),
+        jacklineApi.listServers(tenantId),
+      ]);
     setAgent(agentData);
     setKnocks(knockData.items);
     setGrants(grantData.items);
     setTools(toolsData.items);
+    setServers(serversData.items);
     setDisplayName(agentData.displayName);
     setDescription(agentData.description ?? "");
     setInstructions(agentData.instructions ?? "");
@@ -111,6 +117,13 @@ export function AgentDetailPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, id]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (location.hash !== "#knocks") return;
+    const el = document.getElementById("knocks");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [loading, location.hash, knocks.length]);
 
   async function onSaveSettings(event: FormEvent) {
     event.preventDefault();
@@ -165,6 +178,31 @@ export function AgentDetailPage() {
         (tool) => tool.status === "active" || selectedToolIds.has(tool.id),
       ),
     [tools, selectedToolIds],
+  );
+
+  const serverNameById = useMemo(
+    () => new Map(servers.map((server) => [server.id, server.name])),
+    [servers],
+  );
+
+  const toolsByServer = useMemo(() => {
+    const groups = new Map<string, PublicTool[]>();
+    for (const tool of activeTools) {
+      const key = tool.serverId;
+      const list = groups.get(key) ?? [];
+      list.push(tool);
+      groups.set(key, list);
+    }
+    return [...groups.entries()].sort((a, b) => {
+      const nameA = serverNameById.get(a[0]) ?? a[0];
+      const nameB = serverNameById.get(b[0]) ?? b[0];
+      return nameA.localeCompare(nameB);
+    });
+  }, [activeTools, serverNameById]);
+
+  const pendingKnockCount = useMemo(
+    () => knocks.filter((knock) => knock.status === "pending").length,
+    [knocks],
   );
 
   async function onSaveTools() {
@@ -355,7 +393,7 @@ export function AgentDetailPage() {
           <h2 className="text-lg font-medium">Tools</h2>
           <p className="text-sm text-muted-foreground">
             MCP tools this agent may use on your behalf. The same set applies to
-            every approved peer.
+            every approved peer ({selectedToolIds.size} bound).
           </p>
         </div>
         {activeTools.length === 0 ? (
@@ -364,38 +402,45 @@ export function AgentDetailPage() {
             server first.
           </p>
         ) : (
-          <div className="max-w-lg space-y-2 rounded-md border p-3">
-            {activeTools.map((tool) => {
-              const checked = selectedToolIds.has(tool.id);
-              return (
-                <label
-                  key={tool.id}
-                  className="flex items-start gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={checked}
-                    onChange={(e) => {
-                      setSelectedToolIds((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(tool.id);
-                        else next.delete(tool.id);
-                        return next;
-                      });
-                    }}
-                  />
-                  <span>
-                    <span className="font-medium">{tool.name}</span>
-                    {tool.description ? (
-                      <span className="block text-muted-foreground">
-                        {tool.description}
+          <div className="max-w-lg space-y-4 rounded-md border p-3">
+            {toolsByServer.map(([serverId, serverTools]) => (
+              <div key={serverId} className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {serverNameById.get(serverId) ?? "Server"}
+                </p>
+                {serverTools.map((tool) => {
+                  const checked = selectedToolIds.has(tool.id);
+                  return (
+                    <label
+                      key={tool.id}
+                      className="flex items-start gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedToolIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(tool.id);
+                            else next.delete(tool.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.description ? (
+                          <span className="block text-muted-foreground">
+                            {tool.description}
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </span>
-                </label>
-              );
-            })}
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         )}
         <Button
@@ -409,8 +454,15 @@ export function AgentDetailPage() {
 
       <Separator />
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Knocks</h2>
+      <section id="knocks" className="scroll-mt-20 space-y-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-medium">Knocks</h2>
+          {pendingKnockCount > 0 ? (
+            <span className="text-sm text-muted-foreground">
+              {pendingKnockCount} pending
+            </span>
+          ) : null}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -532,6 +584,10 @@ export function AgentDetailPage() {
             <DialogTitle>Approve knock</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Approving trusts this peer for the duration below. They use the
+              agent’s bound tools — knock approval does not change the tool set.
+            </p>
             <Field label="Grant duration for this peer">
               <FieldSelect
                 value={approveTtlSeconds}

@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import {
   getConfig,
+  JACKLINE_AUDIT_REASON_HEADER,
   JacklineError,
   mcpOauthProtectedResourceMetadataUrl,
   publicMcpUrl,
@@ -64,11 +65,17 @@ export const requireConnection: MiddlewareHandler<GatewayEnv> = async (
   }
 
   const { connection, tenantId, secretId } = result.value;
+  const rawAuditReason = c.req.header(JACKLINE_AUDIT_REASON_HEADER)?.trim();
+  const auditReason =
+    rawAuditReason && rawAuditReason.length > 0
+      ? rawAuditReason.slice(0, 512)
+      : null;
   c.set("gatewayContext", {
     requestId,
     connection,
     tenantId,
     secretId,
+    auditReason,
     log: log.child({
       connectionId: connection.id,
       tenantId,

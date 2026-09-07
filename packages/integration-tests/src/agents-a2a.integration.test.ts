@@ -375,6 +375,28 @@ describe("hosted A2A tool execution", () => {
       assert.equal(toolResult.result?.mode, "tool_call");
       assert.equal(toolResult.result?.tool, access.mcpToolName);
       assert.match(String(toolResult.result?.output), /echo:on-behalf/);
+
+      const audit = await ownerClient.api<{
+        items: Array<{
+          toolName: string;
+          outcome: string;
+          reason: string | null;
+        }>;
+      }>("/api/v1/audit-events?limit=20", {
+        tenantId: owner.tenantId,
+      });
+      const peerEvent = audit.data.items.find(
+        (event) =>
+          event.outcome === "allow" &&
+          event.toolName === access.mcpToolName &&
+          typeof event.reason === "string" &&
+          event.reason.startsWith("a2a.peer") &&
+          event.reason.includes(`agent=${handle}`),
+      );
+      assert.ok(
+        peerEvent,
+        `expected a2a.peer audit event, got ${JSON.stringify(audit.data.items)}`,
+      );
     } finally {
       await mock.stop();
     }
