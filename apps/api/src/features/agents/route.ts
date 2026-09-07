@@ -36,6 +36,12 @@ const GrantIdParamSchema = z
   })
   .openapi("GrantIdParam");
 
+const SetAgentToolsBodyOpenApiSchema = z
+  .strictObject({
+    toolIds: z.array(z.uuid()),
+  })
+  .openapi("SetAgentToolsBody");
+
 const AgentListResponseSchema = successEnvelopeSchema(
   z.strictObject({ items: z.array(PublicAgentSchema) }),
   "AgentListResponse",
@@ -137,6 +143,33 @@ export const agentRoutes = {
       200: {
         content: { "application/json": { schema: AgentResponseSchema } },
         description: "Updated agent",
+      },
+      ...notFoundError,
+      ...tenantScopedErrors,
+    },
+  }),
+
+  setTools: createRoute({
+    method: "put",
+    path: "/agents/{id}/tools",
+    tags: ["Agents"],
+    summary: "Replace the MCP tools bound to an agent",
+    request: {
+      headers: TenantIdHeaderSchema,
+      params: AgentIdParamSchema,
+      body: {
+        content: {
+          "application/json": {
+            schema: SetAgentToolsBodyOpenApiSchema,
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      200: {
+        content: { "application/json": { schema: AgentResponseSchema } },
+        description: "Agent with replaced toolIds",
       },
       ...notFoundError,
       ...tenantScopedErrors,

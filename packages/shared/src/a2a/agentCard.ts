@@ -72,6 +72,7 @@ export function buildAgentCard(input: AgentCardInput): Record<string, unknown> {
 export type A2aAuthDecision =
   | { action: "allow"; trustGrantId: string }
   | { action: "knock_only" }
+  | { action: "task_poll" }
   | { action: "deny"; reason: string };
 
 export type A2aAuthInput = {
@@ -81,6 +82,8 @@ export type A2aAuthInput = {
   hasValidGrant: boolean;
   trustGrantId?: string;
   isKnockIntent: boolean;
+  /** Jackline session/OAuth — required to poll knock tasks before a peer grant exists. */
+  hasApiCredential?: boolean;
 };
 
 /**
@@ -104,6 +107,11 @@ export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
       return { action: "deny", reason: "Knocks are disabled for this agent" };
     }
     return { action: "knock_only" };
+  }
+
+  // Peers poll tasks/get for exchangeToken after knock approval, before jka_ exists.
+  if (input.method === "tasks/get" && input.hasApiCredential) {
+    return { action: "task_poll" };
   }
 
   return { action: "deny", reason: "Authentication required" };

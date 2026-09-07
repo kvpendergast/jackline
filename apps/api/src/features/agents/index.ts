@@ -7,6 +7,7 @@ const tenantRouteOrder = [
   "create",
   "get",
   "update",
+  "setTools",
   "publish",
   "pause",
   "listKnocks",

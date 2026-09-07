@@ -1,7 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import type { PublicAgent, PublicKnock, PublicTrustGrant } from "@jackline/shared";
+import type {
+  PublicAgent,
+  PublicKnock,
+  PublicTool,
+  PublicTrustGrant,
+} from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
@@ -58,22 +63,30 @@ export function AgentDetailPage() {
 
   const [approveKnockId, setApproveKnockId] = useState<string | null>(null);
   const [approveTtlSeconds, setApproveTtlSeconds] = useState("86400");
+  const [instructions, setInstructions] = useState("");
+  const [tools, setTools] = useState<PublicTool[]>([]);
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
+  const [savingTools, setSavingTools] = useState(false);
 
   async function loadAgent() {
     if (!tenantId || !id) return null;
-    const [agentData, knockData, grantData] = await Promise.all([
+    const [agentData, knockData, grantData, toolsData] = await Promise.all([
       jacklineApi.getAgent(tenantId, id),
       jacklineApi.listAgentKnocks(tenantId, id),
       jacklineApi.listTrustGrants(tenantId, id),
+      jacklineApi.listTools(tenantId),
     ]);
     setAgent(agentData);
     setKnocks(knockData.items);
     setGrants(grantData.items);
+    setTools(toolsData.items);
     setDisplayName(agentData.displayName);
     setDescription(agentData.description ?? "");
+    setInstructions(agentData.instructions ?? "");
     setKnocksEnabled(agentData.knocksEnabled);
     setDefaultGrantTtlSeconds(String(agentData.defaultGrantTtlSeconds));
     setApproveTtlSeconds(String(agentData.defaultGrantTtlSeconds));
+    setSelectedToolIds(new Set(agentData.toolIds));
     return agentData;
   }
 
@@ -109,6 +122,7 @@ export function AgentDetailPage() {
       const updated = await jacklineApi.updateAgent(tenantId, id, {
         displayName,
         description: description.trim() ? description.trim() : null,
+        instructions: instructions.trim() ? instructions.trim() : null,
         knocksEnabled,
         defaultGrantTtlSeconds: Number(defaultGrantTtlSeconds),
       });
@@ -142,6 +156,35 @@ export function AgentDetailPage() {
       setInfo("Agent paused and removed from the directory.");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to pause");
+    }
+  }
+
+  const activeTools = useMemo(
+    () =>
+      tools.filter(
+        (tool) => tool.status === "active" || selectedToolIds.has(tool.id),
+      ),
+    [tools, selectedToolIds],
+  );
+
+  async function onSaveTools() {
+    if (!tenantId || !id) return;
+    setSavingTools(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const updated = await jacklineApi.setAgentTools(
+        tenantId,
+        id,
+        [...selectedToolIds],
+      );
+      setAgent(updated);
+      setSelectedToolIds(new Set(updated.toolIds));
+      setInfo("Agent tools saved. All approved peers share this tool surface.");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to save tools");
+    } finally {
+      setSavingTools(false);
     }
   }
 
@@ -270,6 +313,14 @@ export function AgentDetailPage() {
               placeholder="Optional"
             />
           </Field>
+          <Field label="Instructions (system prompt)">
+            <textarea
+              className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="How this agent should act on your behalf"
+            />
+          </Field>
           <Field label="Default grant duration (after knock approval)">
             <FieldSelect
               value={defaultGrantTtlSeconds}
@@ -297,6 +348,63 @@ export function AgentDetailPage() {
             <KindBadge kind={agent.status} />
           </div>
         </form>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-medium">Tools</h2>
+          <p className="text-sm text-muted-foreground">
+            MCP tools this agent may use on your behalf. The same set applies to
+            every approved peer.
+          </p>
+        </div>
+        {activeTools.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No active tools in this tenant yet. Add and activate tools on a
+            server first.
+          </p>
+        ) : (
+          <div className="max-w-lg space-y-2 rounded-md border p-3">
+            {activeTools.map((tool) => {
+              const checked = selectedToolIds.has(tool.id);
+              return (
+                <label
+                  key={tool.id}
+                  className="flex items-start gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={checked}
+                    onChange={(e) => {
+                      setSelectedToolIds((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(tool.id);
+                        else next.delete(tool.id);
+                        return next;
+                      });
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">{tool.name}</span>
+                    {tool.description ? (
+                      <span className="block text-muted-foreground">
+                        {tool.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+        <Button
+          type="button"
+          disabled={savingTools}
+          onClick={() => void onSaveTools()}
+        >
+          {savingTools ? "Saving tools…" : "Save tools"}
+        </Button>
       </section>
 
       <Separator />
