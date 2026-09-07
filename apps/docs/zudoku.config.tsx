@@ -25,6 +25,7 @@ const config: ZudokuConfig = {
         "/connect-cursor",
         "/authentication",
         "/mcp-oauth",
+        "/a2a-agents",
       ],
     },
     {

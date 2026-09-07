@@ -1,0 +1,74 @@
+---
+title: A2A agents (MVP)
+---
+
+# A2A agents (MVP)
+
+Publish an agent peers can authenticate with, then request actions that run **on your behalf** through Jackline MCP tools and policy.
+
+## Prerequisites
+
+- Jackline running (API + gateway + admin UI)
+- At least one **active** MCP tool on a server you own
+- Two tenants/users (owner and peer), or two browser sessions
+
+## Owner setup
+
+1. Open **Agents** → **New agent**. Pick a handle (public A2A path is `/a2a/<handle>`).
+2. On the agent page, set **instructions** (system prompt).
+3. Under **Tools**, select the MCP tools this agent may use. Save tools.
+   - Tool bindings are **agent-level**: every approved peer shares the same surface.
+4. **Publish** the agent to the public directory.
+
+## Peer knock → trust credential
+
+1. Peer discovers the agent (directory or known handle) and sends an A2A `message/send` knock with intent `jackline.trust.request` (session-authenticated to the peer’s tenant).
+2. Owner gets a notification linking to `/my-agents/<id>#knocks`.
+3. Owner **Approves** (sets grant TTL). Approving trusts the peer; it does **not** change tools.
+4. Peer polls A2A `tasks/get` for the knock task, reads `exchangeToken`, then calls `POST /api/v1/trust/exchange` with the knock secret + exchange token.
+5. Peer receives a `jka_` bearer token for subsequent A2A calls.
+
+## Peer action (hosted runtime)
+
+With the `jka_` token, peer sends `message/send` to `/a2a/<handle>`.
+
+**Structured tool call** (CI / demos):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{ "kind": "text", "text": "please echo" }],
+      "metadata": {
+        "intent": "jackline.tool.call",
+        "tool": {
+          "name": "myserver__echo",
+          "arguments": { "message": "on-behalf" }
+        }
+      }
+    }
+  }
+}
+```
+
+Free-text messages use the hosted LLM path when chat is configured and tools are bound; otherwise the agent returns a plain completion.
+
+Unbound tool names are rejected.
+
+## Audit
+
+Peer-initiated tool calls appear under **Audit** with reason prefix `a2a.peer` (and an **A2A peer** tag). They run through the owner’s gateway policy and connections.
+
+## CI coverage
+
+Integration suite `agents-a2a.integration.test.ts` covers:
+
+1. Instructions + tool bindings API
+2. Knock → approve → `tasks/get` → exchange → authenticated `message/send`
+3. Hosted `jackline.tool.call` execution + `a2a.peer` audit event
+
+Run via the repo’s `integration` CI job (or local integration-test script with Postgres + API/gateway).

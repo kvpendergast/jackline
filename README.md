@@ -28,7 +28,8 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh); mTLS deferred |
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
-| Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
+| Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON; A2A peer calls tagged `a2a.peer` |
+| A2A agents | MVP — publish agent, knock/trust `jka_`, hosted tool execution, audit; see [docs](apps/docs/pages/a2a-agents.mdx) |
 | Compose stand-up | Done — generic Docker + Postgres overlay; prod images on GHCR (`jackline-*`) with overridable `JACKLINE_*_IMAGE` |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |

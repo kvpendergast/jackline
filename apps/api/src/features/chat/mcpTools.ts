@@ -4,7 +4,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
 import { toolDefinition } from "@tanstack/ai";
-import { JacklineError, SetupError } from "@jackline/shared";
+import { JacklineError, JACKLINE_AUDIT_REASON_HEADER, SetupError } from "@jackline/shared";
 import {
   injectOutboundHeaders,
   type OtelConfig,
@@ -52,6 +52,8 @@ export type ConnectJacklineMcpOptions = {
   otel: OtelConfig;
   /** When set, only expose these gateway MCP tool names to the caller. */
   allowedToolNames?: ReadonlySet<string>;
+  /** Propagated to gateway audit events (A2A peer attribution). */
+  auditReason?: string;
 };
 
 export async function connectJacklineMcpTools(
@@ -64,6 +66,9 @@ export async function connectJacklineMcpTools(
     requestId: options.requestId,
     headers: {
       Authorization: `Bearer ${gatewayToken}`,
+      ...(options.auditReason
+        ? { [JACKLINE_AUDIT_REASON_HEADER]: options.auditReason }
+        : {}),
     },
   });
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {

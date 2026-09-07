@@ -124,7 +124,7 @@ export function AgentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="My Access"
+        eyebrow="Agents"
         title="Agents"
         description="Create and manage A2A front doors. Each agent has one handle and its own knock inbox."
         actions={

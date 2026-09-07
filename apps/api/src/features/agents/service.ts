@@ -974,7 +974,7 @@ export const agentServices = {
       type: "agent.knock.pending",
       title: "New knock",
       body: `Knock from ${input.peerDisplayName ?? input.peerAgentCardUrl}`,
-      href: `/my-agents/${input.agent.id}`,
+      href: `/my-agents/${input.agent.id}#knocks`,
     });
 
     return ok({
