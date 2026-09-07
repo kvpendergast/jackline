@@ -13,6 +13,7 @@ export const ConnectorCategorySchema = z.enum([
   "developer",
   "support",
   "finance",
+  "commerce",
 ]);
 
 export const ConnectorPresetSchema = z.strictObject({
@@ -907,6 +908,22 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthResource: "https://banking-agent.robinhood.com/mcp/banking",
     oauthPublicClient: true,
   },
+  {
+    key: "instacart",
+    name: "Instacart",
+    description:
+      "Shopping workflows: store availability, recipe ingredients, and orders.",
+    category: "commerce",
+    kind: "mcp",
+    authMethod: "oauth",
+    credentialMode: "subject_required",
+    baseUrl: "https://mcp.instacart.com/mcp",
+    docsUrl: null,
+    authHint:
+      "OAuth through the MCP client: each person signs in to Instacart (no classic BYO authorize/token URLs). Partners may get a custom endpoint from their Instacart representative; default is mcp.instacart.com.",
+    learnMoreUrl:
+      "https://docs.instacart.com/mcp_servers/get-started/use-instacarts-mcp-server",
+  },
 ] as const;
 
 export function getConnectorPreset(
@@ -931,6 +948,7 @@ export const CONNECTOR_CATEGORIES = [
   { id: "developer", label: "Developer" },
   { id: "support", label: "Support" },
   { id: "finance", label: "Finance" },
+  { id: "commerce", label: "Commerce" },
 ] as const;
 
 export function connectorUsesPublicOAuthClient(
