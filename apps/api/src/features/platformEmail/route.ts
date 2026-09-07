@@ -1,5 +1,6 @@
 import { createRoute } from "@hono/zod-openapi";
 import {
+  PublicEmailDeliveryStatusSchema,
   PublicPlatformEmailSettingsSchema,
   UpdatePlatformEmailSettingsBodySchema,
 } from "@jackline/shared";
@@ -12,6 +13,26 @@ const PlatformEmailResponseSchema = successEnvelopeSchema(
   PublicPlatformEmailSettingsSchema,
   "PlatformEmailSettingsResponse",
 );
+
+const EmailDeliveryStatusResponseSchema = successEnvelopeSchema(
+  PublicEmailDeliveryStatusSchema,
+  "EmailDeliveryStatusResponse",
+);
+
+const getStatus = createRoute({
+  method: "get",
+  path: "/platform/email/status",
+  tags: ["Platform"],
+  summary: "Public outbound email readiness (no secrets)",
+  responses: {
+    200: {
+      description: "Whether verification/notification email can be delivered",
+      content: {
+        "application/json": { schema: EmailDeliveryStatusResponseSchema },
+      },
+    },
+  },
+});
 
 const get = createRoute({
   method: "get",
@@ -57,4 +78,4 @@ const update = createRoute({
   },
 });
 
-export const platformEmailRoutes = { get, update } as const;
+export const platformEmailRoutes = { getStatus, get, update } as const;

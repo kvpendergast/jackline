@@ -553,6 +553,11 @@ export const jacklineApi = {
       { tenantId },
     ),
 
+  getEmailDeliveryStatus: () =>
+    api<import("@jackline/shared").PublicEmailDeliveryStatus>(
+      "/api/v1/platform/email/status",
+    ),
+
   updatePlatformEmailSettings: (
     tenantId: string,
     body: import("@jackline/shared").UpdatePlatformEmailSettingsBody,

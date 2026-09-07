@@ -7,6 +7,7 @@ export {
   JacklineError,
   UnauthorizedError,
   EmailNotVerifiedError,
+  EmailNotConfiguredError,
   ForbiddenError,
   NotFoundError,
   BadRequestError,

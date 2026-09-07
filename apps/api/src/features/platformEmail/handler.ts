@@ -3,6 +3,16 @@ import type { JacklineEnv } from "../../lib/http/env.js";
 import { okEnvelope } from "../../lib/http/envelope.js";
 import { PlatformEmail } from "./resource.js";
 
+const getStatus: RouteHandler<
+  typeof PlatformEmail.routes.getStatus,
+  JacklineEnv
+> = async (c) => {
+  const { log } = c.get("requestContext");
+  const result = await PlatformEmail.services.getStatus(log);
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
 const get: RouteHandler<typeof PlatformEmail.routes.get, JacklineEnv> = async (
   c,
 ) => {
@@ -23,4 +33,4 @@ const update: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
-export const platformEmailHandlers = { get, update } as const;
+export const platformEmailHandlers = { getStatus, get, update } as const;

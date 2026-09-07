@@ -837,6 +837,15 @@ function PlatformEmailSettingsForm({
             Currently using environment configuration.
           </span>
         ) : null}
+        {settings?.deliveryReady ? (
+          <span className="mt-1 block text-allow">
+            Delivery ready — verification emails can be sent.
+          </span>
+        ) : (
+          <span className="mt-1 block text-deny">
+            Not delivery-ready — choose Resend or SMTP and provide credentials.
+          </span>
+        )}
       </p>
       <Field label="Connector" htmlFor="email-connector">
         <FieldSelect
