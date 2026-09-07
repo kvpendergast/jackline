@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type {
+  AgentPublicSkill,
   PublicAgent,
   PublicKnock,
   PublicServer,
   PublicTool,
   PublicTrustGrant,
 } from "@jackline/shared";
+import { DEFAULT_PUBLIC_SKILLS } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
@@ -65,7 +67,11 @@ export function AgentDetailPage() {
 
   const [approveKnockId, setApproveKnockId] = useState<string | null>(null);
   const [approveTtlSeconds, setApproveTtlSeconds] = useState("86400");
+  const [approveSkillIds, setApproveSkillIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [instructions, setInstructions] = useState("");
+  const [publicSkills, setPublicSkills] = useState<AgentPublicSkill[]>([]);
   const [tools, setTools] = useState<PublicTool[]>([]);
   const [servers, setServers] = useState<PublicServer[]>([]);
   const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
@@ -89,6 +95,11 @@ export function AgentDetailPage() {
     setDisplayName(agentData.displayName);
     setDescription(agentData.description ?? "");
     setInstructions(agentData.instructions ?? "");
+    setPublicSkills(
+      agentData.publicSkills.length > 0
+        ? agentData.publicSkills.map((skill) => ({ ...skill }))
+        : DEFAULT_PUBLIC_SKILLS.map((skill) => ({ ...skill })),
+    );
     setKnocksEnabled(agentData.knocksEnabled);
     setDefaultGrantTtlSeconds(String(agentData.defaultGrantTtlSeconds));
     setApproveTtlSeconds(String(agentData.defaultGrantTtlSeconds));
@@ -132,14 +143,28 @@ export function AgentDetailPage() {
     setError(null);
     setInfo(null);
     try {
+      const cleanedSkills = publicSkills
+        .map((skill) => ({
+          id: skill.id.trim(),
+          name: skill.name.trim(),
+          description: skill.description.trim(),
+        }))
+        .filter((skill) => skill.id && skill.name);
+      if (cleanedSkills.length === 0) {
+        setError("Add at least one public skill with an id and name.");
+        setSaving(false);
+        return;
+      }
       const updated = await jacklineApi.updateAgent(tenantId, id, {
         displayName,
         description: description.trim() ? description.trim() : null,
         instructions: instructions.trim() ? instructions.trim() : null,
+        publicSkills: cleanedSkills,
         knocksEnabled,
         defaultGrantTtlSeconds: Number(defaultGrantTtlSeconds),
       });
       setAgent(updated);
+      setPublicSkills(updated.publicSkills.map((skill) => ({ ...skill })));
       setInfo("Settings saved.");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to save settings");
@@ -232,6 +257,7 @@ export function AgentDetailPage() {
     try {
       await jacklineApi.approveKnock(tenantId, approveKnockId, {
         grantTtlSeconds: Number(approveTtlSeconds),
+        skillIds: [...approveSkillIds],
       });
       setApproveKnockId(null);
       await loadAgent();
@@ -239,6 +265,12 @@ export function AgentDetailPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to approve knock");
     }
+  }
+
+  function openApproveDialog(knockId: string) {
+    setApproveTtlSeconds(defaultGrantTtlSeconds);
+    setApproveSkillIds(new Set(publicSkills.map((skill) => skill.id)));
+    setApproveKnockId(knockId);
   }
 
   if (loading) {
@@ -359,6 +391,93 @@ export function AgentDetailPage() {
               placeholder="How this agent should act on your behalf"
             />
           </Field>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium">Public skills</p>
+              <p className="text-xs text-muted-foreground">
+                Advertised on the agent card and public directory. Distinct from
+                MCP tools bound below.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {publicSkills.map((skill, index) => (
+                <div
+                  key={`skill-${index}`}
+                  className="space-y-2 rounded-md border p-3"
+                >
+                  <Field label="Skill id">
+                    <Input
+                      value={skill.id}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, id: value } : row,
+                          ),
+                        );
+                      }}
+                      placeholder="contact.leave_message"
+                      required
+                    />
+                  </Field>
+                  <Field label="Name">
+                    <Input
+                      value={skill.name}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, name: value } : row,
+                          ),
+                        );
+                      }}
+                      required
+                    />
+                  </Field>
+                  <Field label="Description">
+                    <Input
+                      value={skill.description}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, description: value } : row,
+                          ),
+                        );
+                      }}
+                      placeholder="Optional"
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={publicSkills.length <= 1}
+                    onClick={() =>
+                      setPublicSkills((prev) =>
+                        prev.filter((_, i) => i !== index),
+                      )
+                    }
+                  >
+                    Remove skill
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setPublicSkills((prev) => [
+                  ...prev,
+                  { id: "", name: "", description: "" },
+                ])
+              }
+            >
+              Add skill
+            </Button>
+          </div>
           <Field label="Default grant duration (after knock approval)">
             <FieldSelect
               value={defaultGrantTtlSeconds}
@@ -494,10 +613,7 @@ export function AgentDetailPage() {
                       <>
                         <Button
                           size="sm"
-                          onClick={() => {
-                            setApproveTtlSeconds(defaultGrantTtlSeconds);
-                            setApproveKnockId(knock.id);
-                          }}
+                          onClick={() => openApproveDialog(knock.id)}
                         >
                           Approve
                         </Button>
@@ -528,6 +644,7 @@ export function AgentDetailPage() {
             <TableRow>
               <TableHead>Peer</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Skills</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead />
             </TableRow>
@@ -535,7 +652,7 @@ export function AgentDetailPage() {
           <TableBody>
             {grants.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No trust grants yet.
                 </TableCell>
               </TableRow>
@@ -546,6 +663,11 @@ export function AgentDetailPage() {
                     {grant.peerDisplayName ?? grant.peerAgentCardUrl}
                   </TableCell>
                   <TableCell>{grant.status}</TableCell>
+                  <TableCell className="max-w-[14rem] truncate font-mono text-[12px]">
+                    {grant.skillPolicy.skillIds.length > 0
+                      ? grant.skillPolicy.skillIds.join(", ")
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     {new Date(grant.expiresAt).toLocaleString()}
                   </TableCell>
@@ -586,7 +708,8 @@ export function AgentDetailPage() {
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Approving trusts this peer for the duration below. They use the
-              agent’s bound tools — knock approval does not change the tool set.
+              agent’s bound MCP tools. Optionally narrow which advertised skills
+              this grant covers.
             </p>
             <Field label="Grant duration for this peer">
               <FieldSelect
@@ -600,6 +723,44 @@ export function AgentDetailPage() {
                 ))}
               </FieldSelect>
             </Field>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Skills for this grant</p>
+              {publicSkills.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No public skills configured on this agent.
+                </p>
+              ) : (
+                publicSkills.map((skill) => {
+                  const checked = approveSkillIds.has(skill.id);
+                  return (
+                    <label
+                      key={skill.id}
+                      className="flex items-start gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={(e) => {
+                          setApproveSkillIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(skill.id);
+                            else next.delete(skill.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">{skill.name}</span>
+                        <span className="block font-mono text-[11px] text-muted-foreground">
+                          {skill.id}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
             <Button onClick={onApproveKnock}>Approve and grant access</Button>
           </div>
         </DialogContent>

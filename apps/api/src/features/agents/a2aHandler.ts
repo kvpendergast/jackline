@@ -31,12 +31,9 @@ export async function agentCardHandler(c: Context<JacklineEnv>) {
   const handle = c.req.param("handle");
   if (!handle) throw new NotFoundError("Agent not found");
 
-  const authResult = await requireTenantContext(c);
-  if (authResult.isErr()) throw authResult.error;
-
   await enforceQuota(c, getQuotaLimiter(), "a2a.card", [
     `handle:${handle}`,
-    ...tenantQuotaKeys(authResult.value.auth),
+    `ip:${clientIpFromHeaders((name) => c.req.header(name))}`,
   ]);
 
   const result = await agentServices.buildAgentCardForHandle(handle);

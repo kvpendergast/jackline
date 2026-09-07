@@ -623,10 +623,14 @@ export const agentServices = {
     const agentResult = await agentServices.getAgentByHandle(handle);
     if (agentResult.isErr()) return err(agentResult.error);
 
+    const agent = agentResult.value;
+    if (agent.status === "draft") {
+      return err(new NotFoundError("Agent not found"));
+    }
+
     const baseResult = configPublicBaseUrl();
     if (baseResult.isErr()) return err(baseResult.error);
 
-    const agent = agentResult.value;
     return ok(
       buildAgentCard({
         handle: agent.handle,
@@ -678,8 +682,19 @@ export const agentServices = {
 
     const ttl = body.grantTtlSeconds ?? agent.defaultGrantTtlSeconds;
     const expiresAt = new Date(Date.now() + ttl * 1000);
+    const allowedSkillIds = new Set(
+      agent.publicSkills.map((skill) => skill.id),
+    );
     const skillIds =
       body.skillIds ?? agent.publicSkills.map((skill) => skill.id);
+    const unknown = skillIds.filter((id) => !allowedSkillIds.has(id));
+    if (unknown.length > 0) {
+      return err(
+        new BadRequestError(
+          `skillIds not on this agent: ${unknown.join(", ")}`,
+        ),
+      );
+    }
     const exchangeToken = generateExchangeToken();
 
     try {
