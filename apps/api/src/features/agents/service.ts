@@ -63,6 +63,10 @@ import {
 } from "./a2aProtocol.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import { buildTasksGetResult } from "./tasksGet.js";
+import {
+  runHostedPeerMessage,
+  syncAgentToolsToOwnerChatConnection,
+} from "./hostedRuntime.js";
 
 function configPublicBaseUrl(): Result<string, JacklineError> {
   const cfg = getConfig();
@@ -373,6 +377,7 @@ export const agentServices = {
   },
 
   async setTools(
+    log: Logger,
     tenantId: string,
     userId: string,
     agentId: string,
@@ -390,6 +395,14 @@ export const agentServices = {
       toolIds,
     );
     if (bindResult.isErr()) return err(bindResult.error);
+
+    const sync = await syncAgentToolsToOwnerChatConnection(
+      log,
+      tenantId,
+      ownerResult.value.ownerUserId,
+      bindResult.value,
+    );
+    if (sync.isErr()) return err(sync.error);
 
     const [row] = await db
       .select()
@@ -1108,14 +1121,13 @@ export const agentServices = {
       });
     }
 
-    if (input.body.method === "message/send" && knockPayloadResult?.isOk()) {
-      return ok({
-        id: input.body.id,
-        result: {
-          state: "completed",
-          message: "Message received",
-          skill: "contact.leave_message",
-        },
+    if (input.body.method === "message/send" && decision.action === "allow") {
+      return runHostedPeerMessage({
+        agent,
+        trustGrantId: decision.trustGrantId,
+        params: input.body.params,
+        rpcId: input.body.id,
+        log: input.log,
       });
     }
 
