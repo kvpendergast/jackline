@@ -309,7 +309,8 @@ const instance = new gcp.compute.Instance(
     bootDisk: {
       initializeParams: {
         image: image.selfLink,
-        size: 30,
+        // Jackline images + rolling scale=2 leave layers; 30G filled in practice.
+        size: 50,
         type: "pd-balanced",
       },
     },

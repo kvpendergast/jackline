@@ -409,16 +409,41 @@ ghcr_login() {
   echo "${TOKEN}" | docker login ghcr.io -u x-access-token --password-stdin
 }
 
+# Rolling deploys + failed pulls accumulate images/layers; 30G boot disks fill up.
+free_disk_for_pull() {
+  echo "=== disk before prune ==="
+  df -h / /var/lib/docker 2>/dev/null || df -h /
+  docker system df 2>/dev/null || true
+  # Stopped leftovers from failed scale=2 rolls / one-shots.
+  docker container prune -f >/dev/null 2>&1 || true
+  docker network prune -f >/dev/null 2>&1 || true
+  # Unused images (running containers' images are kept).
+  docker image prune -af >/dev/null 2>&1 || true
+  docker builder prune -af >/dev/null 2>&1 || true
+  # Build cache / unused build layers (BuildKit).
+  docker buildx prune -af >/dev/null 2>&1 || true
+  echo "=== disk after prune ==="
+  df -h / /var/lib/docker 2>/dev/null || df -h /
+  docker system df 2>/dev/null || true
+  local avail_kb
+  avail_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+  if [[ -n "${avail_kb}" && "${avail_kb}" -lt 2097152 ]]; then
+    echo "warning: <2GiB free on / after prune — pull may still fail" >&2
+  fi
+}
+
 if [[ "${JACKLINE_BUILD_ON_VM:-0}" == "1" ]]; then
   export COMPOSE_PARALLEL_LIMIT=1
   export BUILDKIT_MAX_PARALLELISM=1
   echo "Building images serially on VM (running containers stay up)…"
+  free_disk_for_pull
   for svc in migrate api gateway web docs; do
     echo "Building ${svc}…"
     compose build "${svc}"
   done
 else
   echo "Pulling prebuilt GHCR images…"
+  free_disk_for_pull
   ghcr_login
   compose pull
 fi
