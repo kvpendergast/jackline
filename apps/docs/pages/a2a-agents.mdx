@@ -59,8 +59,10 @@ Free-text messages use the hosted LLM path when chat is configured and tools are
 
 Unbound tool names are rejected.
 
-Agent cards are public for published (and paused) agents at
-`/agents/<handle>/.well-known/agent-card.json`.
+Agent cards are **public** (no session) for published and paused agents at
+`/agents/<handle>/.well-known/agent-card.json`, so external peers can discover
+skills and the A2A endpoint. Draft agents return 404. The all-in-one edge proxy
+must route `/agents/*` and `/a2a/*` to the API (not the admin UI).
 
 ## Audit
 

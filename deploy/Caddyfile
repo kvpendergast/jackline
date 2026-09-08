@@ -58,6 +58,28 @@
 		import api_proxy
 	}
 
+	# A2A discovery + JSON-RPC (public agent cards; peer messages).
+	handle /agents/* {
+		encode gzip
+		import api_proxy
+	}
+
+	handle /a2a/* {
+		encode gzip
+		import api_proxy
+	}
+
+	# MCP OAuth AS metadata + endpoints (API root, not under /api).
+	handle /.well-known/oauth-authorization-server* {
+		encode gzip
+		import api_proxy
+	}
+
+	handle /oauth/* {
+		encode gzip
+		import api_proxy
+	}
+
 	handle /health {
 		import api_proxy
 	}
