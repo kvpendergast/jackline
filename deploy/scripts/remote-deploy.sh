@@ -43,12 +43,15 @@ if [[ -z "${JACKLINE_DEPLOY_INNER:-}" && -d /run/systemd/system ]] && command -v
       if (( SECONDS >= deadline )); then
         echo "error: timed out waiting for jackline-deploy.service" >&2
         systemctl status jackline-deploy.service --no-pager >&2 || true
+        journalctl -u jackline-deploy.service -n 200 --no-pager >&2 || true
         exit 1
       fi
       sleep 10
     done
   fi
   systemctl reset-failed jackline-deploy.service 2>/dev/null || true
+  # Stale leftover unit can block a same-named transient start.
+  systemctl stop jackline-deploy.service 2>/dev/null || true
   extra=()
   for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT JACKLINE_BUILD_ON_VM; do
     if [[ -n "${!k:-}" ]]; then
@@ -56,13 +59,24 @@ if [[ -z "${JACKLINE_DEPLOY_INNER:-}" && -d /run/systemd/system ]] && command -v
     fi
   done
   echo "Re-executing under systemd-run (unit=jackline-deploy)…"
-  exec systemd-run --wait --collect --unit=jackline-deploy \
+  set +e
+  systemd-run --wait --collect --unit=jackline-deploy \
     --property=Type=oneshot \
     --property=TimeoutStartSec=2h \
     --property=KillMode=mixed \
     -E JACKLINE_DEPLOY_INNER=1 \
     "${extra[@]}" \
     /bin/bash "$(readlink -f "$0")"
+  rc=$?
+  set -e
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "error: jackline-deploy.service failed (exit ${rc})" >&2
+    systemctl status jackline-deploy.service --no-pager >&2 || true
+    echo "=== jackline-deploy journal (last 200) ===" >&2
+    journalctl -u jackline-deploy.service -n 200 --no-pager >&2 || true
+    exit "${rc}"
+  fi
+  exit 0
 fi
 
 cleanup() {
