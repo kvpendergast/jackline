@@ -63,5 +63,9 @@ export {
 export {
   myAccessReconnectUrl,
   formatUpstreamCredentialFailure,
+  isPersonalUpstreamCredentialFailure,
+  isInvalidUpstreamTokenError,
+  UpstreamCredentialFailureError,
+  upstreamCredentialFailure,
   type UpstreamCredentialFailureKind,
 } from "./myAccess/reconnectUrl.js";

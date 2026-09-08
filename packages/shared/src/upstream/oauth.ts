@@ -250,6 +250,15 @@ export async function resolveOAuthAccessToken(
   }
 
   if (secret.accessToken) {
+    // Stale access token with no refresh / client-credentials path → fail so
+    // callers can elicit reconnect instead of sending a known-dead bearer.
+    if (!isFresh(secret.expiresAt) || options?.forceRefresh) {
+      return err(
+        new BadRequestError(
+          "OAuth access token expired and no refresh_token or client_credentials grant is available",
+        ),
+      );
+    }
     return ok({
       accessToken: secret.accessToken,
       expiresAt: secret.expiresAt,
@@ -278,13 +287,19 @@ export function encodeOAuthSecretValue(input: {
     if (!input.accessToken?.trim()) {
       return err(new BadRequestError("Access token is required"));
     }
-    // Persist BYO OAuth app next to the token so `jackline connect` can reuse it.
-    if (input.clientId?.trim() && input.clientSecret?.trim()) {
+    // Persist BYO OAuth app and/or expiry as JSON so refresh and proactive
+    // expiry detection work. Bare strings remain supported for paste-only tokens.
+    if (
+      input.expiresAt ||
+      (input.clientId?.trim() && input.clientSecret?.trim())
+    ) {
       return ok(
         JSON.stringify({
           accessToken: input.accessToken.trim(),
-          clientId: input.clientId.trim(),
-          clientSecret: input.clientSecret.trim(),
+          ...(input.clientId?.trim() ? { clientId: input.clientId.trim() } : {}),
+          ...(input.clientSecret?.trim()
+            ? { clientSecret: input.clientSecret.trim() }
+            : {}),
           ...(input.tokenUrl?.trim() ? { tokenUrl: input.tokenUrl.trim() } : {}),
           ...(input.scopes?.trim() ? { scopes: input.scopes.trim() } : {}),
           ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),

@@ -261,10 +261,16 @@ async function handleCallback(
           clientId: server.oauthClientId,
           ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
           ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
+          ...(tokens.value.expiresAt
+            ? { expiresAt: tokens.value.expiresAt }
+            : {}),
         }
       : {
           mode: "access_token" as const,
           accessToken: tokens.value.accessToken,
+          ...(tokens.value.expiresAt
+            ? { expiresAt: tokens.value.expiresAt }
+            : {}),
         },
   );
   if (encoded.isErr()) return err(encoded.error);
