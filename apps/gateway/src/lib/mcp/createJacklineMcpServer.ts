@@ -5,12 +5,17 @@ import {
   setSpanAttributes,
   withSpan,
 } from "@jackline/observability";
-import type { AuditOutcome, JacklineError } from "@jackline/shared";
+import {
+  UpstreamCredentialFailureError,
+  type AuditOutcome,
+  type JacklineError,
+} from "@jackline/shared";
 import { writeAuditEvent } from "../audit/writeAuditEvent.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import { otelConfig } from "../observability.js";
 import { listAllowedMcpTools } from "../policy/listAllowedTools.js";
 import { proxyToolCall } from "./proxyToolCall.js";
+import { throwUpstreamUrlElicitation } from "./upstreamClient.js";
 
 function outcomeFromProxyError(error: JacklineError): AuditOutcome {
   if (error.code === "BAD_REQUEST" || error.code === "FORBIDDEN") {
@@ -19,7 +24,9 @@ function outcomeFromProxyError(error: JacklineError): AuditOutcome {
   return "allow_upstream_error";
 }
 
-function spanOutcomeFromAudit(outcome: AuditOutcome): "success" | "deny" | "error" {
+function spanOutcomeFromAudit(
+  outcome: AuditOutcome,
+): "success" | "deny" | "error" {
   if (outcome === "allow") return "success";
   if (outcome === "deny") return "deny";
   return "error";
@@ -84,7 +91,9 @@ export async function createJacklineMcpServer(
                 toolName: tool.name,
                 serverId: tool.serverId,
                 outcome: auditOutcome,
-                reason: proxied.error.message,
+                reason: ctx.auditReason
+                  ? `${ctx.auditReason}; ${proxied.error.message}`
+                  : proxied.error.message,
                 requestId: ctx.requestId,
                 latencyMs,
                 requestArgs,
@@ -92,8 +101,24 @@ export async function createJacklineMcpServer(
                   isError: true,
                   message: proxied.error.message,
                   code: proxied.error.code,
+                  ...(proxied.error instanceof UpstreamCredentialFailureError
+                    ? {
+                        upstreamCredentialKind: proxied.error.kind,
+                        reconnectUrl: proxied.error.reconnectUrl,
+                      }
+                    : {}),
                 },
               });
+
+              // Personal upstream OAuth missing/revoked → URL elicitation so
+              // Cursor / other harnesses can open My Access and retry.
+              if (
+                proxied.error instanceof UpstreamCredentialFailureError &&
+                proxied.error.requiresUrlElicitation
+              ) {
+                throwUpstreamUrlElicitation(proxied.error);
+              }
+
               return {
                 content: [{ type: "text", text: proxied.error.message }],
                 isError: true,
@@ -111,7 +136,7 @@ export async function createJacklineMcpServer(
               toolName: tool.name,
               serverId: tool.serverId,
               outcome: "allow",
-              reason: null,
+              reason: ctx.auditReason,
               requestId: ctx.requestId,
               latencyMs,
               requestArgs,
