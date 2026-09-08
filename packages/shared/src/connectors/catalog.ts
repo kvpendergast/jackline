@@ -853,6 +853,26 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthScopes: "repo read:org read:user project",
   },
   {
+    key: "vercel",
+    name: "Vercel",
+    description:
+      "Docs search, projects, deployments, logs, and Web Analytics via Vercel’s official remote MCP.",
+    category: "developer",
+    kind: "mcp",
+    authMethod: "oauth",
+    credentialMode: "subject_required",
+    baseUrl: "https://mcp.vercel.com",
+    docsUrl: null,
+    authHint:
+      "Vercel MCP uses a public OAuth client (PKCE, no secret). Register a client at https://vercel.com/api/login/oauth/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop. Official endpoint: https://mcp.vercel.com — Vercel only allows reviewed MCP clients.",
+    learnMoreUrl: "https://vercel.com/docs/agent-resources/vercel-mcp",
+    oauthAuthorizeUrl: "https://vercel.com/oauth/authorize",
+    oauthTokenUrl: "https://vercel.com/api/login/oauth/token",
+    oauthScopes: "openid offline_access",
+    oauthResource: "https://mcp.vercel.com/",
+    oauthPublicClient: true,
+  },
+  {
     key: "sentry",
     name: "Sentry",
     description: "Error tracking and issue context from Sentry.",
