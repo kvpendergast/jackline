@@ -8,6 +8,10 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { UrlElicitationRequiredError } from "@modelcontextprotocol/sdk/types.js";
 import { db, secrets, servers, type Secret as SecretRow } from "@jackline/db";
 import {
+  injectOutboundHeaders,
+  setSpanAttributes,
+} from "@jackline/observability";
+import {
   BadRequestError,
   getConfig,
   isInvalidUpstreamTokenError,
@@ -20,6 +24,7 @@ import {
   type UpstreamCredentialFailureError,
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
+import { otelConfig } from "../observability.js";
 
 export type UpstreamServerRow = {
   id: string;
@@ -343,6 +348,7 @@ export type ConnectedUpstream = {
 async function openUpstream(
   server: UpstreamServerRow,
   headers: Record<string, string>,
+  requestId?: string,
 ): Promise<Result<ConnectedUpstream, JacklineError>> {
   let baseUrl: URL;
   try {
@@ -351,8 +357,17 @@ async function openUpstream(
     return err(new BadRequestError(`Invalid server baseUrl: ${server.baseUrl}`));
   }
 
+  const outboundHeaders = injectOutboundHeaders(otelConfig, {
+    requestId,
+    headers,
+  });
+  setSpanAttributes({
+    "jackline.upstream.phase": "connect",
+    "jackline.upstream.server_id": server.id,
+  });
+
   const transport = new StreamableHTTPClientTransport(baseUrl, {
-    requestInit: { headers },
+    requestInit: { headers: outboundHeaders },
   });
   const client = new Client({ name: "jackline-gateway", version: "0.0.0" });
 
@@ -383,6 +398,7 @@ export async function connectUpstream(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
+  options?: { requestId?: string },
 ): Promise<Result<ConnectedUpstream, JacklineError>> {
   if (server.kind !== "mcp") {
     return err(
@@ -395,7 +411,7 @@ export async function connectUpstream(
   const headers = await resolveUpstreamAuthHeaders(log, tenantId, userId, server);
   if (headers.isErr()) return err(headers.error);
 
-  const first = await openUpstream(server, headers.value);
+  const first = await openUpstream(server, headers.value, options?.requestId);
   if (first.isOk()) return first;
 
   if (
@@ -425,7 +441,7 @@ export async function connectUpstream(
     return first;
   }
 
-  return openUpstream(server, refreshed.value);
+  return openUpstream(server, refreshed.value, options?.requestId);
 }
 
 export async function loadUpstreamServer(

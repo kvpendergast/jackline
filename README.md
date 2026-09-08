@@ -35,8 +35,8 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 | Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
 | Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
-| Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
-| Rate limits (`@jackline/quotas`) | Done — memory or Redis; env overrides via `JACKLINE_RL_*` |
+| Observability (`@jackline/observability`) | Done — optional OTLP traces (HTTP + tool-call spans); logs always on stdout JSON |
+| Rate limits (`@jackline/quotas`) | Done — memory or Redis; gateway MCP deny audit on exceed; env overrides via `JACKLINE_RL_*` |
 
 Next: Prometheus metrics.
 
@@ -522,7 +522,13 @@ No built-in pager. Typical setup:
 2. Probe `GET /health` for liveness
 3. Example Loki/LogQL-style filter: `{app="jackline-api"} \| json \| status >= 500`
 
-Prometheus metrics and OTEL trace export are optional follow-ons. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
+Prometheus metrics and OTEL trace export are optional. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
+
+When export is enabled, the gateway emits:
+
+* HTTP server spans for each request
+* `jackline.tool.call` child spans with `jackline.tool.outcome` (`success` / `deny` / `error`) and `jackline.error_code` on failure
+* Upstream attributes (`jackline.upstream.phase`, `jackline.upstream.status`, `jackline.upstream.server_id`) plus W3C `traceparent` injection on outbound MCP/HTTP proxy calls
 
 | Variable | Role |
 | --- | --- |

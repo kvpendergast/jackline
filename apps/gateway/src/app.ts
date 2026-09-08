@@ -16,6 +16,8 @@ import {
   publicMcpUrl,
   RateLimitedError,
 } from "@jackline/shared";
+import { setSpanAttributes } from "@jackline/observability";
+import { writeAuditEvent } from "./lib/audit/writeAuditEvent.js";
 import { requireConnection } from "./lib/auth/requireConnection.js";
 import type { GatewayEnv } from "./lib/auth/types.js";
 import { createJacklineMcpServer } from "./lib/mcp/createJacklineMcpServer.js";
@@ -96,11 +98,40 @@ app.get("/.well-known/oauth-protected-resource/mcp", (c) => {
 app.use("/mcp", requireConnection);
 app.use("/mcp", async (c, next) => {
   const gatewayContext = c.get("gatewayContext");
-  await enforceQuota(c, getQuotaLimiter(), "gateway.mcp", [
-    `tenant:${gatewayContext.tenantId}`,
-    `connection:${gatewayContext.connection.id}`,
-    `ip:${clientIpFromHeaders((name) => c.req.header(name))}`,
-  ]);
+  const started = Date.now();
+  try {
+    await enforceQuota(c, getQuotaLimiter(), "gateway.mcp", [
+      `tenant:${gatewayContext.tenantId}`,
+      `connection:${gatewayContext.connection.id}`,
+      `ip:${clientIpFromHeaders((name) => c.req.header(name))}`,
+    ]);
+  } catch (cause) {
+    if (cause instanceof RateLimitedError) {
+      setSpanAttributes({
+        "jackline.quota.bucket": "gateway.mcp",
+        "jackline.tool.outcome": "deny",
+        "jackline.error_code": cause.code,
+      });
+      await writeAuditEvent(gatewayContext.log, {
+        tenantId: gatewayContext.tenantId,
+        connectionId: gatewayContext.connection.id,
+        clientId: gatewayContext.connection.clientId,
+        userId: gatewayContext.connection.userId,
+        toolId: null,
+        toolName: "gateway.mcp",
+        serverId: null,
+        outcome: "deny",
+        reason: "RATE_LIMITED",
+        requestId: gatewayContext.requestId,
+        latencyMs: Date.now() - started,
+        responseBody: {
+          code: cause.code,
+          retryAfterSeconds: cause.retryAfterSeconds,
+        },
+      });
+    }
+    throw cause;
+  }
   await next();
 });
 

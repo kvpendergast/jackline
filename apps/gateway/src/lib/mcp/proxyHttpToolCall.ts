@@ -1,12 +1,17 @@
 import { err, ok, type Result } from "neverthrow";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
+  injectOutboundHeaders,
+  setSpanAttributes,
+} from "@jackline/observability";
+import {
   BadRequestError,
   JacklineError,
   type ToolHttpMethod,
 } from "@jackline/shared";
 import type { Logger } from "pino";
 import type { GatewayConnectionContext } from "../auth/types.js";
+import { otelConfig } from "../observability.js";
 import {
   formatUpstreamError,
   isInvalidUpstreamTokenError,
@@ -75,6 +80,11 @@ async function executeHttpUpstream(
     const init: RequestInit = { method, headers };
     if (body !== undefined) init.body = body;
     const res = await fetch(url, init);
+    setSpanAttributes({
+      "jackline.upstream.status": res.status,
+      "jackline.upstream.phase": "call",
+      "jackline.upstream.server_id": serverId,
+    });
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "";
     let pretty = text;
@@ -107,6 +117,10 @@ async function executeHttpUpstream(
 
     return ok({ status: res.status, pretty });
   } catch (cause) {
+    setSpanAttributes({
+      "jackline.upstream.phase": "call",
+      "jackline.upstream.server_id": serverId,
+    });
     return err(formatUpstreamError(cause, "call"));
   }
 }
@@ -144,10 +158,13 @@ export async function proxyHttpToolCall(
   const url = urlResult.value;
   const rest = remainingArgs(args, expanded.value.used);
   const method = binding.httpMethod;
-  const headers: Record<string, string> = {
-    ...headersResult.value,
-    Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-  };
+  const headers: Record<string, string> = injectOutboundHeaders(otelConfig, {
+    requestId: ctx.requestId,
+    headers: {
+      ...headersResult.value,
+      Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+    },
+  });
 
   let body: string | undefined;
   if (method === "GET" || method === "HEAD" || method === "DELETE") {

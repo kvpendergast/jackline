@@ -138,6 +138,46 @@ export async function withHttpServerSpan<T>(
   );
 }
 
+/** Active child span for gateway tool calls and similar work units. */
+export async function withSpan<T>(
+  otel: OtelConfig,
+  input: {
+    name: string;
+    tracerName?: string;
+    attributes?: Record<string, string | number | boolean>;
+    fn: () => Promise<T>;
+  },
+): Promise<T> {
+  if (!otel.exportEnabled) {
+    return input.fn();
+  }
+
+  const tracer = getTracer(input.tracerName ?? "jackline");
+  return tracer.startActiveSpan(
+    input.name,
+    input.attributes ? { attributes: input.attributes } : {},
+    async (span) => {
+      try {
+        const result = await input.fn();
+        return result;
+      } catch (cause) {
+        if (cause instanceof Error) {
+          span.recordException(cause);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: cause.message,
+          });
+        } else {
+          span.setStatus({ code: SpanStatusCode.ERROR });
+        }
+        throw cause;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
 function headersToSpanCarrier(headers: Headers): Record<string, string> {
   const carrier: Record<string, string> = {};
   headers.forEach((value, key) => {
