@@ -48,6 +48,7 @@ function asObjectSchema(
 async function resolveUpstreamBearer(
   authMethod: "api_key" | "oauth" | "mtls",
   plaintext: string,
+  secretRow: typeof secrets.$inferSelect,
 ): Promise<Result<string, JacklineError>> {
   if (authMethod === "api_key") {
     return ok(plaintext);
@@ -55,6 +56,33 @@ async function resolveUpstreamBearer(
   if (authMethod === "oauth") {
     const token = await resolveOAuthAccessToken(plaintext);
     if (token.isErr()) return err(token.error);
+    if (token.value.updatedPlaintext) {
+      const boxResult = getSecretBox();
+      if (boxResult.isOk()) {
+        const aad = secretAad({
+          tenantId: secretRow.tenantId,
+          kind: secretRow.kind,
+          serverId: secretRow.serverId,
+          userId: secretRow.userId,
+          connectionId: secretRow.connectionId,
+        });
+        const encrypted = boxResult.value.encrypt(
+          new TextEncoder().encode(token.value.updatedPlaintext),
+          aad,
+        );
+        if (encrypted.isOk()) {
+          await db
+            .update(secrets)
+            .set({
+              ciphertext: encrypted.value.ciphertext,
+              nonce: encrypted.value.nonce,
+              keyVersion: encrypted.value.keyVersion,
+              updatedAt: new Date(),
+            })
+            .where(eq(secrets.id, secretRow.id));
+        }
+      }
+    }
     return ok(token.value.accessToken);
   }
   return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
@@ -62,7 +90,9 @@ async function resolveUpstreamBearer(
 
 async function decryptSecretRow(
   secretRow: typeof secrets.$inferSelect,
-): Promise<Result<{ plaintext: string }, JacklineError>> {
+): Promise<
+  Result<{ plaintext: string; row: typeof secrets.$inferSelect }, JacklineError>
+> {
   const boxResult = getSecretBox();
   if (boxResult.isErr()) return err(boxResult.error);
 
@@ -84,7 +114,10 @@ async function decryptSecretRow(
   );
   if (decrypted.isErr()) return err(decrypted.error);
 
-  return ok({ plaintext: new TextDecoder().decode(decrypted.value) });
+  return ok({
+    plaintext: new TextDecoder().decode(decrypted.value),
+    row: secretRow,
+  });
 }
 
 /**
@@ -96,7 +129,9 @@ async function loadSyncSecret(
   serverId: string,
   userId: string,
   authMethod: "api_key" | "oauth" | "mtls",
-): Promise<Result<{ plaintext: string }, JacklineError>> {
+): Promise<
+  Result<{ plaintext: string; row: typeof secrets.$inferSelect }, JacklineError>
+> {
   if (authMethod === "mtls") {
     return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
   }
@@ -244,6 +279,7 @@ async function syncMcpTools(
   const bearer = await resolveUpstreamBearer(
     server.authMethod,
     secret.value.plaintext,
+    secret.value.row,
   );
   if (bearer.isErr()) return err(bearer.error);
 

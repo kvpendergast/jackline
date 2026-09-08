@@ -67,6 +67,17 @@ Use the URL from the mint response (`JACKLINE_PUBLIC_MCP_URL`). On production Co
 
 Denied or quarantined connections return errors at the gateway; fix roles/overrides on the connection, then retry.
 
+## Upstream OAuth expiry
+
+Jackline sits between Cursor and upstream MCPs (Gmail, BigQuery, …). Two layers of auth:
+
+1. **Cursor → Jackline** — the minted `jkl_…` (or MCP OAuth) gateway credential.
+2. **Jackline → upstream** — personal Connect in **My Access**, or a shared org credential on the server.
+
+When an upstream access token goes stale and a refresh token is available, the gateway refreshes it silently and persists the new secret. If refresh fails (revoked consent, missing personal Connect), Jackline returns an MCP **URL elicitation** (`-32042`) pointing at My Access for that server. Clients that support URL elicitation (and older clients that surface the error text) should open that link, reconnect, then retry the tool.
+
+Do not re-run Jackline login for upstream expiry — that only refreshes the gateway session.
+
 ## Personal CLI alternative
 
 For a laptop-only gateway without the control-plane UI, see [`apps/cli/README.md`](https://github.com/kvpendergast/jackline/blob/main/apps/cli/README.md) (`jackline init` → `jackline serve` → paste the printed snippet into Cursor).
