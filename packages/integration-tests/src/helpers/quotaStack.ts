@@ -15,6 +15,13 @@ export type QuotaTestApi = {
   stop: () => Promise<void>;
 };
 
+export type QuotaTestStack = {
+  apiUrl: string;
+  gatewayUrl: string;
+  webOrigin: string;
+  stop: () => Promise<void>;
+};
+
 async function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -49,6 +56,43 @@ async function waitForHealth(url: string, timeoutMs = 60_000): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`timed out waiting for ${url}: ${lastError}`);
+}
+
+function spawnService(
+  packageName: string,
+  env: Record<string, string>,
+): ChildProcess {
+  const child = spawn("pnpm", ["--filter", packageName, "start"], {
+    cwd: repoRoot,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  child.stdout?.on("data", (chunk: Buffer) => {
+    if (process.env["INTEGRATION_DEBUG"] === "1") process.stdout.write(chunk);
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    if (process.env["INTEGRATION_DEBUG"] === "1") process.stderr.write(chunk);
+  });
+
+  return child;
+}
+
+async function stopChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode == null && child.signalCode == null) {
+    child.kill("SIGTERM");
+  }
+  await new Promise<void>((resolve) => {
+    if (child.exitCode != null) {
+      resolve();
+      return;
+    }
+    child.once("exit", () => resolve());
+    setTimeout(() => {
+      if (child.exitCode == null) child.kill("SIGKILL");
+      resolve();
+    }, 5_000);
+  });
 }
 
 /**
@@ -87,49 +131,84 @@ export async function startQuotaTestApi(
     ...overrides,
   };
 
-  const child: ChildProcess = spawn(
-    "pnpm",
-    ["--filter", "@jackline/api", "start"],
-    {
-      cwd: repoRoot,
-      env: { ...process.env, ...env },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  child.stdout?.on("data", (chunk: Buffer) => {
-    if (process.env["INTEGRATION_DEBUG"] === "1") process.stdout.write(chunk);
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    if (process.env["INTEGRATION_DEBUG"] === "1") process.stderr.write(chunk);
-  });
-
+  const child = spawnService("@jackline/api", env);
   const apiUrl = `http://127.0.0.1:${apiPort}`;
 
   try {
     await waitForHealth(`${apiUrl}/health`);
   } catch (err) {
-    child.kill("SIGTERM");
+    await stopChild(child);
     throw err;
   }
 
   return {
     apiUrl,
     stop: async () => {
-      if (child.exitCode == null && child.signalCode == null) {
-        child.kill("SIGTERM");
-      }
-      await new Promise<void>((resolve) => {
-        if (child.exitCode != null) {
-          resolve();
-          return;
-        }
-        child.once("exit", () => resolve());
-        setTimeout(() => {
-          if (child.exitCode == null) child.kill("SIGKILL");
-          resolve();
-        }, 5_000);
-      });
+      await stopChild(child);
+    },
+  };
+}
+
+/**
+ * API + gateway with tight gateway.mcp limits for deny-audit tests.
+ */
+export async function startQuotaTestStack(
+  overrides: Record<string, string> = {},
+): Promise<QuotaTestStack> {
+  const databaseUrl = resolvePostgresUrl(process.env);
+  if (!databaseUrl) {
+    throw new Error(
+      "Set DATABASE_URL or POSTGRES_* (see .env.example and README)",
+    );
+  }
+
+  const apiPort = await getFreePort();
+  const gatewayPort = await getFreePort();
+  const webOrigin = "http://127.0.0.1:5173";
+
+  const env: Record<string, string> = {
+    NODE_ENV: "test",
+    LOG_LEVEL: process.env["INTEGRATION_DEBUG"] === "1" ? "info" : "silent",
+    JACKLINE_TENANCY: "multi",
+    JACKLINE_MASTER_KEY: randomBytes(32).toString("base64"),
+    BETTER_AUTH_SECRET: randomBytes(32).toString("base64"),
+    DATABASE_URL: databaseUrl,
+    API_HOST: "127.0.0.1",
+    API_PORT: String(apiPort),
+    GATEWAY_HOST: "127.0.0.1",
+    GATEWAY_PORT: String(gatewayPort),
+    WEB_ORIGIN: webOrigin,
+    BETTER_AUTH_URL: `http://127.0.0.1:${apiPort}`,
+    JACKLINE_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+    JACKLINE_PUBLIC_MCP_URL: `http://127.0.0.1:${gatewayPort}/mcp`,
+    JACKLINE_INTERNAL_MCP_URL: `http://127.0.0.1:${gatewayPort}/mcp`,
+    EMAIL_CONNECTOR: "console",
+    JACKLINE_RL_GATEWAY_MCP_LIMIT: "3",
+    JACKLINE_RL_GATEWAY_MCP_WINDOW: "60s",
+    ...overrides,
+  };
+
+  const apiProc = spawnService("@jackline/api", env);
+  const gatewayProc = spawnService("@jackline/gateway", env);
+  const apiUrl = `http://127.0.0.1:${apiPort}`;
+  const gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
+
+  try {
+    await waitForHealth(`${apiUrl}/health`);
+    await waitForHealth(`${gatewayUrl}/health`);
+  } catch (err) {
+    await stopChild(apiProc);
+    await stopChild(gatewayProc);
+    throw err;
+  }
+
+  return {
+    apiUrl,
+    gatewayUrl,
+    webOrigin,
+    stop: async () => {
+      await stopChild(apiProc);
+      await stopChild(gatewayProc);
     },
   };
 }

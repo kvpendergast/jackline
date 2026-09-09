@@ -13,6 +13,7 @@ export {
   isOtelExportEnabled,
   getTracer,
   withHttpServerSpan,
+  withSpan,
 } from "./init.js";
 export {
   parseTraceIdFromTraceparent,

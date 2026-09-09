@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import { db, servers, tools } from "@jackline/db";
+import { setSpanAttributes } from "@jackline/observability";
 import {
   BadRequestError,
   JacklineError,
@@ -54,6 +55,7 @@ async function proxyMcpToolCall(
     ctx.tenantId,
     ctx.connection.userId,
     server,
+    { requestId: ctx.requestId },
   );
   if (connected.isErr()) {
     await touchServerHealth(server.id, "unhealthy");
@@ -69,6 +71,10 @@ async function proxyMcpToolCall(
     if (result.isError) {
       await touchServerHealth(server.id, "unhealthy");
       const detail = toolResultErrorText(result);
+      setSpanAttributes({
+        "jackline.upstream.phase": "call",
+        "jackline.upstream.server_id": server.id,
+      });
       ctx.log.warn(
         { toolId: tool.toolId, serverId: server.id, detail },
         "proxyToolCall upstream isError",
@@ -79,6 +85,10 @@ async function proxyMcpToolCall(
     }
 
     await touchServerHealth(server.id, "healthy");
+    setSpanAttributes({
+      "jackline.upstream.phase": "call",
+      "jackline.upstream.server_id": server.id,
+    });
     ctx.log.info(
       {
         toolId: tool.toolId,
@@ -91,6 +101,10 @@ async function proxyMcpToolCall(
     return ok(result);
   } catch (cause) {
     await touchServerHealth(server.id, "unhealthy");
+    setSpanAttributes({
+      "jackline.upstream.phase": "call",
+      "jackline.upstream.server_id": server.id,
+    });
     const jacklineErr = formatUpstreamError(cause, "call");
     ctx.log.warn(
       { err: cause, toolId: tool.toolId, serverId: server.id },
