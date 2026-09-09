@@ -33,7 +33,8 @@ describe("UpstreamCredentialFailureError", () => {
       error.reconnectUrl,
       "https://app.example.com/my-access?server=srv_1",
     );
-    assert.match(error.message, /Reconnect here:/);
+    assert.match(error.message, /Open My Access to reconnect:/);
+    assert.match(error.message, /Do not wipe or re-authenticate the Jackline MCP gateway/);
     assert.ok(isPersonalUpstreamCredentialFailure(error.kind));
   });
 
@@ -55,5 +56,6 @@ describe("UpstreamCredentialFailureError", () => {
       }),
       error.message,
     );
+    assert.match(error.message, /Do not wipe or re-authenticate the Jackline MCP gateway/);
   });
 });

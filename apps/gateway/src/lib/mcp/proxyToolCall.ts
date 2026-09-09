@@ -5,6 +5,8 @@ import {
   BadRequestError,
   JacklineError,
   NotFoundError,
+  UpstreamCredentialFailureError,
+  isInvalidUpstreamTokenError,
 } from "@jackline/shared";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
@@ -16,6 +18,7 @@ import {
 import {
   connectUpstream,
   formatUpstreamError,
+  upstreamExpiredCredentialError,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
@@ -42,18 +45,25 @@ function toolResultErrorText(result: CallToolResult): string {
   return "upstream tool returned isError without text content";
 }
 
-async function proxyMcpToolCall(
+/**
+ * One MCP tools/call attempt. Auth-looking tool isError / transport failures
+ * are returned as INTERNAL errors whose message matches
+ * {@link isInvalidUpstreamTokenError} so callers can refresh + retry.
+ */
+async function attemptMcpToolCall(
   ctx: GatewayConnectionContext,
   tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
   server: UpstreamServerRow,
   toolName: string,
   args: Record<string, unknown>,
+  options?: { forceRefresh?: boolean },
 ): Promise<Result<CallToolResult, JacklineError>> {
   const connected = await connectUpstream(
     ctx.log,
     ctx.tenantId,
     ctx.connection.userId,
     server,
+    options,
   );
   if (connected.isErr()) {
     await touchServerHealth(server.id, "unhealthy");
@@ -100,6 +110,51 @@ async function proxyMcpToolCall(
   } finally {
     await connected.value.close();
   }
+}
+
+async function proxyMcpToolCall(
+  ctx: GatewayConnectionContext,
+  tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
+  server: UpstreamServerRow,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<Result<CallToolResult, JacklineError>> {
+  const first = await attemptMcpToolCall(ctx, tool, server, toolName, args);
+  if (first.isOk()) return first;
+
+  // Credential resolution / refresh already produced a reconnect signal.
+  if (first.error instanceof UpstreamCredentialFailureError) {
+    return first;
+  }
+
+  if (
+    server.authMethod !== "oauth" ||
+    !isInvalidUpstreamTokenError(first.error.message)
+  ) {
+    return first;
+  }
+
+  ctx.log.info(
+    { serverId: server.id, toolId: tool.toolId },
+    "upstream MCP tool auth failed; force-refreshing OAuth and retrying call",
+  );
+
+  const retry = await attemptMcpToolCall(ctx, tool, server, toolName, args, {
+    forceRefresh: true,
+  });
+  if (retry.isOk()) return retry;
+
+  if (retry.error instanceof UpstreamCredentialFailureError) {
+    return retry;
+  }
+
+  // Refresh succeeded (or was a no-op) but Google/upstream still rejects —
+  // elicit My Access reconnect instead of leaving harnesses with a raw 401.
+  if (isInvalidUpstreamTokenError(retry.error.message)) {
+    return err(upstreamExpiredCredentialError(server));
+  }
+
+  return retry;
 }
 
 /**

@@ -1,0 +1,43 @@
+---
+title: Harness re-auth
+---
+
+Jackline sits between an agent host (Cursor, Grok, Claude, …) and upstream MCPs (Gmail, Linear, …). Those are **two different auth planes**. Harnesses often conflate them — especially when Gmail returns a raw Google 401 and the host status shows `needsAuth` on the Jackline connector.
+
+## Two planes
+
+| Plane | Credential | Failure signal | Fix |
+| --- | --- | --- | --- |
+| **Host → Jackline** | `jkl_…` or `jackline_mcp_…` | HTTP **401** + `WWW-Authenticate` / connector `needsAuth` | Reconnect / mint / MCP OAuth for Jackline |
+| **Jackline → upstream** | My Access personal OAuth, or shared org secret | MCP **URL elicitation `-32042`** (or tool `isError` with a My Access link) | Open **My Access** for that server, then retry the tool |
+
+**Do not wipe or re-authenticate the Jackline gateway credential** to fix a stale Gmail/Linear token. That only refreshes plane 1 and cannot mint a new upstream Google token.
+
+## What Jackline does on upstream expiry
+
+1. If a refresh token (or client-credentials grant) is available, the gateway refreshes silently and persists the new secret.
+2. For **MCP** upstreams: when `tools/call` returns an auth-looking `isError` (including Google’s “invalid authentication credentials”) or the transport returns 401, Jackline **force-refreshes once and retries**.
+3. If refresh fails or the upstream still rejects the token, Jackline returns **`UpstreamCredentialFailureError`**:
+   - **Personal** → MCP URL elicitation `-32042` with `error.data.elicitations[0].url` = `{WEB}/my-access?server=…`
+   - **Shared** → tool `isError` text asking an admin to rotate the server credential
+
+Clients that support [URL mode elicitation](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation) should open that URL (with user consent), wait for reconnect, then **retry the original tool**. Clients that only surface the error text should still show the My Access link from the message.
+
+## What hosts should do
+
+| If you see… | Do this |
+| --- | --- |
+| `-32042` / `URLElicitationRequired` with a `/my-access?server=` URL | Open that URL (My Access Connect). Do **not** call gateway logout / wipe. |
+| Tool `isError` text containing “Open My Access” / “Do not wipe … Jackline MCP gateway” | Same — open My Access; retry the tool after Connect. |
+| Connector `needsAuth` / `authentication_required` **and** a Gmail/Google invalid-credentials body | Treat as **upstream** until gateway HTTP 401 is confirmed. Prefer My Access over wiping Jackline. |
+| True gateway HTTP 401 with `resource_metadata` | Then re-auth the Jackline MCP connection (OAuth / mint). |
+
+## Grok / “wipe stored credential” UX
+
+If the host offers **“Wipe stored credential and open the connect card”** for Jackline while the tool body is a **Google** invalid-credentials error, that wipe targets the wrong plane. After this gateway behavior, Jackline should instead return `-32042` (or an explicit My Access `isError`) so the host can open My Access — or the model can ask the user to open the link — without clearing the gateway session.
+
+## Related
+
+- [Connect Cursor](/connect-cursor) — mint `jkl_…` and MCP config
+- [MCP OAuth](/mcp-oauth) — CIMD / DCR for the **gateway** plane only
+- [Authentication](/authentication) — Admin API vs gateway tokens

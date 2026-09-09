@@ -13,6 +13,25 @@ describe("isInvalidUpstreamTokenError", () => {
     assert.equal(isInvalidUpstreamTokenError(401), true);
   });
 
+  it("matches Google OAuth / MCP host auth failure text", () => {
+    assert.equal(
+      isInvalidUpstreamTokenError(
+        "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.",
+      ),
+      true,
+    );
+    assert.equal(
+      isInvalidUpstreamTokenError(
+        "Upstream tool call failed: Streamable HTTP error: Error POSTing to endpoint: 401",
+      ),
+      true,
+    );
+    assert.equal(
+      isInvalidUpstreamTokenError('detail="authentication_required"'),
+      true,
+    );
+  });
+
   it("ignores unrelated errors", () => {
     assert.equal(isInvalidUpstreamTokenError("connection refused"), false);
     assert.equal(isInvalidUpstreamTokenError(new Error("timeout")), false);

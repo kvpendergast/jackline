@@ -74,9 +74,9 @@ Jackline sits between Cursor and upstream MCPs (Gmail, BigQuery, …). Two layer
 1. **Cursor → Jackline** — the minted `jkl_…` (or MCP OAuth) gateway credential.
 2. **Jackline → upstream** — personal Connect in **My Access**, or a shared org credential on the server.
 
-When an upstream access token goes stale and a refresh token is available, the gateway refreshes it silently and persists the new secret. If refresh fails (revoked consent, missing personal Connect), Jackline returns an MCP **URL elicitation** (`-32042`) pointing at My Access for that server. Clients that support URL elicitation (and older clients that surface the error text) should open that link, reconnect, then retry the tool.
+When an upstream access token goes stale and a refresh token is available, the gateway refreshes it silently and persists the new secret. Auth-looking MCP tool errors (including Google “invalid authentication credentials”) also trigger a one-shot force-refresh + retry. If refresh fails or the upstream still rejects the token, Jackline returns an MCP **URL elicitation** (`-32042`) pointing at My Access for that server. Clients that support URL elicitation (and older clients that surface the error text) should open that link, reconnect, then retry the tool.
 
-Do not re-run Jackline login for upstream expiry — that only refreshes the gateway session.
+Do not re-run Jackline login — or wipe the stored Jackline credential — for upstream expiry. That only refreshes the gateway session. See [Harness re-auth](/harness-reauth) for Cursor / Grok / other hosts.
 
 ## Personal CLI alternative
 

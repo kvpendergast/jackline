@@ -17,6 +17,9 @@ export type UpstreamCredentialFailureKind =
 /**
  * User-facing message when upstream credentials are missing or OAuth refresh fails.
  * Personal failures include a My Access reconnect link.
+ *
+ * Messages deliberately say not to wipe / re-auth the Jackline gateway credential —
+ * harnesses (Grok, Cursor, …) often confuse upstream expiry with MCP `needsAuth`.
  */
 export function formatUpstreamCredentialFailure(input: {
   webOrigin: string;
@@ -26,16 +29,18 @@ export function formatUpstreamCredentialFailure(input: {
 }): string {
   const { serverName, serverId, webOrigin, kind } = input;
   const reconnectUrl = myAccessReconnectUrl(webOrigin, serverId);
+  const notGateway =
+    "Do not wipe or re-authenticate the Jackline MCP gateway credential — that will not refresh upstream tokens.";
 
   switch (kind) {
     case "missing_personal":
-      return `Connect your ${serverName} account in My Access before calling this server: ${reconnectUrl}`;
+      return `Connect your ${serverName} account in My Access before calling this server: ${reconnectUrl}. ${notGateway}`;
     case "expired_personal":
-      return `${serverName} access expired or was revoked. Reconnect here: ${reconnectUrl}`;
+      return `${serverName} upstream access expired or was revoked. Open My Access to reconnect: ${reconnectUrl}. ${notGateway}`;
     case "missing_shared":
-      return `No shared credential configured for ${serverName}. Ask an admin to add one in Servers.`;
+      return `No shared credential configured for ${serverName}. Ask an admin to add one in Servers. ${notGateway}`;
     case "expired_shared":
-      return `Shared credential for ${serverName} expired or was revoked. Ask an admin to rotate it in Servers.`;
+      return `Shared credential for ${serverName} expired or was revoked. Ask an admin to rotate it in Servers. ${notGateway}`;
   }
 }
 
@@ -51,7 +56,9 @@ export function isInvalidUpstreamTokenError(cause: unknown): boolean {
     return cause === 401;
   }
   const message = cause instanceof Error ? cause.message : String(cause);
-  return /invalid_token|invalid access token|unauthorized|401\b/i.test(message);
+  return /invalid_token|invalid access token|invalid authentication credentials|expected oauth|authentication_required|unauthorized|www-authenticate|401\b/i.test(
+    message,
+  );
 }
 
 /**

@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   BadRequestError,
   JacklineError,
+  UpstreamCredentialFailureError,
   type ToolHttpMethod,
 } from "@jackline/shared";
 import type { Logger } from "pino";
@@ -11,6 +12,7 @@ import {
   formatUpstreamError,
   isInvalidUpstreamTokenError,
   resolveUpstreamAuthHeaders,
+  upstreamExpiredCredentialError,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
@@ -185,6 +187,7 @@ export async function proxyHttpToolCall(
   let result = first;
   if (
     first.isErr() &&
+    !(first.error instanceof UpstreamCredentialFailureError) &&
     server.authMethod === "oauth" &&
     isInvalidUpstreamTokenError(first.error.message)
   ) {
@@ -218,7 +221,16 @@ export async function proxyHttpToolCall(
     }
   }
 
-  if (result.isErr()) return err(result.error);
+  if (result.isErr()) {
+    if (
+      !(result.error instanceof UpstreamCredentialFailureError) &&
+      server.authMethod === "oauth" &&
+      isInvalidUpstreamTokenError(result.error.message)
+    ) {
+      return err(upstreamExpiredCredentialError(server));
+    }
+    return err(result.error);
+  }
 
   log.info(
     {
