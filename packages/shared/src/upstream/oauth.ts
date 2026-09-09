@@ -490,7 +490,7 @@ const DynamicRegistrationResponseSchema = z.object({
 
 /**
  * RFC 7591 Dynamic Client Registration for MCP OAuth (public PKCE clients).
- * Used by providers like Vercel that advertise `registration_endpoint` instead
+ * Used by MCP OAuth providers that advertise `registration_endpoint` instead
  * of requiring a pre-registered / pasted access token.
  */
 export async function registerDynamicOAuthClient(input: {

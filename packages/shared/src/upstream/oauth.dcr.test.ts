@@ -35,8 +35,8 @@ describe("registerDynamicOAuthClient", () => {
     }) as typeof fetch;
 
     const result = await registerDynamicOAuthClient({
-      registrationUrl: "https://vercel.com/api/login/oauth/register",
-      clientName: "Jackline (Vercel)",
+      registrationUrl: "https://auth.example.com/oauth/register",
+      clientName: "Jackline (Example)",
       redirectUris: ["http://127.0.0.1:9786/oauth/callback"],
       applicationType: "native",
     });
@@ -57,7 +57,7 @@ describe("registerDynamicOAuthClient", () => {
       )) as typeof fetch;
 
     const result = await registerDynamicOAuthClient({
-      registrationUrl: "https://vercel.com/api/login/oauth/register",
+      registrationUrl: "https://auth.example.com/oauth/register",
       clientName: "Jackline",
       redirectUris: ["https://example.com/api/v1/oauth/callback"],
       applicationType: "web",
@@ -76,11 +76,10 @@ describe("discoverMcpOAuthMetadata", () => {
       if (url.endsWith("/.well-known/oauth-authorization-server")) {
         return new Response(
           JSON.stringify({
-            issuer: "https://vercel.com",
-            authorization_endpoint: "https://vercel.com/oauth/authorize",
-            token_endpoint: "https://vercel.com/api/login/oauth/token",
-            registration_endpoint:
-              "https://vercel.com/api/login/oauth/register",
+            issuer: "https://auth.example.com",
+            authorization_endpoint: "https://auth.example.com/oauth/authorize",
+            token_endpoint: "https://auth.example.com/oauth/token",
+            registration_endpoint: "https://auth.example.com/oauth/register",
             token_endpoint_auth_methods_supported: ["none"],
             code_challenge_methods_supported: ["S256"],
           }),
@@ -90,19 +89,19 @@ describe("discoverMcpOAuthMetadata", () => {
       return new Response("not found", { status: 404 });
     }) as typeof fetch;
 
-    const result = await discoverMcpOAuthMetadata("https://mcp.vercel.com");
+    const result = await discoverMcpOAuthMetadata("https://mcp.example.com");
     assert.ok(result.isOk());
     assert.equal(
       result.value.authorizationEndpoint,
-      "https://vercel.com/oauth/authorize",
+      "https://auth.example.com/oauth/authorize",
     );
     assert.equal(
       result.value.registrationEndpoint,
-      "https://vercel.com/api/login/oauth/register",
+      "https://auth.example.com/oauth/register",
     );
     assert.equal(
       result.value.tokenEndpoint,
-      "https://vercel.com/api/login/oauth/token",
+      "https://auth.example.com/oauth/token",
     );
   });
 });

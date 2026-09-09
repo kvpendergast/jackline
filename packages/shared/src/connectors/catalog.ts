@@ -860,27 +860,6 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthScopes: "repo read:org read:user project",
   },
   {
-    key: "vercel",
-    name: "Vercel",
-    description:
-      "Docs search, projects, deployments, logs, and Web Analytics via Vercel’s official remote MCP.",
-    category: "developer",
-    kind: "mcp",
-    authMethod: "oauth",
-    credentialMode: "subject_required",
-    baseUrl: "https://mcp.vercel.com",
-    docsUrl: null,
-    authHint:
-      "Vercel MCP uses OAuth with dynamic client registration (no access token or pre-registered client id). Prefer `jackline add vercel --connect` — Jackline registers a public PKCE client against https://vercel.com/api/login/oauth/register and opens the browser. Hosted My Access Connect only works if Vercel allowlists Jackline’s callback (Vercel otherwise restricts redirects to loopback / reviewed MCP clients).",
-    learnMoreUrl: "https://vercel.com/docs/agent-resources/vercel-mcp",
-    oauthAuthorizeUrl: "https://vercel.com/oauth/authorize",
-    oauthTokenUrl: "https://vercel.com/api/login/oauth/token",
-    oauthScopes: "openid offline_access",
-    oauthResource: "https://mcp.vercel.com/",
-    oauthPublicClient: true,
-    oauthRegistrationUrl: "https://vercel.com/api/login/oauth/register",
-  },
-  {
     key: "sentry",
     name: "Sentry",
     description: "Error tracking and issue context from Sentry.",
