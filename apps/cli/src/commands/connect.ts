@@ -2,6 +2,7 @@ import { consola } from "consola";
 import {
   encodeOAuthSecretValue,
   getConnectorPreset,
+  registerDynamicOAuthClient,
 } from "@jackline/shared";
 import { defineJacklineCommand } from "./defineJacklineCommand.js";
 import { loadConfig } from "../lib/config.js";
@@ -76,17 +77,54 @@ export default defineJacklineCommand({
 
     const publicClient = preset?.oauthPublicClient === true;
     const fromFlags = Boolean(args.clientId?.trim() && (publicClient || args.clientSecret?.trim()));
-    const clientId = args.clientId?.trim() || stored?.clientId;
-    const clientSecret = args.clientSecret?.trim() || stored?.clientSecret;
+    let clientId = args.clientId?.trim() || stored?.clientId;
+    let clientSecret = args.clientSecret?.trim() || stored?.clientSecret;
     const authorizeUrl = preset?.oauthAuthorizeUrl;
     const tokenUrl = stored?.tokenUrl || preset?.oauthTokenUrl;
     const scopes = stored?.scopes || preset?.oauthScopes;
     const callbackPort = Number(args.callbackPort);
+    const redirectUri = `http://127.0.0.1:${callbackPort}/oauth/callback`;
+
+    if (
+      !clientId &&
+      publicClient &&
+      preset?.oauthRegistrationUrl
+    ) {
+      if (
+        !Number.isInteger(callbackPort) ||
+        callbackPort < 1 ||
+        callbackPort > 65535
+      ) {
+        consola.error(`Invalid --callback-port: ${args.callbackPort}`);
+        process.exit(1);
+      }
+      consola.info(
+        `Registering a public OAuth client via ${preset.oauthRegistrationUrl}…`,
+      );
+      const registered = await registerDynamicOAuthClient({
+        registrationUrl: preset.oauthRegistrationUrl,
+        clientName: `Jackline (${server.name})`,
+        redirectUris: [redirectUri],
+        applicationType: "native",
+        scopes: scopes ?? null,
+      });
+      if (registered.isErr()) {
+        consola.error(registered.error.message);
+        process.exit(1);
+      }
+      clientId = registered.value.clientId;
+      if (registered.value.clientSecret) {
+        clientSecret = registered.value.clientSecret;
+      }
+      consola.success("Dynamic client registration succeeded");
+    }
 
     if (!clientId || (!publicClient && !clientSecret)) {
       consola.error(
         publicClient
-          ? `No OAuth client id stored for "${server.name}". Pass --client-id once (register at the provider's dynamic registration endpoint).`
+          ? preset?.oauthRegistrationUrl
+            ? `No OAuth client id for "${server.name}" and dynamic registration failed or was skipped.`
+            : `No OAuth client id stored for "${server.name}". Pass --client-id once (register at the provider's dynamic registration endpoint).`
           : `No OAuth app stored for "${server.name}". Pass --client-id and --client-secret once.`,
       );
       process.exit(1);
@@ -108,11 +146,11 @@ export default defineJacklineCommand({
     consola.info(
       fromFlags
         ? `Re-connecting "${server.name}" with --client-id ${clientIdHint}`
-        : `Re-connecting "${server.name}" with stored OAuth app (${clientIdHint})`,
+        : stored?.clientId
+          ? `Re-connecting "${server.name}" with stored OAuth app (${clientIdHint})`
+          : `Connecting "${server.name}" with dynamically registered client (${clientIdHint})`,
     );
-    consola.info(
-      `Register redirect URI: http://127.0.0.1:${callbackPort}/oauth/callback`,
-    );
+    consola.info(`OAuth redirect URI: ${redirectUri}`);
 
     try {
       const tokens = await runBrowserOAuthConnect({

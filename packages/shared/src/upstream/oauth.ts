@@ -482,3 +482,260 @@ export async function exchangeAuthorizationCode(input: {
   });
 }
 
+const DynamicRegistrationResponseSchema = z.object({
+  client_id: z.string().min(1),
+  client_secret: z.string().min(1).optional(),
+  token_endpoint_auth_method: z.string().optional(),
+});
+
+/**
+ * RFC 7591 Dynamic Client Registration for MCP OAuth (public PKCE clients).
+ * Used by MCP OAuth providers that advertise `registration_endpoint` instead
+ * of requiring a pre-registered / pasted access token.
+ */
+export async function registerDynamicOAuthClient(input: {
+  registrationUrl: string;
+  clientName: string;
+  redirectUris: string[];
+  /** OIDC application_type; MCP clients should set this explicitly. */
+  applicationType?: "web" | "native";
+  grantTypes?: string[];
+  responseTypes?: string[];
+  scopes?: string | null;
+  tokenEndpointAuthMethod?: "none" | "client_secret_basic" | "client_secret_post";
+}): Promise<
+  Result<{ clientId: string; clientSecret?: string }, JacklineError>
+> {
+  const redirectUris = input.redirectUris
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (redirectUris.length === 0) {
+    return err(new BadRequestError("At least one redirect_uri is required"));
+  }
+
+  const body: Record<string, unknown> = {
+    client_name: input.clientName,
+    redirect_uris: redirectUris,
+    token_endpoint_auth_method: input.tokenEndpointAuthMethod ?? "none",
+    grant_types: input.grantTypes ?? ["authorization_code", "refresh_token"],
+    response_types: input.responseTypes ?? ["code"],
+    application_type: input.applicationType ?? "native",
+  };
+  if (input.scopes?.trim()) {
+    body["scope"] = input.scopes
+      .trim()
+      .replace(/,/g, " ")
+      .replace(/\s+/g, " ");
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(input.registrationUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "network error";
+    return err(
+      new JacklineError(
+        "INTERNAL",
+        `OAuth dynamic registration failed: ${detail}`,
+      ),
+    );
+  }
+
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    return err(
+      new JacklineError(
+        "INTERNAL",
+        `OAuth registration endpoint returned non-JSON (${res.status})`,
+      ),
+    );
+  }
+
+  if (!res.ok) {
+    const errorCode =
+      json &&
+      typeof json === "object" &&
+      "error" in json &&
+      typeof (json as { error: unknown }).error === "string"
+        ? (json as { error: string }).error
+        : null;
+    const description =
+      json &&
+      typeof json === "object" &&
+      "error_description" in json &&
+      typeof (json as { error_description: unknown }).error_description ===
+        "string"
+        ? (json as { error_description: string }).error_description
+        : text.slice(0, 200) || res.statusText;
+
+    if (errorCode === "invalid_redirect_uri") {
+      return err(
+        new BadRequestError(
+          `OAuth dynamic registration rejected redirect_uri (${description}). This provider typically allows loopback (127.0.0.1) or reviewed MCP client callbacks — use \`jackline add <connector> --connect\` on your machine, or ask the provider to allowlist Jackline's callback.`,
+        ),
+      );
+    }
+
+    return err(
+      new JacklineError(
+        "INTERNAL",
+        `OAuth registration endpoint → ${res.status}: ${description}`,
+      ),
+    );
+  }
+
+  const parsed = DynamicRegistrationResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    return err(
+      new JacklineError(
+        "INTERNAL",
+        "OAuth registration response missing client_id",
+      ),
+    );
+  }
+
+  return ok({
+    clientId: parsed.data.client_id,
+    ...(parsed.data.client_secret
+      ? { clientSecret: parsed.data.client_secret }
+      : {}),
+  });
+}
+
+const ProtectedResourceMetadataSchema = z.object({
+  resource: z.string().optional(),
+  authorization_servers: z.array(z.string().url()).min(1).optional(),
+});
+
+const AuthorizationServerMetadataSchema = z.object({
+  issuer: z.string().optional(),
+  authorization_endpoint: z.string().url(),
+  token_endpoint: z.string().url(),
+  registration_endpoint: z.string().url().optional(),
+  scopes_supported: z.array(z.string()).optional(),
+});
+
+export type DiscoveredMcpOAuth = {
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  registrationEndpoint?: string;
+  scopesSupported?: string[];
+  resource?: string;
+};
+
+/**
+ * Discover MCP OAuth endpoints from a remote MCP base URL (PRM + AS metadata).
+ * Prefers `/{mcp}/.well-known/oauth-authorization-server` when present.
+ */
+export async function discoverMcpOAuthMetadata(
+  mcpBaseUrl: string,
+): Promise<Result<DiscoveredMcpOAuth, JacklineError>> {
+  let base: URL;
+  try {
+    base = new URL(mcpBaseUrl);
+  } catch {
+    return err(new BadRequestError("Invalid MCP base URL"));
+  }
+
+  const origin = base.origin;
+  const path = base.pathname.replace(/\/$/, "") || "";
+
+  const asCandidates = [
+    `${origin}${path}/.well-known/oauth-authorization-server`,
+    `${origin}/.well-known/oauth-authorization-server`,
+  ];
+
+  for (const asUrl of asCandidates) {
+    const asMeta = await fetchJson(asUrl);
+    if (asMeta.isOk()) {
+      const parsed = AuthorizationServerMetadataSchema.safeParse(asMeta.value);
+      if (parsed.success) {
+        return ok({
+          authorizationEndpoint: parsed.data.authorization_endpoint,
+          tokenEndpoint: parsed.data.token_endpoint,
+          ...(parsed.data.registration_endpoint
+            ? { registrationEndpoint: parsed.data.registration_endpoint }
+            : {}),
+          ...(parsed.data.scopes_supported
+            ? { scopesSupported: parsed.data.scopes_supported }
+            : {}),
+        });
+      }
+    }
+  }
+
+  const prmCandidates = [
+    `${origin}/.well-known/oauth-protected-resource${path}`,
+    `${origin}${path}/.well-known/oauth-protected-resource`,
+    `${origin}/.well-known/oauth-protected-resource`,
+  ];
+
+  for (const prmUrl of prmCandidates) {
+    const prm = await fetchJson(prmUrl);
+    if (prm.isErr()) continue;
+    const prmParsed = ProtectedResourceMetadataSchema.safeParse(prm.value);
+    if (!prmParsed.success || !prmParsed.data.authorization_servers?.[0]) {
+      continue;
+    }
+    const issuer = prmParsed.data.authorization_servers[0].replace(/\/$/, "");
+    const asMeta = await fetchJson(
+      `${issuer}/.well-known/oauth-authorization-server`,
+    );
+    if (asMeta.isErr()) continue;
+    const parsed = AuthorizationServerMetadataSchema.safeParse(asMeta.value);
+    if (!parsed.success) continue;
+    return ok({
+      authorizationEndpoint: parsed.data.authorization_endpoint,
+      tokenEndpoint: parsed.data.token_endpoint,
+      ...(parsed.data.registration_endpoint
+        ? { registrationEndpoint: parsed.data.registration_endpoint }
+        : {}),
+      ...(parsed.data.scopes_supported
+        ? { scopesSupported: parsed.data.scopes_supported }
+        : {}),
+      ...(prmParsed.data.resource ? { resource: prmParsed.data.resource } : {}),
+    });
+  }
+
+  return err(
+    new BadRequestError(
+      "Could not discover OAuth authorization server metadata for this MCP URL",
+    ),
+  );
+}
+
+async function fetchJson(
+  url: string,
+): Promise<Result<unknown, JacklineError>> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "network error";
+    return err(new JacklineError("INTERNAL", `Fetch failed: ${detail}`));
+  }
+  if (!res.ok) {
+    return err(
+      new JacklineError("INTERNAL", `Fetch ${url} → ${res.status}`),
+    );
+  }
+  try {
+    return ok(await res.json());
+  } catch {
+    return err(new JacklineError("INTERNAL", `Non-JSON response from ${url}`));
+  }
+}
+

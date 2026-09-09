@@ -363,6 +363,7 @@ function ServerForm({
   const { tenantId } = useAuth();
   const catalogPreset = resolveFormPreset(server, preset);
   const publicOAuthClient = catalogPreset?.oauthPublicClient === true;
+  const oauthRegistrationUrl = catalogPreset?.oauthRegistrationUrl ?? null;
   const [name, setName] = useState(server?.name ?? catalogPreset?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(
     server?.baseUrl ?? catalogPreset?.baseUrl ?? "https://",
@@ -794,10 +795,9 @@ function ServerForm({
           <div>
             <p className="text-sm font-medium">OAuth app (Connect)</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Register a Jackline callback on the provider
-              ({`{API_URL}/api/v1/oauth/callback`}). Members use Connect in My
-              Access when client id
-              {publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}
+              {oauthRegistrationUrl
+                ? "This connector supports dynamic client registration. Leave Client ID empty — Connect registers a public PKCE client automatically (CLI uses loopback; hosted My Access uses Jackline’s callback when the provider allowlists it)."
+                : `Register a Jackline callback on the provider ({API_URL}/api/v1/oauth/callback). Members use Connect in My Access when client id${publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}`}
             </p>
           </div>
           <Field label="Authorize URL" htmlFor="oauth-app-authorize">
@@ -826,12 +826,24 @@ function ServerForm({
               placeholder="read,write"
             />
           </Field>
-          <Field label="Client ID" htmlFor="oauth-app-client-id">
+          <Field
+            label={
+              oauthRegistrationUrl
+                ? "Client ID (optional — auto-registered on Connect)"
+                : "Client ID"
+            }
+            htmlFor="oauth-app-client-id"
+          >
             <Input
               id="oauth-app-client-id"
               value={oauthClientId}
               onChange={(e) => setOauthClientId(e.target.value)}
               autoComplete="off"
+              placeholder={
+                oauthRegistrationUrl
+                  ? "Leave empty to register dynamically"
+                  : undefined
+              }
             />
           </Field>
           <Field

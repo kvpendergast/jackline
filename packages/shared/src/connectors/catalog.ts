@@ -52,10 +52,17 @@ export const ConnectorPresetSchema = z.strictObject({
    */
   oauthResource: z.url().optional(),
   /**
-   * Public OAuth client (PKCE only; no client secret). Admins register a
-   * client id via the provider's dynamic registration endpoint.
+   * Public OAuth client (PKCE only; no client secret). When
+   * `oauthRegistrationUrl` is set, Connect performs RFC 7591 DCR instead of
+   * requiring a pre-pasted client id or access token.
    */
   oauthPublicClient: z.boolean().optional(),
+  /**
+   * RFC 7591 dynamic client registration endpoint (MCP OAuth). When set,
+   * Jackline registers a public client at Connect time using the active
+   * redirect URI (loopback for CLI; Jackline callback for hosted Connect).
+   */
+  oauthRegistrationUrl: z.url().optional(),
 });
 
 export type ConnectorPreset = z.infer<typeof ConnectorPresetSchema>;
@@ -853,26 +860,6 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthScopes: "repo read:org read:user project",
   },
   {
-    key: "vercel",
-    name: "Vercel",
-    description:
-      "Docs search, projects, deployments, logs, and Web Analytics via Vercel’s official remote MCP.",
-    category: "developer",
-    kind: "mcp",
-    authMethod: "oauth",
-    credentialMode: "subject_required",
-    baseUrl: "https://mcp.vercel.com",
-    docsUrl: null,
-    authHint:
-      "Vercel MCP uses a public OAuth client (PKCE, no secret). Register a client at https://vercel.com/api/login/oauth/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop. Official endpoint: https://mcp.vercel.com — Vercel only allows reviewed MCP clients.",
-    learnMoreUrl: "https://vercel.com/docs/agent-resources/vercel-mcp",
-    oauthAuthorizeUrl: "https://vercel.com/oauth/authorize",
-    oauthTokenUrl: "https://vercel.com/api/login/oauth/token",
-    oauthScopes: "openid offline_access",
-    oauthResource: "https://mcp.vercel.com/",
-    oauthPublicClient: true,
-  },
-  {
     key: "sentry",
     name: "Sentry",
     description: "Error tracking and issue context from Sentry.",
@@ -898,7 +885,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     baseUrl: "https://agent.robinhood.com/mcp/trading",
     docsUrl: null,
     authHint:
-      "Robinhood MCP uses a public OAuth client (PKCE, no secret). Register a client at https://agent.robinhood.com/oauth/trading/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop. Fund and authenticate the agentic trading account in Robinhood first.",
+      "Robinhood MCP uses OAuth with dynamic client registration (public PKCE client, no secret). Connect via `jackline add robinhood_trading --connect` or My Access — Jackline registers at the provider endpoint when no client id is stored. Fund and authenticate the agentic trading account in Robinhood first.",
     learnMoreUrl:
       "https://robinhood.com/us/en/support/articles/agentic-trading",
     oauthAuthorizeUrl: "https://robinhood.com/oauth",
@@ -906,6 +893,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthScopes: "internal",
     oauthResource: "https://agent.robinhood.com/mcp/trading",
     oauthPublicClient: true,
+    oauthRegistrationUrl: "https://agent.robinhood.com/oauth/trading/register",
   },
   {
     key: "robinhood_banking",
@@ -919,7 +907,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     baseUrl: "https://banking-agent.robinhood.com/mcp/banking",
     docsUrl: null,
     authHint:
-      "Robinhood MCP uses a public OAuth client (PKCE, no secret). Register a client at https://banking-agent.robinhood.com/oauth/banking/register, set the returned client id on this server (leave client secret empty), then each user Connects in My Access on desktop and completes agentic card onboarding in Robinhood.",
+      "Robinhood MCP uses OAuth with dynamic client registration (public PKCE client, no secret). Connect via `jackline add robinhood_banking --connect` or My Access — Jackline registers when no client id is stored. Complete agentic card onboarding in Robinhood.",
     learnMoreUrl:
       "https://robinhood.com/us/en/support/articles/agentic-credit-card",
     oauthAuthorizeUrl: "https://robinhood.com/oauth",
@@ -927,6 +915,8 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
     oauthScopes: "credit-card",
     oauthResource: "https://banking-agent.robinhood.com/mcp/banking",
     oauthPublicClient: true,
+    oauthRegistrationUrl:
+      "https://banking-agent.robinhood.com/oauth/banking/register",
   },
   {
     key: "instacart",
@@ -976,4 +966,12 @@ export function connectorUsesPublicOAuthClient(
 ): boolean {
   if (!connectorKey) return false;
   return getConnectorPreset(connectorKey)?.oauthPublicClient === true;
+}
+
+/** RFC 7591 registration URL for catalog connectors that support DCR. */
+export function connectorOAuthRegistrationUrl(
+  connectorKey: string | null | undefined,
+): string | null {
+  if (!connectorKey) return null;
+  return getConnectorPreset(connectorKey)?.oauthRegistrationUrl ?? null;
 }

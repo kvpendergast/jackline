@@ -10,6 +10,7 @@ import {
   SetupError,
   upstreamSecretKind,
   connectorUsesPublicOAuthClient,
+  connectorOAuthRegistrationUrl,
   type MyAccessServer,
   type PublicSecret,
   type UpstreamCredentialStatus,
@@ -80,6 +81,7 @@ async function listMyServers(
     );
     const canConnect = server.credentialMode !== "shared";
     const publicOAuthClient = connectorUsesPublicOAuthClient(server.connectorKey);
+    const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
     const hasOauthAppSecret = secretRows.some(
       (s) =>
         s.serverId === server.id &&
@@ -90,7 +92,7 @@ async function listMyServers(
       server.authMethod === "oauth" &&
       !!server.oauthAuthorizeUrl &&
       !!server.oauthTokenUrl &&
-      !!server.oauthClientId &&
+      (!!server.oauthClientId || !!registrationUrl) &&
       (publicOAuthClient || hasOauthAppSecret);
 
     return {

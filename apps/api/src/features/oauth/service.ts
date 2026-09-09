@@ -20,10 +20,12 @@ import {
   getConnectorPreset,
   JacklineError,
   NotFoundError,
+  connectorOAuthRegistrationUrl,
   connectorUsesPublicOAuthClient,
   OAUTH_CLIENT_SECRET_KIND,
   oauthCallbackUrl,
   publicApiBaseUrl,
+  registerDynamicOAuthClient,
   SetupError,
   UnauthorizedError,
   upstreamSecretKind,
@@ -83,6 +85,60 @@ async function loadOauthClientSecret(
   return ok(new TextDecoder().decode(decrypted.value));
 }
 
+async function ensureOauthClientId(
+  log: Logger,
+  server: typeof servers.$inferSelect,
+  redirectUri: string,
+): Promise<Result<string, JacklineError>> {
+  if (server.oauthClientId?.trim()) {
+    return ok(server.oauthClientId.trim());
+  }
+
+  const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
+  if (!registrationUrl) {
+    return err(
+      new BadRequestError(
+        "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
+      ),
+    );
+  }
+
+  const registered = await registerDynamicOAuthClient({
+    registrationUrl,
+    clientName: `Jackline (${server.name})`,
+    redirectUris: [redirectUri],
+    applicationType: "web",
+    scopes: server.oauthScopes,
+  });
+  if (registered.isErr()) return err(registered.error);
+
+  const [updated] = await db
+    .update(servers)
+    .set({
+      oauthClientId: registered.value.clientId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(servers.id, server.id), eq(servers.tenantId, server.tenantId)),
+    )
+    .returning({ oauthClientId: servers.oauthClientId });
+
+  if (!updated?.oauthClientId) {
+    return err(new SetupError("Failed to persist dynamically registered client id"));
+  }
+
+  log.info(
+    {
+      tenantId: server.tenantId,
+      serverId: server.id,
+      registrationUrl,
+    },
+    "Oauth.services.dynamicRegister",
+  );
+
+  return ok(updated.oauthClientId);
+}
+
 async function startConnect(
   log: Logger,
   tenantId: string,
@@ -116,11 +172,17 @@ async function startConnect(
     );
   }
 
-  if (
-    !server.oauthAuthorizeUrl ||
-    !server.oauthTokenUrl ||
-    !server.oauthClientId
-  ) {
+  if (!server.oauthAuthorizeUrl || !server.oauthTokenUrl) {
+    return err(
+      new BadRequestError(
+        "OAuth Connect is not configured. Ask an admin to set authorize URL and token URL on the server.",
+      ),
+    );
+  }
+
+  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
+  const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
+  if (!server.oauthClientId && !registrationUrl) {
     return err(
       new BadRequestError(
         "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
@@ -128,7 +190,6 @@ async function startConnect(
     );
   }
 
-  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
   if (!publicClient) {
     const clientSecret = await loadOauthClientSecret(tenantId, serverId);
     if (clientSecret.isErr()) return err(clientSecret.error);
@@ -141,6 +202,10 @@ async function startConnect(
   const state = createOAuthState();
   const pkce = await createPkcePair();
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
+
+  const clientIdResult = await ensureOauthClientId(log, server, redirectUri);
+  if (clientIdResult.isErr()) return err(clientIdResult.error);
+  const clientId = clientIdResult.value;
 
   await db.insert(oauthStates).values({
     state,
@@ -165,7 +230,7 @@ async function startConnect(
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
     authorizeUrl: server.oauthAuthorizeUrl,
-    clientId: server.oauthClientId,
+    clientId,
     redirectUri,
     state,
     codeChallenge: pkce.codeChallenge,
