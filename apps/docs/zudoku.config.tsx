@@ -23,6 +23,7 @@ const config: ZudokuConfig = {
         "/introduction",
         "/self-hosting",
         "/connect-cursor",
+        "/harness-reauth",
         "/authentication",
         "/mcp-oauth",
         "/a2a-agents",

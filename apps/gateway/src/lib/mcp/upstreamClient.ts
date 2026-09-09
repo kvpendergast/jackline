@@ -63,6 +63,19 @@ function sharedCredentialError(
 }
 
 /**
+ * Map a post-refresh upstream auth failure to personal vs shared reconnect.
+ * Prefer personal elicitation unless the server is shared-only.
+ */
+export function upstreamExpiredCredentialError(
+  server: Pick<UpstreamServerRow, "id" | "name" | "credentialMode">,
+): UpstreamCredentialFailureError {
+  if (server.credentialMode === "shared") {
+    return sharedCredentialError(server, "expired_shared");
+  }
+  return personalCredentialError(server, "expired_personal");
+}
+
+/**
  * Raise MCP URL elicitation so Cursor / other harnesses can open My Access.
  * Falls back to a plain Forbidden-style message when reconnect URL is missing.
  */
@@ -376,13 +389,15 @@ async function openUpstream(
 
 /**
  * Open a short-lived MCP client to an upstream MCP server.
- * On invalid_token / unauthorized, force-refresh OAuth once and retry.
+ * On invalid_token / unauthorized (and no forced refresh yet), force-refresh
+ * OAuth once and retry.
  */
 export async function connectUpstream(
   log: Logger,
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
+  options?: { forceRefresh?: boolean },
 ): Promise<Result<ConnectedUpstream, JacklineError>> {
   if (server.kind !== "mcp") {
     return err(
@@ -392,13 +407,20 @@ export async function connectUpstream(
     );
   }
 
-  const headers = await resolveUpstreamAuthHeaders(log, tenantId, userId, server);
+  const headers = await resolveUpstreamAuthHeaders(
+    log,
+    tenantId,
+    userId,
+    server,
+    options?.forceRefresh ? { forceRefresh: true } : undefined,
+  );
   if (headers.isErr()) return err(headers.error);
 
   const first = await openUpstream(server, headers.value);
   if (first.isOk()) return first;
 
   if (
+    options?.forceRefresh ||
     server.authMethod !== "oauth" ||
     !isInvalidUpstreamTokenError(first.error.message)
   ) {
