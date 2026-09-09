@@ -43,7 +43,10 @@ export {
   createOAuthState,
   buildOAuthAuthorizeUrl,
   exchangeAuthorizationCode,
+  registerDynamicOAuthClient,
+  discoverMcpOAuthMetadata,
   type PkcePair,
+  type DiscoveredMcpOAuth,
 } from "./upstream/oauth.js";
 export {
   formatMcpToolName,
@@ -55,6 +58,7 @@ export {
   getConnectorPreset,
   connectorLogoKey,
   connectorUsesPublicOAuthClient,
+  connectorOAuthRegistrationUrl,
   ConnectorPresetSchema,
   ConnectorCategorySchema,
   type ConnectorPreset,

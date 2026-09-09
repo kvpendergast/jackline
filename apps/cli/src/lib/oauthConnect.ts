@@ -171,9 +171,6 @@ export async function runBrowserOAuthConnect(input: {
 
     server.listen(input.callbackPort, "127.0.0.1", () => {
       consola.info(`Listening for OAuth callback on ${redirectUri}`);
-      consola.info(
-        "Ensure this exact redirect URI is registered on your OAuth app.",
-      );
       consola.info("Opening browser…");
       void openBrowser(authorizeUrl);
     });
