@@ -142,6 +142,10 @@ v1.openAPIRegistry.registerPath(oauthTokenRoute);
 v1.use("/signup", ipQuotaMiddleware("api.auth"));
 v1.use("/signup/*", ipQuotaMiddleware("api.auth"));
 
+v1.use("/trust/exchange", ipQuotaMiddleware("a2a.knock"));
+v1.use("/networks/public/directory", ipQuotaMiddleware("a2a.directory"));
+v1.use("/agent-registry", ipQuotaMiddleware("a2a.directory"));
+
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {
     v1.openapi(route, handler);

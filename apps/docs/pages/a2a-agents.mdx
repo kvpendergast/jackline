@@ -22,11 +22,11 @@ Publish an agent peers can authenticate with, then request actions that run **on
 
 ## Peer knock → trust credential
 
-1. Peer discovers the agent (directory or known handle) and sends an A2A `message/send` knock with intent `jackline.trust.request` (session-authenticated to the peer’s tenant).
+1. Peer discovers the agent (directory or known handle) and sends an A2A `message/send` knock with intent `jackline.trust.request`. Knocks are **public** (no Jackline session); the A2A handler rate-limits them (`a2a.knock`, keyed by handle + IP when unauthenticated).
 2. Owner gets a notification linking to `/my-agents/<id>#knocks`.
-3. Owner **Approves** (sets grant TTL and optionally scopes advertised skill IDs). Approving trusts the peer; it does **not** change MCP tools.
-4. Peer polls A2A `tasks/get` for the knock task, reads `exchangeToken`, then calls `POST /api/v1/trust/exchange` with the knock secret + exchange token.
-5. Peer receives a `jka_` bearer token for subsequent A2A calls.
+3. Owner **Approves** (sets grant TTL and optionally scopes advertised skill IDs). Approving trusts the peer; it does **not** change MCP tools. Approve/deny require owner auth.
+4. Peer polls A2A `tasks/get` for the knock task (also public — knowing `taskId` is enough), reads `exchangeToken`, then calls `POST /api/v1/trust/exchange` with the knock secret + exchange token.
+5. Peer receives a `jka_` bearer token for subsequent A2A calls. That credential is the trust boundary for real actions.
 
 ## Peer action (hosted runtime)
 
@@ -73,7 +73,7 @@ Peer-initiated tool calls appear under **Audit** with reason prefix `a2a.peer` (
 Integration suite `agents-a2a.integration.test.ts` covers:
 
 1. Instructions + tool bindings API
-2. Knock → approve → `tasks/get` → exchange → authenticated `message/send`
+2. Public knock → owner approve → public `tasks/get` → exchange → `jka_`-authenticated `message/send`
 3. Hosted `jackline.tool.call` execution + `a2a.peer` audit event
 
 Run via the repo’s `integration` CI job (or local integration-test script with Postgres + API/gateway).

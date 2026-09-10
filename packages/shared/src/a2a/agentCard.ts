@@ -82,13 +82,12 @@ export type A2aAuthInput = {
   hasValidGrant: boolean;
   trustGrantId?: string;
   isKnockIntent: boolean;
-  /** Jackline session/OAuth — required to poll knock tasks before a peer grant exists. */
-  hasApiCredential?: boolean;
 };
 
 /**
  * Cheap auth-before-work decision for A2A ingress.
- * Knocks require a Jackline API credential at the handler until rate limits ship.
+ * Knocks and knock-task polls are public (rate-limited at the handler).
+ * Owner approve/deny and real actions still require owner auth or a jka_ grant.
  */
 export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
   if (input.agentStatus === "paused") {
@@ -109,8 +108,8 @@ export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
     return { action: "knock_only" };
   }
 
-  // Peers poll tasks/get for exchangeToken after knock approval, before jka_ exists.
-  if (input.method === "tasks/get" && input.hasApiCredential) {
+  // Capability URL: knowing taskId is enough to poll for exchangeToken before jka_ exists.
+  if (input.method === "tasks/get") {
     return { action: "task_poll" };
   }
 

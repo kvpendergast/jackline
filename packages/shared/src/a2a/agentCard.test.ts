@@ -91,27 +91,14 @@ describe("decideA2aAuth", () => {
     assert.equal(decision.action, "deny");
   });
 
-  it("allows tasks/get poll with Jackline API credential", () => {
+  it("allows anonymous tasks/get poll without a grant", () => {
     const decision = decideA2aAuth({
       agentStatus: "published",
       knocksEnabled: true,
       method: "tasks/get",
       hasValidGrant: false,
       isKnockIntent: false,
-      hasApiCredential: true,
     });
     assert.equal(decision.action, "task_poll");
-  });
-
-  it("denies tasks/get without credential or grant", () => {
-    const decision = decideA2aAuth({
-      agentStatus: "published",
-      knocksEnabled: true,
-      method: "tasks/get",
-      hasValidGrant: false,
-      isKnockIntent: false,
-      hasApiCredential: false,
-    });
-    assert.equal(decision.action, "deny");
   });
 });
