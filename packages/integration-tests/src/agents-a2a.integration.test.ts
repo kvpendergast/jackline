@@ -11,7 +11,7 @@ async function a2aJsonRpc(
   apiUrl: string,
   handle: string,
   body: Record<string, unknown>,
-  headers: Record<string, string>,
+  headers: Record<string, string> = {},
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const res = await fetch(`${apiUrl}/a2a/${handle}`, {
     method: "POST",
@@ -24,6 +24,29 @@ async function a2aJsonRpc(
   });
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, json };
+}
+
+async function exchangeTrustGrant(
+  apiUrl: string,
+  body: { knockSecret: string; exchangeToken: string },
+): Promise<{ status: number; token?: string; error?: unknown }> {
+  const res = await fetch(`${apiUrl}/api/v1/trust/exchange`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as {
+    data?: { token?: string };
+    error?: unknown;
+  };
+  return {
+    status: res.status,
+    ...(json.data?.token ? { token: json.data.token } : {}),
+    ...(json.error !== undefined ? { error: json.error } : {}),
+  };
 }
 
 describe("agents instructions + tool bindings", () => {
@@ -158,9 +181,7 @@ describe("agents instructions + tool bindings", () => {
 describe("A2A trust handoff via tasks/get", () => {
   it("surfaces exchangeToken after knock approval", async () => {
     const ownerClient = await createApiClient();
-    const peerClient = await createApiClient();
     const owner = await createAuthenticatedAdmin(ownerClient, "agent-owner");
-    const peer = await createAuthenticatedAdmin(peerClient, "agent-peer");
 
     const handle = `trust-${Date.now()}`.slice(0, 32);
     const agent = await ownerClient.api<PublicAgent>("/api/v1/agents", {
@@ -190,31 +211,23 @@ describe("A2A trust handoff via tasks/get", () => {
     });
 
     const peerCardUrl = `http://127.0.0.1/agents/peer-${Date.now()}/.well-known/agent-card.json`;
-    const knockRes = await a2aJsonRpc(
-      peerClient.apiUrl,
-      handle,
-      {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "message/send",
-        params: {
-          peerAgentCardUrl: peerCardUrl,
-          message: {
-            role: "user",
-            parts: [{ kind: "text", text: "Please grant access" }],
-            metadata: {
-              intent: "jackline.trust.request",
-              peerAgentCardUrl: peerCardUrl,
-              peerDisplayName: "Peer Bot",
-            },
+    const knockRes = await a2aJsonRpc(ownerClient.apiUrl, handle, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "message/send",
+      params: {
+        peerAgentCardUrl: peerCardUrl,
+        message: {
+          role: "user",
+          parts: [{ kind: "text", text: "Please grant access" }],
+          metadata: {
+            intent: "jackline.trust.request",
+            peerAgentCardUrl: peerCardUrl,
+            peerDisplayName: "Peer Bot",
           },
         },
       },
-      {
-        Cookie: peerClient.cookieHeader(),
-        "X-Jackline-Tenant-Id": peer.tenantId,
-      },
-    );
+    });
     assert.equal(knockRes.status, 200, JSON.stringify(knockRes.json));
     const knockResult = knockRes.json["result"] as {
       knockId: string;
@@ -253,20 +266,12 @@ describe("A2A trust handoff via tasks/get", () => {
     );
     assert.deepEqual(approved.data.skillPolicy.skillIds, ["calendar.book"]);
 
-    const tasksGet = await a2aJsonRpc(
-      peerClient.apiUrl,
-      handle,
-      {
-        jsonrpc: "2.0",
-        id: 2,
-        method: "tasks/get",
-        params: { taskId: knockResult.taskId },
-      },
-      {
-        Cookie: peerClient.cookieHeader(),
-        "X-Jackline-Tenant-Id": peer.tenantId,
-      },
-    );
+    const tasksGet = await a2aJsonRpc(ownerClient.apiUrl, handle, {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tasks/get",
+      params: { taskId: knockResult.taskId },
+    });
     assert.equal(tasksGet.status, 200, JSON.stringify(tasksGet.json));
     const taskPayload = tasksGet.json["result"] as {
       taskId: string;
@@ -278,22 +283,15 @@ describe("A2A trust handoff via tasks/get", () => {
     assert.equal(taskPayload.result?.approved, true);
     assert.ok(taskPayload.result?.exchangeToken);
 
-    const exchanged = await peerClient.api<{
-      token: string;
-      grantId: string;
-      expiresAt: string;
-    }>("/api/v1/trust/exchange", {
-      method: "POST",
-      tenantId: peer.tenantId,
-      body: JSON.stringify({
-        knockSecret: knockResult.knockSecret,
-        exchangeToken: taskPayload.result!.exchangeToken,
-      }),
+    const exchanged = await exchangeTrustGrant(ownerClient.apiUrl, {
+      knockSecret: knockResult.knockSecret,
+      exchangeToken: taskPayload.result!.exchangeToken!,
     });
-    assert.ok(exchanged.data.token.startsWith("jka_"));
+    assert.equal(exchanged.status, 200, JSON.stringify(exchanged));
+    assert.ok(exchanged.token?.startsWith("jka_"));
 
     const grantedMessage = await a2aJsonRpc(
-      peerClient.apiUrl,
+      ownerClient.apiUrl,
       handle,
       {
         jsonrpc: "2.0",
@@ -307,7 +305,7 @@ describe("A2A trust handoff via tasks/get", () => {
         },
       },
       {
-        Authorization: `Bearer ${exchanged.data.token}`,
+        Authorization: `Bearer ${exchanged.token}`,
       },
     );
     assert.equal(grantedMessage.status, 200, JSON.stringify(grantedMessage.json));
@@ -322,9 +320,7 @@ describe("hosted A2A tool execution", () => {
     const mock = await startMockUpstreamMcp("echo");
     try {
       const ownerClient = await createApiClient();
-      const peerClient = await createApiClient();
       const owner = await createAuthenticatedAdmin(ownerClient, "hosted-owner");
-      const peer = await createAuthenticatedAdmin(peerClient, "hosted-peer");
 
       const access = await provisionInteractiveMcpAccess(
         ownerClient,
@@ -361,30 +357,22 @@ describe("hosted A2A tool execution", () => {
       });
 
       const peerCardUrl = `http://127.0.0.1/agents/peer-hosted/card.json`;
-      const knockRes = await a2aJsonRpc(
-        peerClient.apiUrl,
-        handle,
-        {
-          jsonrpc: "2.0",
-          id: 1,
-          method: "message/send",
-          params: {
-            peerAgentCardUrl: peerCardUrl,
-            message: {
-              role: "user",
-              parts: [{ kind: "text", text: "knock please" }],
-              metadata: {
-                intent: "jackline.trust.request",
-                peerAgentCardUrl: peerCardUrl,
-              },
+      const knockRes = await a2aJsonRpc(ownerClient.apiUrl, handle, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "message/send",
+        params: {
+          peerAgentCardUrl: peerCardUrl,
+          message: {
+            role: "user",
+            parts: [{ kind: "text", text: "knock please" }],
+            metadata: {
+              intent: "jackline.trust.request",
+              peerAgentCardUrl: peerCardUrl,
             },
           },
         },
-        {
-          Cookie: peerClient.cookieHeader(),
-          "X-Jackline-Tenant-Id": peer.tenantId,
-        },
-      );
+      });
       assert.equal(knockRes.status, 200, JSON.stringify(knockRes.json));
       const knockResult = knockRes.json["result"] as {
         knockId: string;
@@ -398,38 +386,25 @@ describe("hosted A2A tool execution", () => {
         body: JSON.stringify({ grantTtlSeconds: 3600 }),
       });
 
-      const tasksGet = await a2aJsonRpc(
-        peerClient.apiUrl,
-        handle,
-        {
-          jsonrpc: "2.0",
-          id: 2,
-          method: "tasks/get",
-          params: { taskId: knockResult.taskId },
-        },
-        {
-          Cookie: peerClient.cookieHeader(),
-          "X-Jackline-Tenant-Id": peer.tenantId,
-        },
-      );
+      const tasksGet = await a2aJsonRpc(ownerClient.apiUrl, handle, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tasks/get",
+        params: { taskId: knockResult.taskId },
+      });
       const taskPayload = tasksGet.json["result"] as {
         result?: { exchangeToken?: string };
       };
 
-      const exchanged = await peerClient.api<{ token: string }>(
-        "/api/v1/trust/exchange",
-        {
-          method: "POST",
-          tenantId: peer.tenantId,
-          body: JSON.stringify({
-            knockSecret: knockResult.knockSecret,
-            exchangeToken: taskPayload.result!.exchangeToken,
-          }),
-        },
-      );
+      const exchanged = await exchangeTrustGrant(ownerClient.apiUrl, {
+        knockSecret: knockResult.knockSecret,
+        exchangeToken: taskPayload.result!.exchangeToken!,
+      });
+      assert.equal(exchanged.status, 200, JSON.stringify(exchanged));
+      assert.ok(exchanged.token?.startsWith("jka_"));
 
       const toolCall = await a2aJsonRpc(
-        peerClient.apiUrl,
+        ownerClient.apiUrl,
         handle,
         {
           jsonrpc: "2.0",
@@ -449,7 +424,7 @@ describe("hosted A2A tool execution", () => {
             },
           },
         },
-        { Authorization: `Bearer ${exchanged.data.token}` },
+        { Authorization: `Bearer ${exchanged.token}` },
       );
       assert.equal(toolCall.status, 200, JSON.stringify(toolCall.json));
       const toolResult = toolCall.json["result"] as {

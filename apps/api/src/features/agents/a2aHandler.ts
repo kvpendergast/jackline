@@ -57,7 +57,6 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
   }
 
   const authResult = await requireTenantContext(c);
-  const hasApiCredential = authResult.isOk();
   const log = authResult.isOk() ? authResult.value.log : c.get("requestContext").log;
 
   const authorization = c.req.header("Authorization") ?? "";
@@ -99,7 +98,6 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
     authorization: c.req.header("Authorization"),
     body,
     log,
-    hasApiCredential,
   });
 
   if (result.isErr()) {

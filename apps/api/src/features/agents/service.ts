@@ -1041,8 +1041,6 @@ export const agentServices = {
     authorization: string | undefined;
     body: JsonRpcRequest;
     log: Logger;
-    /** Session or OAuth access token — required for knock path until rate limits ship. */
-    hasApiCredential: boolean;
   }): Promise<
     Result<{ id: string | number | null; result: unknown }, JacklineError>
   > {
@@ -1072,7 +1070,6 @@ export const agentServices = {
         knockPayloadResult?.isOk() &&
           isKnockIntent(knockPayloadResult.value),
       ),
-      hasApiCredential: input.hasApiCredential,
     });
 
     if (decision.action === "deny") {
@@ -1080,9 +1077,6 @@ export const agentServices = {
     }
 
     if (decision.action === "knock_only") {
-      if (!input.hasApiCredential) {
-        return err(new UnauthorizedError("Authentication required"));
-      }
       if (!knockPayloadResult || knockPayloadResult.isErr()) {
         return err(knockPayloadResult?.error ?? new BadRequestError("Invalid knock payload"));
       }
