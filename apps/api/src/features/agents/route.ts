@@ -9,6 +9,7 @@ import {
   PublicAgentSchema,
   PublicKnockSchema,
   PublicTrustGrantSchema,
+  AgentTranscriptResponseSchema,
   UpdateAgentBodySchema,
 } from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
@@ -70,6 +71,11 @@ const DirectoryResponseSchema = successEnvelopeSchema(
 const ExchangeResponseSchema = successEnvelopeSchema(
   MintedPeerGrantCredentialSchema,
   "ExchangeTrustGrantResponse",
+);
+
+const TranscriptResponseSchema = successEnvelopeSchema(
+  AgentTranscriptResponseSchema,
+  "AgentTranscriptResponse",
 );
 
 export const agentRoutes = {
@@ -303,6 +309,51 @@ export const agentRoutes = {
           "application/json": { schema: TrustGrantListResponseSchema },
         },
         description: "Trust grants",
+      },
+      ...notFoundError,
+      ...tenantScopedErrors,
+    },
+  }),
+
+  listTranscript: createRoute({
+    method: "get",
+    path: "/agents/{id}/transcript",
+    tags: ["Agents"],
+    summary: "Peer conversation transcript for an agent",
+    request: {
+      headers: TenantIdHeaderSchema,
+      params: AgentIdParamSchema,
+      query: z.object({
+        peerAgentCardUrl: z.string().url().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        content: {
+          "application/json": { schema: TranscriptResponseSchema },
+        },
+        description: "Conversation threads and transcript entries",
+      },
+      ...notFoundError,
+      ...tenantScopedErrors,
+    },
+  }),
+
+  streamTranscript: createRoute({
+    method: "get",
+    path: "/agents/{id}/transcript/stream",
+    tags: ["Agents"],
+    summary: "Live SSE stream of peer activity for an agent",
+    request: {
+      headers: TenantIdHeaderSchema,
+      params: AgentIdParamSchema,
+      query: z.object({
+        peerAgentCardUrl: z.string().url().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Server-sent events (entry / snapshot / ping)",
       },
       ...notFoundError,
       ...tenantScopedErrors,

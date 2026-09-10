@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/types/peerGrantCredential.test.ts src/types/trustGrant.test.ts src/types/knock.test.ts src/types/mcpOauthValidation.test.ts src/a2a/agentCard.test.ts src/env/postgresUrl.test.ts src/env/load.test.ts src/myAccess/reconnectUrl.test.ts src/myAccess/upstreamTokenError.test.ts src/upstream/oauth.expiry.test.ts src/upstream/oauth.dcr.test.ts",
+    "test": "tsx --test src/types/peerGrantCredential.test.ts src/types/trustGrant.test.ts src/types/knock.test.ts src/types/agentActivity.test.ts src/types/mcpOauthValidation.test.ts src/a2a/agentCard.test.ts src/env/postgresUrl.test.ts src/env/load.test.ts src/myAccess/reconnectUrl.test.ts src/myAccess/upstreamTokenError.test.ts src/upstream/oauth.expiry.test.ts src/upstream/oauth.dcr.test.ts",
     "env:check": "tsx src/env/doctor.ts",
     "lint": "echo \"lint later\""
   },

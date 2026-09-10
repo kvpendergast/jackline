@@ -43,6 +43,7 @@ import {
   type AgentDirectoryResponse,
   type ApproveKnockBody,
   type CreateAgentBody,
+  type DenyKnockBody,
   type ExchangeTrustGrantBody,
   type MintedPeerGrantCredential,
   type PublicAgent,
@@ -50,6 +51,7 @@ import {
   type PublicKnock,
   type PublicTrustGrant,
   type UpdateAgentBody,
+  type AgentTranscriptResponse,
   JACKLINE_TRUST_REQUEST_INTENT,
   validateKnockMessage,
 } from "@jackline/shared";
@@ -67,6 +69,7 @@ import {
   runHostedPeerMessage,
   syncAgentToolsToOwnerChatConnection,
 } from "./hostedRuntime.js";
+import { buildAgentTranscript } from "./transcript.js";
 
 function configPublicBaseUrl(): Result<string, JacklineError> {
   const cfg = getConfig();
@@ -171,6 +174,7 @@ function toPublicKnock(row: KnockRow): PublicKnock {
     peerDisplayName: row.peerDisplayName ?? null,
     message: row.message,
     status: row.status,
+    decisionNote: row.decisionNote ?? null,
     trustGrantId: row.trustGrantId ?? null,
     a2aTaskId: row.a2aTaskId ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -719,6 +723,9 @@ export const agentServices = {
           status: "approved",
           trustGrantId: grant.id,
           exchangeTokenHash: hashToken(exchangeToken),
+          ...(body.decisionNote !== undefined
+            ? { decisionNote: body.decisionNote }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(knocks.id, knockId));
@@ -749,6 +756,7 @@ export const agentServices = {
     tenantId: string,
     userId: string,
     knockId: string,
+    body: DenyKnockBody = {},
   ): Promise<Result<PublicKnock, JacklineError>> {
     const [knock] = await db
       .select()
@@ -762,10 +770,34 @@ export const agentServices = {
 
     const [row] = await db
       .update(knocks)
-      .set({ status: "denied", updatedAt: new Date() })
+      .set({
+        status: "denied",
+        ...(body.decisionNote !== undefined
+          ? { decisionNote: body.decisionNote }
+          : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(knocks.id, knockId))
       .returning();
     if (!row) return err(new NotFoundError("Knock not found"));
+
+    if (knock.a2aTaskId) {
+      await db
+        .update(a2aTasks)
+        .set({
+          state: "completed",
+          result: {
+            approved: false,
+            denied: true,
+            ...(body.decisionNote !== undefined
+              ? { decisionNote: body.decisionNote }
+              : {}),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(a2aTasks.id, knock.a2aTaskId));
+    }
+
     return ok(toPublicKnock(row));
   },
 
@@ -785,6 +817,22 @@ export const agentServices = {
       )
       .orderBy(sql`${trustGrants.createdAt} desc`);
     return ok({ items: rows.map(toPublicTrustGrant) });
+  },
+
+  async listTranscript(
+    tenantId: string,
+    userId: string,
+    agentId: string,
+    peerAgentCardUrl?: string,
+  ): Promise<Result<AgentTranscriptResponse, JacklineError>> {
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+    const transcript = await buildAgentTranscript({
+      agentId,
+      tenantId,
+      ...(peerAgentCardUrl ? { peerAgentCardUrl } : {}),
+    });
+    return ok(transcript);
   },
 
   async revokeTrustGrant(

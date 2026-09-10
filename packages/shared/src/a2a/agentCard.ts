@@ -32,7 +32,7 @@ export function buildAgentCard(input: AgentCardInput): Record<string, unknown> {
     preferredTransport: "JSONRPC",
     version: "1.0.0",
     capabilities: {
-      streaming: false,
+      streaming: true,
       extendedAgentCard: true,
     },
     skills: input.publicSkills.map((skill) => ({

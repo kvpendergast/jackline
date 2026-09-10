@@ -215,6 +215,16 @@ export {
   validateKnockMessage,
 } from './knock.js';
 export {
+  AgentTranscriptKindSchema,
+  AgentTranscriptEntrySchema,
+  AgentConversationThreadSchema,
+  AgentTranscriptResponseSchema,
+  type AgentTranscriptKind,
+  type AgentTranscriptEntry,
+  type AgentConversationThread,
+  type AgentTranscriptResponse,
+} from './agentActivity.js';
+export {
   type TrustGrantStatus,
   TrustGrantStatusSchema,
   TrustGrantSkillPolicySchema,
@@ -227,6 +237,7 @@ export {
   ApproveKnockBodySchema,
   type ApproveKnockBody,
   DenyKnockBodySchema,
+  type DenyKnockBody,
   effectiveTrustGrantStatus,
   isTrustGrantUsable,
 } from './trustGrant.js';
