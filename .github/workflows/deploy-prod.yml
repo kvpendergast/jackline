@@ -161,6 +161,8 @@ jobs:
 
           VM_NAME="$(pulumi stack output instanceName)"
           VM_ZONE="$(pulumi stack output instanceZone)"
+          export JACKLINE_VM_NAME="${VM_NAME}"
+          export JACKLINE_VM_ZONE="${VM_ZONE}"
           export CLOUD_SQL_PRIVATE_IP="$(pulumi stack output --show-secrets cloudSqlPrivateIp)"
           export CLOUD_SQL_CONNECTION_NAME="$(pulumi stack output --show-secrets cloudSqlConnectionName)"
           CLOUD_SQL_INSTANCE="$(pulumi stack output cloudSqlInstanceName 2>/dev/null || true)"
