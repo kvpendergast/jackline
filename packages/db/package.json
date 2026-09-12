@@ -23,7 +23,7 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.5.0",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10"
   }
