@@ -20,11 +20,12 @@ if [[ -n "${GIT_SHA:-}" ]]; then
   DESC="pre-deploy ${GIT_SHA}"
 fi
 
-echo "Cloud SQL on-demand backup: ${CLOUD_SQL_INSTANCE_NAME} (${DESC})"
+echo "Cloud SQL on-demand backup (${DESC})"
 gcloud sql backups create \
   --project="${GCP_PROJECT_ID}" \
   --instance="${CLOUD_SQL_INSTANCE_NAME}" \
-  --description="${DESC}"
+  --description="${DESC}" \
+  --quiet
 
 echo "Cloud SQL backup complete"
 

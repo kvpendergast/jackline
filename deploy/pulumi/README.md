@@ -95,6 +95,8 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
    **Settings → Environments → production**.
 
+   **Public repo:** GitHub prints Environment *variables* in every step’s `env:` block. Keep hostnames and ACME email as **secrets** so Actions masks them. Workflows still accept the old variable names as a fallback.
+
 | Secret / variable | Purpose |
 | --- | --- |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/…/locations/global/workloadIdentityPools/…/providers/…` |
@@ -102,7 +104,9 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `GCP_PROJECT_ID` | GCP project id |
 | `PULUMI_STATE_BUCKET` | e.g. `gs://your-pulumi-state` |
 | `PULUMI_CONFIG_PASSPHRASE` | Only if the stack uses passphrase encryption |
-| `JACKLINE_DOMAIN` (variable) | App hostname |
+| `JACKLINE_DOMAIN` (**secret**) | App hostname (variable fallback still works, but leaks in logs) |
+| `JACKLINE_DOCS_DOMAIN` (**secret**, optional) | Docs hostname |
+| `JACKLINE_CADDY_EMAIL` (**secret**, optional) | Let’s Encrypt contact |
 | `JACKLINE_GIT_REPO` (variable) | Git URL the VM clones (required for `vm`) |
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
 | `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
