@@ -38,7 +38,8 @@ jobs:
       JACKLINE_GIT_REPO: ${{ vars.JACKLINE_GIT_REPO }}
       JACKLINE_GIT_REF: ${{ vars.JACKLINE_GIT_REF || 'main' }}
       JACKLINE_MACHINE_TYPE: ${{ vars.JACKLINE_MACHINE_TYPE }}
-      JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_VM_ZONE: ${{ secrets.JACKLINE_VM_ZONE || vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_VM_NAME: ${{ secrets.JACKLINE_VM_NAME || vars.JACKLINE_VM_NAME || 'jackline' }}
       JACKLINE_DOCS_DOMAIN: ${{ secrets.JACKLINE_DOCS_DOMAIN || vars.JACKLINE_DOCS_DOMAIN }}
       JACKLINE_CADDY_EMAIL: ${{ secrets.JACKLINE_CADDY_EMAIL || vars.JACKLINE_CADDY_EMAIL }}
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}

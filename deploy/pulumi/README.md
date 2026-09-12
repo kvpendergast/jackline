@@ -109,7 +109,7 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `JACKLINE_CADDY_EMAIL` (**secret**, optional) | Let’s Encrypt contact |
 | `JACKLINE_GIT_REPO` (variable) | Git URL the VM clones (required for `vm`) |
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
-| `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
+| `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (**secrets**) | Zone / instance name (variable fallback still works, but leaks in logs) |
 | `JACKLINE_SECRET_PREFIX` (variable) | Default `jackline-pulumi-` |
 
 Forks do not inherit your `production` Environment secrets, so their runs cannot deploy to your GCP.

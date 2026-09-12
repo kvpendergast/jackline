@@ -14,6 +14,8 @@ mask() {
 mask "${JACKLINE_DOMAIN:-}"
 mask "${JACKLINE_DOCS_DOMAIN:-}"
 mask "${JACKLINE_CADDY_EMAIL:-}"
+mask "${JACKLINE_VM_ZONE:-}"
+mask "${JACKLINE_VM_NAME:-}"
 mask "${CLOUD_SQL_PRIVATE_IP:-}"
 mask "${CLOUD_SQL_CONNECTION_NAME:-}"
 mask "${CLOUD_SQL_INSTANCE_NAME:-}"
