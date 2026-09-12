@@ -468,7 +468,7 @@ else
 fi
 
 if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
-  echo "Waiting for TLS on ${SITE_HOST}…"
+  echo "Waiting for TLS…"
   ok=0
   for _ in $(seq 1 30); do
     if echo | openssl s_client -connect "127.0.0.1:443" -servername "${SITE_HOST}" 2>/dev/null \
@@ -479,10 +479,10 @@ if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
     sleep 2
   done
   if [[ "${ok}" -ne 1 ]]; then
-    echo "warning: TLS not ready for ${SITE_HOST} after ~60s — dumping Caddy logs" >&2
+    echo "warning: TLS not ready after ~60s — dumping Caddy logs" >&2
     compose logs --tail=80 caddy >&2 || true
   else
-    echo "TLS handshake OK for ${SITE_HOST}"
+    echo "TLS handshake OK"
   fi
 fi
 

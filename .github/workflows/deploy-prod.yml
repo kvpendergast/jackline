@@ -10,14 +10,18 @@
 #     GCP_PROJECT_ID
 #     PULUMI_STATE_BUCKET             e.g. gs://your-pulumi-state
 #     PULUMI_CONFIG_PASSPHRASE        only if stack uses passphrase encryption
+#   Secrets (prefer these — GitHub masks them in logs):
+#     JACKLINE_DOMAIN                 required (hostname)
+#     JACKLINE_DOCS_DOMAIN            optional
+#     JACKLINE_CADDY_EMAIL            optional ACME contact
+#     JACKLINE_VM_ZONE / JACKLINE_VM_NAME
 #   Variables (plain config — change these without touching this workflow):
-#     JACKLINE_DOMAIN                 required
+#     JACKLINE_DOMAIN / JACKLINE_VM_*  fallback if secret unset (leaks in logs)
 #     JACKLINE_GIT_REPO               required for vm path
 #     JACKLINE_GIT_REF                default main
 #     JACKLINE_DEPLOY_PATH            vm (default) | gke
-#     JACKLINE_VM_ZONE / JACKLINE_VM_NAME
 #     JACKLINE_SECRET_PREFIX          default jackline-pulumi-
-#     GCP_REGION, JACKLINE_MACHINE_TYPE, JACKLINE_DOCS_DOMAIN, …
+#     GCP_REGION, JACKLINE_MACHINE_TYPE, …
 #
 # App/Pulumi secrets live in GCP Secret Manager as ${PREFIX}<pulumiKey>
 # (e.g. jackline-pulumi-jacklineMasterKey). CI lists that prefix and
@@ -61,14 +65,14 @@ jobs:
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
-      JACKLINE_DOMAIN: ${{ vars.JACKLINE_DOMAIN }}
+      JACKLINE_DOMAIN: ${{ secrets.JACKLINE_DOMAIN || vars.JACKLINE_DOMAIN }}
       JACKLINE_GIT_REPO: ${{ vars.JACKLINE_GIT_REPO }}
       JACKLINE_GIT_REF: ${{ vars.JACKLINE_GIT_REF || 'main' }}
       JACKLINE_MACHINE_TYPE: ${{ vars.JACKLINE_MACHINE_TYPE }}
-      JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
-      JACKLINE_VM_NAME: ${{ vars.JACKLINE_VM_NAME || 'jackline' }}
-      JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
-      JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
+      JACKLINE_VM_ZONE: ${{ secrets.JACKLINE_VM_ZONE || vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_VM_NAME: ${{ secrets.JACKLINE_VM_NAME || vars.JACKLINE_VM_NAME || 'jackline' }}
+      JACKLINE_DOCS_DOMAIN: ${{ secrets.JACKLINE_DOCS_DOMAIN || vars.JACKLINE_DOCS_DOMAIN }}
+      JACKLINE_CADDY_EMAIL: ${{ secrets.JACKLINE_CADDY_EMAIL || vars.JACKLINE_CADDY_EMAIL }}
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
       # Prefer the commit that Publish images built; fall back for manual runs.
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -77,6 +81,9 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Mask production identifiers
+        run: bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-mask-log-values.sh"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -132,13 +139,13 @@ jobs:
             exit 1
           fi
           if [ -z "${JACKLINE_DOMAIN:-}" ]; then
-            echo "GitHub variable JACKLINE_DOMAIN is required"
+            echo "JACKLINE_DOMAIN secret (or variable) is required"
             exit 1
           fi
           pulumi login "$PULUMI_BACKEND_URL"
           pulumi stack select prod --create
           bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-pulumi-apply-config.sh"
-          pulumi up --yes
+          pulumi up --yes --suppress-outputs
 
       - name: Deploy app on VM
         if: ${{ env.DEPLOY_PATH == 'vm' }}
@@ -154,11 +161,14 @@ jobs:
 
           VM_NAME="$(pulumi stack output instanceName)"
           VM_ZONE="$(pulumi stack output instanceZone)"
-          export CLOUD_SQL_PRIVATE_IP="$(pulumi stack output cloudSqlPrivateIp)"
-          export CLOUD_SQL_CONNECTION_NAME="$(pulumi stack output cloudSqlConnectionName)"
+          export JACKLINE_VM_NAME="${VM_NAME}"
+          export JACKLINE_VM_ZONE="${VM_ZONE}"
+          export CLOUD_SQL_PRIVATE_IP="$(pulumi stack output --show-secrets cloudSqlPrivateIp)"
+          export CLOUD_SQL_CONNECTION_NAME="$(pulumi stack output --show-secrets cloudSqlConnectionName)"
           CLOUD_SQL_INSTANCE="$(pulumi stack output cloudSqlInstanceName 2>/dev/null || true)"
-          echo "VM target: ${VM_NAME} (${VM_ZONE})"
-          echo "Cloud SQL: ${CLOUD_SQL_CONNECTION_NAME} (${CLOUD_SQL_PRIVATE_IP})"
+          export CLOUD_SQL_INSTANCE_NAME="${CLOUD_SQL_INSTANCE}"
+          bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-mask-log-values.sh"
+          echo "VM and Cloud SQL outputs loaded"
 
           if [[ -n "${CLOUD_SQL_INSTANCE}" ]]; then
             CLOUD_SQL_INSTANCE_NAME="${CLOUD_SQL_INSTANCE}" \
@@ -181,7 +191,6 @@ jobs:
             fi
             if [ "${i}" -eq 36 ]; then
               echo "Instance not RUNNING after 6 minutes (last status: ${status:-missing})"
-              gcloud compute instances list --project="${GCP_PROJECT_ID}" --filter="name=${VM_NAME}" || true
               exit 1
             fi
             sleep 10
@@ -196,9 +205,9 @@ jobs:
           chmod 700 "${HOME}/.ssh"
           KEY="${HOME}/.ssh/google_compute_engine"
           if [[ ! -f "${KEY}" ]]; then
-            ssh-keygen -t rsa -b 3072 -f "${KEY}" -N "" -C "github-actions-jackline-deploy"
+            ssh-keygen -q -t rsa -b 3072 -f "${KEY}" -N "" -C "github-actions-jackline-deploy"
           fi
-          gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600
+          gcloud compute os-login ssh-keys add --key-file="${KEY}.pub" --ttl=3600 --quiet >/dev/null
           sleep 15
 
           # Pin images to the commit Publish images built (sha-<short> tag).

@@ -348,12 +348,14 @@ const instance = new gcp.compute.Instance(
 
 export const instanceName = instance.name;
 export const instanceZone = zone;
-export const vmServiceAccount = vmSa.email;
-export const publicIp = staticIp.address;
+export const vmServiceAccount = pulumi.secret(vmSa.email);
+export const publicIp = pulumi.secret(staticIp.address);
 export const staticIpName = staticIp.name;
-export const appUrl = publicBaseUrl;
-export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
+export const appUrl = pulumi.secret(publicBaseUrl);
+export const sshHint = pulumi.secret(
+  pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`,
+);
 export const cloudSqlInstanceName = sqlInstance.name;
-export const cloudSqlConnectionName = cloudSqlConnName;
-export const cloudSqlPrivateIp = sqlInstance.privateIpAddress;
+export const cloudSqlConnectionName = pulumi.secret(cloudSqlConnName);
+export const cloudSqlPrivateIp = pulumi.secret(sqlInstance.privateIpAddress);
 export const databaseUrlHint = pulumi.secret(databaseUrl);
