@@ -43,7 +43,9 @@ export async function agentCardHandler(c: Context<JacklineEnv>) {
   return c.json(result.value);
 }
 
-export async function a2aIngressHandler(c: Context<JacklineEnv>) {
+export async function a2aIngressHandler(
+  c: Context<JacklineEnv>,
+): Promise<Response> {
   const handle = c.req.param("handle");
   if (!handle) {
     return respondA2aError(c, null, new NotFoundError("Agent not found"));
@@ -91,6 +93,60 @@ export async function a2aIngressHandler(c: Context<JacklineEnv>) {
       });
     }
     throw error;
+  }
+
+  const wantsStream =
+    (c.req.header("Accept") ?? "").includes("text/event-stream") &&
+    body.method === "message/send" &&
+    hasPeerGrant;
+
+  if (wantsStream) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const send = (event: string, payload: unknown) => {
+          controller.enqueue(
+            encoder.encode(
+              `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`,
+            ),
+          );
+        };
+        send("status", {
+          jsonrpc: "2.0",
+          id: body.id,
+          result: { state: "working" },
+        });
+        void (async () => {
+          const result = await agentServices.processA2aJsonRpc({
+            handle,
+            authorization: c.req.header("Authorization"),
+            body,
+            log,
+          });
+          if (result.isErr()) {
+            send("error", {
+              jsonrpc: "2.0",
+              id: body.id,
+              error: {
+                code: -32000,
+                message: result.error.message,
+              },
+            });
+          } else {
+            send("result", jsonRpcResult(result.value.id, result.value.result));
+          }
+          controller.close();
+        })();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   }
 
   const result = await agentServices.processA2aJsonRpc({

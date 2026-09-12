@@ -64,6 +64,19 @@ Agent cards are **public** (no session) for published and paused agents at
 skills and the A2A endpoint. Draft agents return 404. The all-in-one edge proxy
 must route `/agents/*` and `/a2a/*` to the API (not the admin UI).
 
+## Owner visibility
+
+On **My Agents → agent**, the **Conversation** panel shows a live chat-style
+transcript of knocks, approve/deny decisions (with notes), peer messages, agent
+replies, and tool calls. It updates over SSE (`GET /api/v1/agents/{id}/transcript/stream`).
+
+Approve/deny knocks accept an optional `decisionNote` that is persisted and shown
+in the knocks table and transcript.
+
+Agent cards advertise `capabilities.streaming: true`. Peers that send
+`Accept: text/event-stream` on granted `message/send` receive SSE `status` /
+`result` events while the hosted turn runs.
+
 ## Audit
 
 Peer-initiated tool calls appear under **Audit** with reason prefix `a2a.peer` (and an **A2A peer** tag). They run through the owner’s gateway policy and connections.

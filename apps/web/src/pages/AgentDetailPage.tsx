@@ -14,6 +14,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { KindBadge } from "@/components/jackline/StatusBadge";
+import { AgentConversationPanel } from "@/components/agents/AgentConversationPanel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -70,6 +72,9 @@ export function AgentDetailPage() {
   const [approveSkillIds, setApproveSkillIds] = useState<Set<string>>(
     new Set(),
   );
+  const [approveNote, setApproveNote] = useState("");
+  const [denyKnockId, setDenyKnockId] = useState<string | null>(null);
+  const [denyNote, setDenyNote] = useState("");
   const [instructions, setInstructions] = useState("");
   const [publicSkills, setPublicSkills] = useState<AgentPublicSkill[]>([]);
   const [tools, setTools] = useState<PublicTool[]>([]);
@@ -258,8 +263,10 @@ export function AgentDetailPage() {
       await jacklineApi.approveKnock(tenantId, approveKnockId, {
         grantTtlSeconds: Number(approveTtlSeconds),
         skillIds: [...approveSkillIds],
+        ...(approveNote.trim() ? { decisionNote: approveNote.trim() } : {}),
       });
       setApproveKnockId(null);
+      setApproveNote("");
       await loadAgent();
       setInfo("Knock approved. Peer can exchange credentials via the trust API.");
     } catch (e) {
@@ -267,9 +274,26 @@ export function AgentDetailPage() {
     }
   }
 
+  async function onDenyKnock() {
+    if (!tenantId || !denyKnockId) return;
+    setError(null);
+    try {
+      await jacklineApi.denyKnock(tenantId, denyKnockId, {
+        ...(denyNote.trim() ? { decisionNote: denyNote.trim() } : {}),
+      });
+      setDenyKnockId(null);
+      setDenyNote("");
+      await loadAgent();
+      setInfo("Knock denied.");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to deny knock");
+    }
+  }
+
   function openApproveDialog(knockId: string) {
     setApproveTtlSeconds(defaultGrantTtlSeconds);
     setApproveSkillIds(new Set(publicSkills.map((skill) => skill.id)));
+    setApproveNote("");
     setApproveKnockId(knockId);
   }
 
@@ -573,6 +597,10 @@ export function AgentDetailPage() {
 
       <Separator />
 
+      {tenantId ? (
+        <AgentConversationPanel tenantId={tenantId} agentId={agent.id} />
+      ) : null}
+
       <section id="knocks" className="scroll-mt-20 space-y-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-medium">Knocks</h2>
@@ -588,13 +616,14 @@ export function AgentDetailPage() {
               <TableHead>Peer</TableHead>
               <TableHead>Message</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Note</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {knocks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No knocks yet.
                 </TableCell>
               </TableRow>
@@ -608,6 +637,9 @@ export function AgentDetailPage() {
                     {knock.message}
                   </TableCell>
                   <TableCell>{knock.status}</TableCell>
+                  <TableCell className="max-w-[12rem] truncate text-muted-foreground">
+                    {knock.decisionNote ?? "—"}
+                  </TableCell>
                   <TableCell className="space-x-2">
                     {knock.status === "pending" && tenantId ? (
                       <>
@@ -620,9 +652,9 @@ export function AgentDetailPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={async () => {
-                            await jacklineApi.denyKnock(tenantId, knock.id);
-                            await loadAgent();
+                          onClick={() => {
+                            setDenyNote("");
+                            setDenyKnockId(knock.id);
                           }}
                         >
                           Deny
@@ -761,7 +793,41 @@ export function AgentDetailPage() {
                 })
               )}
             </div>
+            <Field label="Decision note (optional)">
+              <Textarea
+                value={approveNote}
+                onChange={(e) => setApproveNote(e.target.value)}
+                placeholder="Why you’re approving this peer"
+                rows={3}
+              />
+            </Field>
             <Button onClick={onApproveKnock}>Approve and grant access</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={denyKnockId !== null}
+        onOpenChange={(next) => {
+          if (!next) setDenyKnockId(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deny knock</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field label="Decision note (optional)">
+              <Textarea
+                value={denyNote}
+                onChange={(e) => setDenyNote(e.target.value)}
+                placeholder="Optional note for your records"
+                rows={3}
+              />
+            </Field>
+            <Button variant="outline" onClick={onDenyKnock}>
+              Deny knock
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

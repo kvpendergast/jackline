@@ -14,6 +14,8 @@ const tenantRouteOrder = [
   "approveKnock",
   "denyKnock",
   "listTrustGrants",
+  "listTranscript",
+  "streamTranscript",
   "revokeTrustGrant",
 ] as const;
 

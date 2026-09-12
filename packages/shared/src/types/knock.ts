@@ -13,6 +13,7 @@ export const PublicKnockSchema = z.strictObject({
   peerDisplayName: z.string().nullable(),
   message: z.string(),
   status: KnockStatusSchema,
+  decisionNote: z.string().nullable(),
   trustGrantId: z.uuid().nullable(),
   a2aTaskId: z.uuid().nullable(),
   createdAt: z.iso.datetime(),

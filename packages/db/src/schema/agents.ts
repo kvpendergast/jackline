@@ -217,6 +217,8 @@ export const knocks = pgTable(
     peerDisplayName: text("peer_display_name"),
     message: text("message").notNull(),
     status: knockStatusEnum("status").notNull().default("pending"),
+    /** Owner note captured on approve/deny. */
+    decisionNote: text("decision_note"),
     knockSecretHash: text("knock_secret_hash").notNull(),
     exchangeTokenHash: text("exchange_token_hash"),
     exchangeTokenUsedAt: timestamp("exchange_token_used_at", {
@@ -256,7 +258,11 @@ export const a2aTasks = pgTable(
     result: jsonb("result").$type<Record<string, unknown>>(),
     error: jsonb("error").$type<Record<string, unknown>>(),
   },
-  (t) => [index("a2a_tasks_agent_idx").on(t.agentId)],
+  (t) => [
+    index("a2a_tasks_agent_idx").on(t.agentId),
+    index("a2a_tasks_agent_created_idx").on(t.agentId, t.createdAt),
+    index("a2a_tasks_grant_idx").on(t.trustGrantId),
+  ],
 );
 
 export type Network = typeof networks.$inferSelect;

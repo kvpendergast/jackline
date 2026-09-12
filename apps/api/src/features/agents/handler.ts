@@ -120,7 +120,13 @@ const denyKnock: RouteHandler<typeof agentRoutes.denyKnock, JacklineEnv> =
   async (c) => {
     const { auth } = c.get("tenantContext");
     const { id } = c.req.valid("param");
-    const result = await agentServices.denyKnock(auth.tenantId, auth.userId, id);
+    const body = c.req.valid("json");
+    const result = await agentServices.denyKnock(
+      auth.tenantId,
+      auth.userId,
+      id,
+      body,
+    );
     if (result.isErr()) throw result.error;
     return c.json(okEnvelope(result.value), 200);
   };
@@ -138,6 +144,110 @@ const listTrustGrants: RouteHandler<
   );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);
+};
+
+const listTranscript: RouteHandler<
+  typeof agentRoutes.listTranscript,
+  JacklineEnv
+> = async (c) => {
+  const { auth } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const query = c.req.valid("query");
+  const result = await agentServices.listTranscript(
+    auth.tenantId,
+    auth.userId,
+    id,
+    query.peerAgentCardUrl,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const streamTranscript: RouteHandler<
+  typeof agentRoutes.streamTranscript,
+  JacklineEnv
+> = async (c) => {
+  const { auth } = c.get("tenantContext");
+  const { id } = c.req.valid("param");
+  const query = c.req.valid("query");
+  const peerAgentCardUrl = query.peerAgentCardUrl;
+
+  // Ownership check up front so we fail before opening the stream.
+  const initial = await agentServices.listTranscript(
+    auth.tenantId,
+    auth.userId,
+    id,
+    peerAgentCardUrl,
+  );
+  if (initial.isErr()) throw initial.error;
+
+  const encoder = new TextEncoder();
+  let closed = false;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (event: string, data: unknown) => {
+        if (closed) return;
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
+      };
+
+      send("snapshot", initial.value);
+      let lastFingerprint = JSON.stringify(
+        initial.value.entries.map((e) => `${e.id}:${e.status}:${e.decisionNote}`),
+      );
+
+      const timer = setInterval(() => {
+        void (async () => {
+          if (closed) return;
+          const next = await agentServices.listTranscript(
+            auth.tenantId,
+            auth.userId,
+            id,
+            peerAgentCardUrl,
+          );
+          if (next.isErr()) {
+            send("error", { message: next.error.message });
+            return;
+          }
+          const fingerprint = JSON.stringify(
+            next.value.entries.map((e) => `${e.id}:${e.status}:${e.decisionNote}`),
+          );
+          if (fingerprint !== lastFingerprint) {
+            lastFingerprint = fingerprint;
+            send("snapshot", next.value);
+          } else {
+            send("ping", { at: new Date().toISOString() });
+          }
+        })();
+      }, 2000);
+
+      const onAbort = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(timer);
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      };
+      c.req.raw.signal.addEventListener("abort", onAbort);
+    },
+    cancel() {
+      closed = true;
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 };
 
 const revokeTrustGrant: RouteHandler<
@@ -202,6 +312,8 @@ export const agentHandlers = {
   approveKnock,
   denyKnock,
   listTrustGrants,
+  listTranscript,
+  streamTranscript,
   revokeTrustGrant,
   directory,
   agentRegistry,

@@ -646,10 +646,14 @@ export const jacklineApi = {
       { tenantId, method: "POST", body: body ?? {} },
     ),
 
-  denyKnock: (tenantId: string, knockId: string) =>
+  denyKnock: (
+    tenantId: string,
+    knockId: string,
+    body?: import("@jackline/shared").DenyKnockBody,
+  ) =>
     api<import("@jackline/shared").PublicKnock>(
       `/api/v1/knocks/${knockId}/deny`,
-      { tenantId, method: "POST", body: {} },
+      { tenantId, method: "POST", body: body ?? {} },
     ),
 
   listTrustGrants: (tenantId: string, agentId: string) =>
@@ -657,6 +661,108 @@ export const jacklineApi = {
       `/api/v1/agents/${agentId}/trust-grants`,
       { tenantId },
     ),
+
+  getAgentTranscript: (
+    tenantId: string,
+    agentId: string,
+    peerAgentCardUrl?: string,
+  ) =>
+    api<import("@jackline/shared").AgentTranscriptResponse>(
+      `/api/v1/agents/${agentId}/transcript`,
+      {
+        tenantId,
+        searchParams: peerAgentCardUrl
+          ? { peerAgentCardUrl }
+          : undefined,
+      },
+    ),
+
+  streamAgentTranscript: async (
+    tenantId: string,
+    agentId: string,
+    handlers: {
+      onSnapshot: (
+        data: import("@jackline/shared").AgentTranscriptResponse,
+      ) => void;
+      onEntry: (
+        entry: import("@jackline/shared").AgentTranscriptEntry,
+      ) => void;
+      onThreads: (
+        threads: import("@jackline/shared").AgentConversationThread[],
+      ) => void;
+      onError: (message: string) => void;
+    },
+    options?: { signal?: AbortSignal; peerAgentCardUrl?: string },
+  ) => {
+    const url = new URL(
+      `/api/v1/agents/${agentId}/transcript/stream`,
+      window.location.origin,
+    );
+    if (options?.peerAgentCardUrl) {
+      url.searchParams.set("peerAgentCardUrl", options.peerAgentCardUrl);
+    }
+    const res = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Accept: "text/event-stream",
+        "X-Jackline-Tenant-Id": tenantId,
+      },
+      signal: options?.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`Transcript stream failed (${res.status})`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+      for (const chunk of chunks) {
+        const lines = chunk.split("\n");
+        let event = "message";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          if (line.startsWith("data:")) data += line.slice(5).trim();
+        }
+        if (!data) continue;
+        try {
+          const parsed = JSON.parse(data) as unknown;
+          if (event === "snapshot") {
+            handlers.onSnapshot(
+              parsed as import("@jackline/shared").AgentTranscriptResponse,
+            );
+          } else if (event === "entry") {
+            handlers.onEntry(
+              parsed as import("@jackline/shared").AgentTranscriptEntry,
+            );
+          } else if (event === "threads") {
+            const threads = (parsed as { threads?: unknown }).threads;
+            if (Array.isArray(threads)) {
+              handlers.onThreads(
+                threads as import("@jackline/shared").AgentConversationThread[],
+              );
+            }
+          } else if (event === "error") {
+            const message =
+              parsed &&
+              typeof parsed === "object" &&
+              typeof (parsed as { message?: unknown }).message === "string"
+                ? (parsed as { message: string }).message
+                : "Stream error";
+            handlers.onError(message);
+          }
+        } catch {
+          // ignore malformed frames
+        }
+      }
+    }
+  },
 
   revokeTrustGrant: (tenantId: string, grantId: string) =>
     api<import("@jackline/shared").PublicTrustGrant>(
