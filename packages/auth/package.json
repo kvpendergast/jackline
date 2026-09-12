@@ -15,11 +15,11 @@
     "lint": "echo \"lint later\""
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.6.23",
+    "@better-auth/drizzle-adapter": "^1.7.3",
     "@jackline/crypto": "workspace:*",
     "@jackline/db": "workspace:*",
     "@jackline/shared": "workspace:*",
-    "better-auth": "^1.6.23",
+    "better-auth": "^1.7.3",
     "drizzle-orm": "^0.45.2"
   }
 }
