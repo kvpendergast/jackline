@@ -22,7 +22,7 @@
     "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
-    "hono": "^4.13.5",
+    "hono": "^4.13.7",
     "neverthrow": "^8.2.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"

@@ -56,13 +56,13 @@
     "tsx": "^4.19.0"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.10",
+    "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
-    "hono": "^4.13.5",
+    "hono": "^4.13.7",
     "neverthrow": "^8.2.0",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.2"
   }
 }
