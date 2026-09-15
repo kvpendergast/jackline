@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel --filter @jackline/api --filter @jackline/web --filter @jackline/gateway dev",
     "docs:dev": "pnpm --filter @jackline/docs dev",
+    "marketing:dev": "pnpm --filter @jackline/marketing dev",
     "docs:build": "pnpm --filter @jackline/docs build",
     "openapi:export": "pnpm --filter @jackline/api openapi:export",
     "build": "pnpm -r build",
