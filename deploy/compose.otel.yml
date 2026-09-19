@@ -16,7 +16,7 @@
 
 services:
   otel-collector:
-    image: ${JACKLINE_OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.120.1}
+    image: ${JACKLINE_OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.128.0}
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./logging/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
