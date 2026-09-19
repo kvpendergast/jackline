@@ -21,12 +21,8 @@ services:
     volumes:
       - ./logging/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - otelcol-logs:/var/log/otelcol
     restart: unless-stopped
     # ADC via GCE metadata (jackline-vm SA). Optional GOOGLE_CLOUD_PROJECT if
     # not on GCE — set GCP_PROJECT_ID in .env.prod.
     environment:
       GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT_ID:-}
-
-volumes:
-  otelcol-logs:
