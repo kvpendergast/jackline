@@ -35,7 +35,9 @@ export function verifyLoginProvider(
 export function loginProviderCookieHeader(
   providerId: string,
   secret: string,
+  options?: { secure?: boolean },
 ): string {
   const signed = signLoginProvider(providerId, secret);
-  return `${LOGIN_PROVIDER_COOKIE}=${encodeURIComponent(signed)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SEC}`;
+  const secure = options?.secure ? "; Secure" : "";
+  return `${LOGIN_PROVIDER_COOKIE}=${encodeURIComponent(signed)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SEC}${secure}`;
 }

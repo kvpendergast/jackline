@@ -178,6 +178,8 @@ function buildAuth(
         }
       : undefined;
 
+  const webOrigin = config.WEB_ORIGIN.replace(/\/$/, "");
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -196,6 +198,23 @@ function buildAuth(
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
+    // OAuth failures must land on the SPA login route (not /error, which the
+    // router silently maps to /login with no message).
+    onAPIError: {
+      errorURL: `${webOrigin}/login`,
+    },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+        // Keep true: otherwise an attacker can register email+password
+        // (unverified), wait for the real owner to sign in with Google, get
+        // linked onto the same user, and retain password access to that account.
+        // Unverified password users must verify via email/password first
+        // (sendOnSignIn), then Google can link.
+        requireLocalEmailVerified: true,
+      },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,

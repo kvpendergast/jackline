@@ -10,11 +10,37 @@ import { authCompleteRedirect } from "@/pages/AuthCompletePage";
 
 const PLATFORM_GOOGLE_ID = "google";
 
+function oauthErrorMessage(code: string): string {
+  switch (code) {
+    case "account_not_linked":
+      return "This Google email matches an existing password account that is not verified yet. Sign in with email and password first — we will send a verification link — then try Google again.";
+    case "unable_to_create_user":
+      return "Could not create your account from Google. Try again or use email and password.";
+    case "unable_to_create_session":
+      return "Signed in with Google but could not start a session. Try again.";
+    case "signup_disabled":
+      return "New account creation is disabled on this instance. Ask an admin for an invite.";
+    case "state_mismatch":
+    case "please_restart_the_process":
+      return "Sign-in expired or was interrupted. Please try Google again.";
+    case "invalid_code":
+    case "oauth_provider_not_found":
+      return "Google sign-in failed. Check that platform Google login is configured, then try again.";
+    default:
+      return `Google sign-in failed (${code.replace(/_/g, " ")}). Try again.`;
+  }
+}
+
+function loginErrorCallbackUrl(): string {
+  return `${window.location.origin}/login`;
+}
+
 export function LoginPage() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("return_to");
+  const oauthError = searchParams.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -39,6 +65,12 @@ export function LoginPage() {
       .then((s) => setSignupOpen(s.open))
       .catch(() => setSignupOpen(false));
   }, []);
+
+  useEffect(() => {
+    if (oauthError) {
+      setError(oauthErrorMessage(oauthError));
+    }
+  }, [oauthError]);
 
   function finishLoginRedirect() {
     if (returnTo) {
@@ -102,6 +134,7 @@ export function LoginPage() {
           intent === "login" ? inviteToken.trim() || undefined : undefined,
           returnTo,
         ),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
@@ -120,6 +153,7 @@ export function LoginPage() {
           inviteToken.trim() || undefined,
           returnTo,
         ),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "SSO failed");
@@ -213,6 +247,8 @@ export function LoginPage() {
 export function SignupPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get("error");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -236,6 +272,12 @@ export function SignupPage() {
       .then((s) => setSignupOpen(s.open))
       .catch(() => setSignupOpen(false));
   }, []);
+
+  useEffect(() => {
+    if (oauthError) {
+      setError(oauthErrorMessage(oauthError));
+    }
+  }, [oauthError]);
 
   if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
@@ -266,6 +308,7 @@ export function SignupPage() {
       await authClient.signIn.social({
         provider: "google",
         callbackURL: authCompleteRedirect("signup"),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-up failed");

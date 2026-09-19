@@ -92,6 +92,7 @@ export function AuthCompletePage() {
       await authClient.signIn.oauth2({
         providerId: result.providerId,
         callbackURL: authCompleteUrl(intent, inviteToken, returnTo),
+        errorCallbackURL: `${window.location.origin}/login`,
       });
       return;
     }
