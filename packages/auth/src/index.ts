@@ -27,3 +27,7 @@ export {
   loginProviderCookieHeader,
   verifyLoginProvider,
 } from "./loginProviderCookie.js";
+export {
+  probeGoogleCredentials,
+  type GoogleCredentialProbeResult,
+} from "./probeGoogleCredentials.js";

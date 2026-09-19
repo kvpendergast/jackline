@@ -70,4 +70,24 @@ describe("loadConfig", () => {
     assert.equal(result.value.EMAIL_FROM, "Jackline <noreply@example.com>");
     assert.equal(result.value.RESEND_API_KEY, "re_test_key");
   });
+
+  it("trims platform Google OAuth credentials", () => {
+    const result = loadConfig({
+      JACKLINE_MASTER_KEY: "dGVzdC1tYXN0ZXIta2V5LTEyMzQ1Njc4OTA=",
+      BETTER_AUTH_SECRET: "test-better-auth-secret-32chars!!",
+      DATABASE_URL: "postgresql://jackline:jackline@127.0.0.1:5432/jackline",
+      BETTER_AUTH_URL: "http://127.0.0.1:8080",
+      WEB_ORIGIN: "http://127.0.0.1:5173",
+      GOOGLE_CLIENT_ID: "  client-id.apps.googleusercontent.com\n",
+      GOOGLE_CLIENT_SECRET: " GOCSPX-test-secret\r\n",
+    });
+
+    assert.equal(result.isOk(), true);
+    if (result.isErr()) return;
+    assert.equal(
+      result.value.GOOGLE_CLIENT_ID,
+      "client-id.apps.googleusercontent.com",
+    );
+    assert.equal(result.value.GOOGLE_CLIENT_SECRET, "GOCSPX-test-secret");
+  });
 });

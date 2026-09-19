@@ -10,7 +10,11 @@ import { authCompleteRedirect } from "@/pages/AuthCompletePage";
 
 const PLATFORM_GOOGLE_ID = "google";
 
-function oauthErrorMessage(code: string): string {
+function oauthErrorMessage(code: string, description?: string | null): string {
+  const detail = description?.trim();
+  const withDetail = (message: string) =>
+    detail ? `${message} (${detail})` : message;
+
   switch (code) {
     case "account_not_linked":
       return "This Google email matches an existing password account that is not verified yet. Sign in with email and password first — we will send a verification link — then try Google again.";
@@ -23,11 +27,16 @@ function oauthErrorMessage(code: string): string {
     case "state_mismatch":
     case "please_restart_the_process":
       return "Sign-in expired or was interrupted. Please try Google again.";
-    case "invalid_code":
     case "oauth_provider_not_found":
-      return "Google sign-in failed. Check that platform Google login is configured, then try again.";
+      return "Google sign-in is not enabled on this instance. Ask an operator to set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.";
+    case "invalid_code":
+      return withDetail(
+        "Google sign-in failed while exchanging the auth code. Confirm the Google Cloud OAuth client secret matches Secret Manager (jackline-pulumi-googleClientSecret) and that the authorized redirect URI is exactly /api/auth/callback/google.",
+      );
     default:
-      return `Google sign-in failed (${code.replace(/_/g, " ")}). Try again.`;
+      return withDetail(
+        `Google sign-in failed (${code.replace(/_/g, " ")}). Try again.`,
+      );
   }
 }
 
@@ -41,6 +50,7 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("return_to");
   const oauthError = searchParams.get("error");
+  const oauthErrorDescription = searchParams.get("error_description");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -68,9 +78,9 @@ export function LoginPage() {
 
   useEffect(() => {
     if (oauthError) {
-      setError(oauthErrorMessage(oauthError));
+      setError(oauthErrorMessage(oauthError, oauthErrorDescription));
     }
-  }, [oauthError]);
+  }, [oauthError, oauthErrorDescription]);
 
   function finishLoginRedirect() {
     if (returnTo) {
@@ -249,6 +259,7 @@ export function SignupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const oauthError = searchParams.get("error");
+  const oauthErrorDescription = searchParams.get("error_description");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -275,9 +286,9 @@ export function SignupPage() {
 
   useEffect(() => {
     if (oauthError) {
-      setError(oauthErrorMessage(oauthError));
+      setError(oauthErrorMessage(oauthError, oauthErrorDescription));
     }
-  }, [oauthError]);
+  }, [oauthError, oauthErrorDescription]);
 
   if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
