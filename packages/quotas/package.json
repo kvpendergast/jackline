@@ -17,7 +17,7 @@
   "dependencies": {
     "@jackline/shared": "workspace:*",
     "neverthrow": "^8.2.0",
-    "redis": "^5.8.2"
+    "redis": "^6.2.1"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
