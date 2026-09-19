@@ -510,7 +510,7 @@ The API logs structured JSON to stdout (pretty-printed in development). Set `LOG
 | `X-Request-Id` | Honored if sent; otherwise generated. Echoed on every response. |
 | `traceparent` | Optional W3C header; `traceId` is extracted into logs for later gateway joining. |
 
-Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
+Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `service` (`jackline-api` / `jackline-gateway`), `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
 
 Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
 

@@ -37,10 +37,10 @@ Apps always emit structured JSON to **stdout**. On the VM path, [OpenTelemetry C
 
 ```text
 resource.type="gce_instance"
-jsonPayload.msg!=""
+jsonPayload.service="jackline-api"
 ```
 
-Or by log name: `logName="projects/YOUR_PROJECT/logs/jackline"`.
+Gateway: `jsonPayload.service="jackline-gateway"`. Broader: `jsonPayload.msg!=""` or log name `projects/YOUR_PROJECT/logs/jackline`.
 
 Self-host / non-GCP: omit `-f deploy/compose.otel.yml`, or edit [`logging/otel-collector-config.yaml`](../logging/otel-collector-config.yaml) exporters (Loki, OTLP, Jaeger, …). Jackline does not depend on a cloud logging SDK.
 
