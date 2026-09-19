@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useSearchParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { AppShell } from "@/components/layout/AppShell";
 import { AccessRequestsPage } from "@/pages/AccessRequestsPage";
@@ -83,6 +83,14 @@ function FullAdminOnly({ children }: { children: ReactNode }) {
   return children;
 }
 
+function OAuthErrorRedirect() {
+  const [searchParams] = useSearchParams();
+  const target = searchParams.toString()
+    ? `/login?${searchParams.toString()}`
+    : "/login";
+  return <Navigate to={target} replace />;
+}
+
 export function App() {
   return (
     <AuthProvider>
@@ -91,6 +99,8 @@ export function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/complete" element={<AuthCompletePage />} />
+        {/* Better Auth default errorURL is /error; preserve ?error= when bouncing to login. */}
+        <Route path="/error" element={<OAuthErrorRedirect />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/my-access" element={<MyAccessPage />} />

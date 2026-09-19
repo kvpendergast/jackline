@@ -178,6 +178,8 @@ function buildAuth(
         }
       : undefined;
 
+  const webOrigin = config.WEB_ORIGIN.replace(/\/$/, "");
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -196,6 +198,23 @@ function buildAuth(
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: webTrustedOrigins(config),
+    // OAuth failures must land on the SPA login route (not /error, which the
+    // router silently maps to /login with no message).
+    onAPIError: {
+      errorURL: `${webOrigin}/login`,
+    },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+        // Email verification (requireEmailVerification) left many bootstrap
+        // accounts unverified when outbound mail was misconfigured. Google
+        // asserts email_verified; allow link, then Better Auth flips the local
+        // flag. Default requireLocalEmailVerified:true blocked Google login and
+        // redirected to /login?error=account_not_linked with no UI.
+        requireLocalEmailVerified: false,
+      },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
