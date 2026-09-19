@@ -161,34 +161,17 @@ if (deployServiceAccount) {
 }
 
 // OTEL Collector on the VM ships stdout logs / OTLP traces to Cloud Logging & Trace.
-const loggingApi = new gcp.projects.Service("logging", {
+// Project IAM for jackline-vm (logWriter / cloudtrace.agent) is a one-time operator
+// grant — the CI deploy SA typically lacks resourcemanager.projectIamAdmin. See
+// deploy/pulumi/README.md § Logs.
+new gcp.projects.Service("logging", {
   service: "logging.googleapis.com",
   disableOnDestroy: false,
 });
-const cloudTraceApi = new gcp.projects.Service("cloudtrace", {
+new gcp.projects.Service("cloudtrace", {
   service: "cloudtrace.googleapis.com",
   disableOnDestroy: false,
 });
-
-new gcp.projects.IAMMember(
-  "jackline-vm-log-writer",
-  {
-    project,
-    role: "roles/logging.logWriter",
-    member: pulumi.interpolate`serviceAccount:${vmSa.email}`,
-  },
-  { dependsOn: [loggingApi, vmSa] },
-);
-
-new gcp.projects.IAMMember(
-  "jackline-vm-trace-agent",
-  {
-    project,
-    role: "roles/cloudtrace.agent",
-    member: pulumi.interpolate`serviceAccount:${vmSa.email}`,
-  },
-  { dependsOn: [cloudTraceApi, vmSa] },
-);
 
 // ---------------------------------------------------------------------------
 // Firewall: HTTP/HTTPS to tagged VMs
