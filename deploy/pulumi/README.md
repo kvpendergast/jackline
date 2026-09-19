@@ -31,7 +31,18 @@ Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain
 
 ### Logs (Cloud Logging)
 
-Apps always emit structured JSON to **stdout**. On the VM path, [OpenTelemetry Collector Contrib](../compose.otel.yml) tails Docker `json-file` logs and exports them to **Cloud Logging** (and receives OTLP traces on `:4318` for Cloud Trace). The `jackline-vm` SA has `roles/logging.logWriter` and `roles/cloudtrace.agent`.
+Apps always emit structured JSON to **stdout**. On the VM path, [OpenTelemetry Collector Contrib](../compose.otel.yml) tails Docker `json-file` logs and exports them to **Cloud Logging** (and receives OTLP traces on `:4318` for Cloud Trace).
+
+**One-time IAM** (CI cannot bind these — grant once as a project owner):
+
+```bash
+PROJECT="$(gcloud config get-value project)"
+VM_SA="jackline-vm@${PROJECT}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${VM_SA}" --role="roles/logging.logWriter"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${VM_SA}" --role="roles/cloudtrace.agent"
+```
 
 **Logs Explorer** (project that owns the VM):
 
