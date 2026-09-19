@@ -510,7 +510,7 @@ The API logs structured JSON to stdout (pretty-printed in development). Set `LOG
 | `X-Request-Id` | Honored if sent; otherwise generated. Echoed on every response. |
 | `traceparent` | Optional W3C header; `traceId` is extracted into logs for later gateway joining. |
 
-Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
+Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `service` (`jackline-api` / `jackline-gateway`), `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
 
 Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
 
@@ -523,6 +523,8 @@ No built-in pager. Typical setup:
 3. Example Loki/LogQL-style filter: `{app="jackline-api"} \| json \| status >= 500`
 
 Prometheus metrics and OTEL trace export are optional follow-ons. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
+
+On the **GCP VM** recipe, [`deploy/compose.otel.yml`](deploy/compose.otel.yml) runs OpenTelemetry Collector Contrib to ship Docker stdout into Cloud Logging (and receive OTLP traces). See [`deploy/pulumi/README.md`](deploy/pulumi/README.md#logs-cloud-logging). Self-hosters can omit that overlay or point the collector at Loki/OTLP/etc.
 
 | Variable | Role |
 | --- | --- |

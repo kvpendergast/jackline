@@ -120,6 +120,9 @@ API_HOST=0.0.0.0
 API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
+# Local OTEL Collector (compose.otel.yml) — traces; logs ship via filelog.
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/traces
+GCP_PROJECT_ID=${GCP_PROJECT_ID}
 JACKLINE_API_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-api:${IMAGE_TAG}
 JACKLINE_GATEWAY_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-gateway:${IMAGE_TAG}
 JACKLINE_WEB_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-web:${IMAGE_TAG}

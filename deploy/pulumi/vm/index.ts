@@ -160,6 +160,36 @@ if (deployServiceAccount) {
   });
 }
 
+// OTEL Collector on the VM ships stdout logs / OTLP traces to Cloud Logging & Trace.
+const loggingApi = new gcp.projects.Service("logging", {
+  service: "logging.googleapis.com",
+  disableOnDestroy: false,
+});
+const cloudTraceApi = new gcp.projects.Service("cloudtrace", {
+  service: "cloudtrace.googleapis.com",
+  disableOnDestroy: false,
+});
+
+new gcp.projects.IAMMember(
+  "jackline-vm-log-writer",
+  {
+    project,
+    role: "roles/logging.logWriter",
+    member: pulumi.interpolate`serviceAccount:${vmSa.email}`,
+  },
+  { dependsOn: [loggingApi, vmSa] },
+);
+
+new gcp.projects.IAMMember(
+  "jackline-vm-trace-agent",
+  {
+    project,
+    role: "roles/cloudtrace.agent",
+    member: pulumi.interpolate`serviceAccount:${vmSa.email}`,
+  },
+  { dependsOn: [cloudTraceApi, vmSa] },
+);
+
 // ---------------------------------------------------------------------------
 // Firewall: HTTP/HTTPS to tagged VMs
 // ---------------------------------------------------------------------------
@@ -228,6 +258,8 @@ const startupScript = pulumi
       API_PORT: "8080",
       GATEWAY_HOST: "0.0.0.0",
       GATEWAY_PORT: "8081",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318/v1/traces",
+      GCP_PROJECT_ID: project,
     };
     const envJson = JSON.stringify(envPayload);
 
@@ -271,7 +303,7 @@ print("wrote", path)
 PY
 
 cd ${installRoot}
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.otel.yml --env-file .env.prod up --build -d
 echo "=== Jackline bootstrap complete ==="
 `;
   });
@@ -331,10 +363,12 @@ const instance = new gcp.compute.Instance(
     },
     serviceAccount: {
       email: vmSa.email,
-      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring agents.
+      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring
+      // agents and the OpenTelemetry Collector (Cloud Logging + Cloud Trace).
       scopes: [
         "https://www.googleapis.com/auth/logging.write",
         "https://www.googleapis.com/auth/monitoring.write",
+        "https://www.googleapis.com/auth/trace.append",
       ],
     },
     allowStoppingForUpdate: true,

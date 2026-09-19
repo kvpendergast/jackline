@@ -27,7 +27,22 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. Postgres runs on **Cloud SQL** (`jackline-db`, private IP only); the VM connects over the default VPC. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) + [`compose.otel.yml`](../compose.otel.yml) with Caddy TLS. Postgres runs on **Cloud SQL** (`jackline-db`, private IP only); the VM connects over the default VPC. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
+
+### Logs (Cloud Logging)
+
+Apps always emit structured JSON to **stdout**. On the VM path, [OpenTelemetry Collector Contrib](../compose.otel.yml) tails Docker `json-file` logs and exports them to **Cloud Logging** (and receives OTLP traces on `:4318` for Cloud Trace). The `jackline-vm` SA has `roles/logging.logWriter` and `roles/cloudtrace.agent`.
+
+**Logs Explorer** (project that owns the VM):
+
+```text
+resource.type="gce_instance"
+jsonPayload.service="jackline-api"
+```
+
+Gateway: `jsonPayload.service="jackline-gateway"`. Broader: `jsonPayload.msg!=""` or log name `projects/YOUR_PROJECT/logs/jackline`.
+
+Self-host / non-GCP: omit `-f deploy/compose.otel.yml`, or edit [`logging/otel-collector-config.yaml`](../logging/otel-collector-config.yaml) exporters (Loki, OTLP, Jaeger, …). Jackline does not depend on a cloud logging SDK.
 
 **Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy. Do **not** run `docker compose up --build -d` on a live VM: that replaces containers in place. remote-deploy builds new images first, starts a second replica (`--scale 2 --no-recreate`), waits until Docker health is green, and only then stops the old replica. If the new replica fails health, it is removed and the old one keeps serving. The script re-execs under `systemd-run` so a cancelled CI SSH session does not SIGKILL the build.
 
