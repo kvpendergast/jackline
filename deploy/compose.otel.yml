@@ -1,0 +1,32 @@
+# Overlay: OpenTelemetry Collector Contrib for Docker stdout → Cloud Logging
+# and optional OTLP traces → Cloud Trace (GCP VM recipe).
+#
+# Usage (from repo root):
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.otel.yml \
+#     --env-file .env.prod up -d
+#
+# Set in .env.prod (GCP deploy renders this automatically):
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/traces
+#
+# Self-host: omit this overlay, or change exporters in
+# deploy/logging/otel-collector-config.yaml (Loki / OTLP / Jaeger / …).
+#
+# Requires the host Docker log directory and a GCE SA with logging.logWriter
+# (and cloudtrace.agent when exporting traces).
+
+services:
+  otel-collector:
+    image: ${JACKLINE_OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.120.1}
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./logging/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - otelcol-logs:/var/log/otelcol
+    restart: unless-stopped
+    # ADC via GCE metadata (jackline-vm SA). Optional GOOGLE_CLOUD_PROJECT if
+    # not on GCE — set GCP_PROJECT_ID in .env.prod.
+    environment:
+      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT_ID:-}
+
+volumes:
+  otelcol-logs:

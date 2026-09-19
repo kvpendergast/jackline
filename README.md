@@ -524,6 +524,8 @@ No built-in pager. Typical setup:
 
 Prometheus metrics and OTEL trace export are optional follow-ons. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
 
+On the **GCP VM** recipe, [`deploy/compose.otel.yml`](deploy/compose.otel.yml) runs OpenTelemetry Collector Contrib to ship Docker stdout into Cloud Logging (and receive OTLP traces). See [`deploy/pulumi/README.md`](deploy/pulumi/README.md#logs-cloud-logging). Self-hosters can omit that overlay or point the collector at Loki/OTLP/etc.
+
 | Variable | Role |
 | --- | --- |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | When set, export traces to this OTLP HTTP URL (e.g. `http://127.0.0.1:4318/v1/traces`). When unset, no telemetry is exported. |

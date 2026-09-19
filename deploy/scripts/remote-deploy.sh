@@ -32,6 +32,7 @@ REF="${GIT_REF:-main}"
 TOKEN=""
 ASKPASS=""
 COMPOSE_FILE="deploy/compose.prod.yml"
+COMPOSE_OTEL_FILE="deploy/compose.otel.yml"
 HEALTH_TIMEOUT="${JACKLINE_HEALTH_TIMEOUT:-240}"
 
 # Re-exec under systemd so a cancelled CI SSH session does not SIGKILL docker builds.
@@ -165,7 +166,11 @@ ensure_docker() {
 }
 
 compose() {
-  docker compose -f "${COMPOSE_FILE}" --env-file .env.prod "$@"
+  local -a files=(-f "${COMPOSE_FILE}")
+  if [[ -f "${COMPOSE_OTEL_FILE}" ]]; then
+    files+=(-f "${COMPOSE_OTEL_FILE}")
+  fi
+  docker compose "${files[@]}" --env-file .env.prod "$@"
 }
 
 container_health() {
@@ -464,6 +469,11 @@ else
   roll_service gateway
   roll_service web
   roll_service docs
+  # Collector is not in the user-facing roll path; recreate/restart in place.
+  if [[ -f "${COMPOSE_OTEL_FILE}" ]]; then
+    echo "Ensuring otel-collector is up"
+    compose up -d --no-deps --remove-orphans otel-collector
+  fi
   ensure_caddy
 fi
 

@@ -1,0 +1,76 @@
+# OpenTelemetry Collector (contrib) — GCP VM / Compose recipe.
+#
+# - filelog: Docker json-file stdout/stderr → Cloud Logging
+# - otlp: app traces (api/gateway) → Cloud Trace
+#
+# Self-host: swap `googlecloud` exporters for otlp/loki/jaeger/etc., or omit
+# deploy/compose.otel.yml entirely and keep JSON logs on stdout only.
+#
+# Image: otel/opentelemetry-collector-contrib (googlecloud + filelog operators).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  filelog/docker:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    start_at: end
+    include_file_path: true
+    operators:
+      # Docker json-file line: {"log":"...","stream":"stdout","time":"..."}
+      - type: json_parser
+        id: parse-docker
+        output: parse-app
+      - type: json_parser
+        id: parse-app
+        parse_from: attributes.log
+        parse_to: body
+        on_error: send
+        output: cleanup
+      - type: remove
+        id: cleanup
+        field: attributes.log
+        on_error: send
+      - type: move
+        from: attributes.stream
+        to: resource["io.stream"]
+        on_error: send
+
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 5s
+  resource/jackline:
+    attributes:
+      - key: service.namespace
+        value: jackline
+        action: upsert
+
+exporters:
+  googlecloud:
+    log:
+      default_log_name: jackline
+    # Project / credentials: GCE metadata + jackline-vm SA (ADC).
+
+service:
+  telemetry:
+    logs:
+      # Avoid re-ingesting collector logs via filelog (write outside Docker json-file).
+      output_paths:
+        - /var/log/otelcol/collector.log
+      error_output_paths:
+        - /var/log/otelcol/collector.log
+  pipelines:
+    logs:
+      receivers: [filelog/docker]
+      processors: [resource/jackline, batch]
+      exporters: [googlecloud]
+    traces:
+      receivers: [otlp]
+      processors: [resource/jackline, batch]
+      exporters: [googlecloud]
