@@ -13,7 +13,7 @@ const PLATFORM_GOOGLE_ID = "google";
 function oauthErrorMessage(code: string): string {
   switch (code) {
     case "account_not_linked":
-      return "This Google account matches an existing email that is not linked yet. Try again — we will link it automatically — or sign in with email and password.";
+      return "This Google email matches an existing password account that is not verified yet. Sign in with email and password first — we will send a verification link — then try Google again.";
     case "unable_to_create_user":
       return "Could not create your account from Google. Try again or use email and password.";
     case "unable_to_create_session":

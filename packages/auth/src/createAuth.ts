@@ -207,12 +207,12 @@ function buildAuth(
       accountLinking: {
         enabled: true,
         trustedProviders: ["google"],
-        // Email verification (requireEmailVerification) left many bootstrap
-        // accounts unverified when outbound mail was misconfigured. Google
-        // asserts email_verified; allow link, then Better Auth flips the local
-        // flag. Default requireLocalEmailVerified:true blocked Google login and
-        // redirected to /login?error=account_not_linked with no UI.
-        requireLocalEmailVerified: false,
+        // Keep true: otherwise an attacker can register email+password
+        // (unverified), wait for the real owner to sign in with Google, get
+        // linked onto the same user, and retain password access to that account.
+        // Unverified password users must verify via email/password first
+        // (sendOnSignIn), then Google can link.
+        requireLocalEmailVerified: true,
       },
     },
     emailVerification: {
