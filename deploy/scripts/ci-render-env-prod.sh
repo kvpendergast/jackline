@@ -34,8 +34,11 @@ MASTER_KEY="$(read_secret jacklineMasterKey)"
 AUTH_SECRET="$(read_secret betterAuthSecret)"
 PG_PASS="$(read_secret postgresPassword)"
 TENANCY_SM="$(read_secret tenancy)"
-GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId)"
-GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret)"
+# Trim CR/LF/space — gcloud secret payloads often include a trailing newline,
+# and whitespace in client secrets causes Google token exchange to fail with
+# invalid_code on the OAuth callback.
+GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 RESEND_API_KEY_SM="$(read_secret resendApiKey)"
 EMAIL_CONNECTOR_SM="$(read_secret emailConnector)"
 SMTP_HOST_SM="$(read_secret smtpHost)"

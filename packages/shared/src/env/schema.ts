@@ -62,8 +62,8 @@ export const EnvSchema = z.object({
   JACKLINE_OIDC_CLIENT_ID: z.string().min(1).optional(),
   JACKLINE_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
   /** Optional platform Google social login (operator-configured). */
-  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
-  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().trim().min(1).optional(),
   /** Platform outbound email connector (overridden by DB settings when saved). */
   EMAIL_CONNECTOR: z.enum(["resend", "smtp", "console"]).default("console"),
   RESEND_API_KEY: z.string().min(1).optional(),

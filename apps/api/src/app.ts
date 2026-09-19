@@ -93,6 +93,28 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     providerId = CREDENTIAL_PROVIDER_ID;
   }
 
+  if (isOAuthCallback && response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (location) {
+      try {
+        const target = new URL(location, c.req.url);
+        const error = target.searchParams.get("error");
+        if (error) {
+          c.get("requestContext").log.warn(
+            {
+              providerId,
+              error,
+              errorDescription: target.searchParams.get("error_description"),
+            },
+            "oauth callback redirected with error",
+          );
+        }
+      } catch {
+        // ignore malformed Location
+      }
+    }
+  }
+
   // OAuth callbacks succeed with 302 + Set-Cookie; Response.ok is false for 3xx.
   const providerCookieOk =
     response.ok ||

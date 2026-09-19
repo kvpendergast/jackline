@@ -54,6 +54,28 @@ setVerificationEmailSender(async ({ to, url }) => {
 });
 
 await initAuth();
+
+if (config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET) {
+  const { probeGoogleCredentials } = await import("@jackline/auth");
+  const authBase = config.BETTER_AUTH_URL.replace(/\/$/, "");
+  const redirectUri = `${authBase}/api/auth/callback/google`;
+  const probe = await probeGoogleCredentials({
+    clientId: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    redirectUri,
+  });
+  if (probe === "invalid_client") {
+    logger.error(
+      { redirectUri },
+      "GOOGLE_CLIENT_ID/SECRET rejected by Google (invalid_client) — platform Google login will fail with invalid_code until Secret Manager matches the Google Cloud OAuth client",
+    );
+  } else if (probe === "ok") {
+    logger.info({ redirectUri }, "platform Google OAuth client credentials accepted");
+  } else {
+    logger.warn({ redirectUri, probe }, "could not verify platform Google OAuth credentials");
+  }
+}
+
 const { app } = await import("./app.js");
 
 serve({ fetch: app.fetch, hostname: config.API_HOST, port: config.API_PORT }, () => {
