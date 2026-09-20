@@ -59,8 +59,9 @@ services:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 3s
-      retries: 10
-      start_period: 20s
+      retries: 12
+      # Cold start (tsx + auth/redis) on a busy VM after image pull can exceed 20s.
+      start_period: 60s
     restart: unless-stopped
 
   gateway:
@@ -83,8 +84,8 @@ services:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/health"]
       interval: 10s
       timeout: 3s
-      retries: 10
-      start_period: 20s
+      retries: 12
+      start_period: 60s
     restart: unless-stopped
 
   web:

@@ -16,8 +16,13 @@ export async function probeGoogleCredentials(input: {
   clientSecret: string;
   redirectUri: string;
   fetchImpl?: typeof fetch;
+  /** Abort after this many ms (default 8s). */
+  timeoutMs?: number;
 }): Promise<GoogleCredentialProbeResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
+  const timeoutMs = input.timeoutMs ?? 8_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const body = new URLSearchParams({
       grant_type: "authorization_code",
@@ -30,6 +35,7 @@ export async function probeGoogleCredentials(input: {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
+      signal: controller.signal,
     });
     const data = (await res.json().catch(() => null)) as {
       error?: string;
@@ -40,5 +46,7 @@ export async function probeGoogleCredentials(input: {
     return "unknown";
   } catch {
     return "unreachable";
+  } finally {
+    clearTimeout(timer);
   }
 }
