@@ -29,7 +29,7 @@ FROM deps AS api
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
 EXPOSE 8080
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
   CMD curl -fsS "http://127.0.0.1:${API_PORT:-8080}/health" || exit 1
 CMD ["pnpm", "--filter", "@jackline/api", "start"]
 
@@ -38,7 +38,7 @@ FROM deps AS gateway
 ENV NODE_ENV=production
 ENV GATEWAY_HOST=0.0.0.0
 EXPOSE 8081
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
   CMD curl -fsS "http://127.0.0.1:${GATEWAY_PORT:-8081}/health" || exit 1
 CMD ["pnpm", "--filter", "@jackline/gateway", "start"]
 

@@ -42,4 +42,21 @@ describe("probeGoogleCredentials", () => {
     });
     assert.equal(result, "unreachable");
   });
+
+  it("returns unreachable when the request times out", async () => {
+    const result = await probeGoogleCredentials({
+      clientId: "id",
+      clientSecret: "secret",
+      redirectUri: "https://example.com/api/auth/callback/google",
+      timeoutMs: 20,
+      fetchImpl: async (_url, init) => {
+        await new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      },
+    });
+    assert.equal(result, "unreachable");
+  });
 });
