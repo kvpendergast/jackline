@@ -58,15 +58,8 @@ exporters:
     # Project / credentials: GCE metadata + jackline-vm SA (ADC).
 
 service:
-  telemetry:
-    logs:
-      # Avoid re-ingesting collector logs via filelog (write outside Docker
-      # json-file). Directory comes from a mode=1777 tmpfs in compose.otel.yml
-      # (named volumes are root-owned; contrib image has no writable /tmp).
-      output_paths:
-        - /var/log/otelcol/collector.log
-      error_output_paths:
-        - /var/log/otelcol/collector.log
+  # Collector self-logs use the default (stderr). App JSON on Docker stdout is
+  # scraped by filelog/docker and exported to Cloud Logging as log name jackline.
   pipelines:
     logs:
       receivers: [filelog/docker]
