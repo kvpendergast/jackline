@@ -15,14 +15,14 @@
     "lint": "echo \"lint later\""
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "zudoku": "0.83.1"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zudoku": "0.88.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.1",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "typescript": "^5.9.3"
   }
 }
