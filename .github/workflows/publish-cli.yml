@@ -47,7 +47,7 @@ jobs:
 
       # Do not set registry-url — setup-node would write an .npmrc that can block OIDC.
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           # Release builds should not reuse install caches.
