@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Prefer package.json "packageManager" (pnpm@10.33.3); do not also set version here.
       - name: Setup pnpm
