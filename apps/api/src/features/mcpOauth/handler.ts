@@ -9,6 +9,7 @@ import {
 } from "@jackline/shared";
 import type { JacklineEnv } from "../../lib/http/env.js";
 import { requireVerifiedSession } from "../../lib/request/requireSession.js";
+import { authorizeReturnTo } from "./returnTo.js";
 import {
   mcpOauthServices,
   type AuthorizeQuery,
@@ -202,7 +203,10 @@ export async function authorizeGetHandler(c: Context<JacklineEnv>) {
     const webOrigin = config.isOk()
       ? config.value.WEB_ORIGIN.replace(/\/$/, "")
       : "http://127.0.0.1:5173";
-    const returnTo = c.req.url;
+    const returnTo = authorizeReturnTo(
+      c.req.url,
+      config.isOk() ? publicApiBaseUrl(config.value) : undefined,
+    );
     const loginUrl = `${webOrigin}/login?return_to=${encodeURIComponent(returnTo)}`;
     return c.redirect(loginUrl, 302);
   }

@@ -75,6 +75,18 @@
 		import api_proxy
 	}
 
+	# RFC 9728 protected-resource metadata is served by the gateway, not the API.
+	handle /.well-known/oauth-protected-resource* {
+		encode gzip
+		reverse_proxy gateway:8081 {
+			health_uri /health
+			health_interval 5s
+			health_timeout 2s
+			fail_duration 10s
+			unhealthy_status 5xx
+		}
+	}
+
 	handle /oauth/* {
 		encode gzip
 		import api_proxy
