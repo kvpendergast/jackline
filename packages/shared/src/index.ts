@@ -47,6 +47,11 @@ export {
   discoverMcpOAuthMetadata,
   type PkcePair,
   type DiscoveredMcpOAuth,
+  type DiscoverFetch,
+  parseResourceMetadataFromWwwAuthenticate,
+  parseScopeFromWwwAuthenticate,
+  wellKnownWithPathInsertion,
+  authorizationServerMetadataUrls,
 } from "./upstream/oauth.js";
 export {
   formatMcpToolName,

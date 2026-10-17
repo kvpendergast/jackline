@@ -79,6 +79,8 @@ export const jacklineApi = {
       oauthAuthorizeUrl?: string | null;
       oauthTokenUrl?: string | null;
       oauthScopes?: string | null;
+      oauthRegistrationUrl?: string | null;
+      oauthResource?: string | null;
       oauthClientId?: string | null;
     },
   ) => api<PublicServer>("/api/v1/servers", { tenantId, method: "POST", body }),
@@ -99,6 +101,8 @@ export const jacklineApi = {
       oauthAuthorizeUrl?: string | null;
       oauthTokenUrl?: string | null;
       oauthScopes?: string | null;
+      oauthRegistrationUrl?: string | null;
+      oauthResource?: string | null;
       oauthClientId?: string | null;
       requiresApproval?: boolean;
     },
@@ -107,6 +111,20 @@ export const jacklineApi = {
       tenantId,
       method: "PATCH",
       body,
+    }),
+
+  discoverServerOauth: (tenantId: string, baseUrl: string) =>
+    api<{
+      resource: string | null;
+      authorizeUrl: string;
+      tokenUrl: string;
+      registrationUrl: string | null;
+      scopes: string | null;
+      issuer: string | null;
+    }>("/api/v1/servers/discover-oauth", {
+      tenantId,
+      method: "POST",
+      body: { baseUrl },
     }),
 
   syncServerTools: (tenantId: string, id: string) =>

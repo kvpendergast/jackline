@@ -26,6 +26,8 @@ export const PublicServerSchema = z.strictObject({
   oauthAuthorizeUrl: z.string().nullable(),
   oauthTokenUrl: z.string().nullable(),
   oauthScopes: z.string().nullable(),
+  oauthRegistrationUrl: z.string().nullable(),
+  oauthResource: z.string().nullable(),
   oauthClientId: z.string().nullable(),
   /** True when an encrypted oauth_client secret exists for this server. */
   hasOauthClientSecret: z.boolean(),

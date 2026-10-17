@@ -19,6 +19,8 @@ export const UpstreamOAuthSecretSchema = z.union([
     clientSecret: z.string().min(1).optional(),
     tokenUrl: z.url().optional(),
     scopes: z.string().min(1).optional(),
+    /** RFC 8707 resource indicator, replayed on refresh. */
+    resource: z.string().min(1).optional(),
     expiresAt: z.number().int().positive().optional(),
   }),
   z.string().min(1),
@@ -168,6 +170,7 @@ function refreshedPlaintext(
     ...(secret.clientId ? { clientId: secret.clientId } : {}),
     ...(secret.clientSecret ? { clientSecret: secret.clientSecret } : {}),
     ...(secret.scopes ? { scopes: secret.scopes } : {}),
+    ...(secret.resource ? { resource: secret.resource } : {}),
     ...(expiresAt ? { expiresAt } : {}),
   });
 }
@@ -205,6 +208,7 @@ export async function resolveOAuthAccessToken(
       refresh_token: secret.refreshToken,
     });
     if (secret.scopes) body.set("scope", secret.scopes);
+    if (secret.resource) body.set("resource", secret.resource);
     if (secret.clientId && !secret.clientSecret) {
       body.set("client_id", secret.clientId);
     }
@@ -281,6 +285,7 @@ export function encodeOAuthSecretValue(input: {
   clientSecret?: string;
   tokenUrl?: string;
   scopes?: string;
+  resource?: string;
   expiresAt?: number;
 }): Result<string, JacklineError> {
   if (input.mode === "access_token") {
@@ -341,6 +346,7 @@ export function encodeOAuthSecretValue(input: {
         ? { clientSecret: input.clientSecret.trim() }
         : {}),
       ...(input.scopes?.trim() ? { scopes: input.scopes.trim() } : {}),
+      ...(input.resource?.trim() ? { resource: input.resource.trim() } : {}),
       ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
     }),
   );
@@ -503,6 +509,8 @@ export async function registerDynamicOAuthClient(input: {
   responseTypes?: string[];
   scopes?: string | null;
   tokenEndpointAuthMethod?: "none" | "client_secret_basic" | "client_secret_post";
+  /** Guarded fetch (SSRF) for user-supplied registration URLs. */
+  fetch?: DiscoverFetch;
 }): Promise<
   Result<{ clientId: string; clientSecret?: string }, JacklineError>
 > {
@@ -530,7 +538,7 @@ export async function registerDynamicOAuthClient(input: {
 
   let res: Response;
   try {
-    res = await fetch(input.registrationUrl, {
+    res = await (input.fetch ?? fetch)(input.registrationUrl, {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -615,6 +623,7 @@ export async function registerDynamicOAuthClient(input: {
 const ProtectedResourceMetadataSchema = z.object({
   resource: z.string().optional(),
   authorization_servers: z.array(z.string().url()).min(1).optional(),
+  scopes_supported: z.array(z.string()).optional(),
 });
 
 const AuthorizationServerMetadataSchema = z.object({
@@ -630,16 +639,91 @@ export type DiscoveredMcpOAuth = {
   tokenEndpoint: string;
   registrationEndpoint?: string;
   scopesSupported?: string[];
+  /** RFC 8707 resource indicator (PRM `resource`, else the MCP URL). */
   resource?: string;
+  /** Issuer the AS metadata was fetched for. */
+  issuer?: string;
 };
 
+export type DiscoverFetch = (
+  url: string,
+  init?: RequestInit,
+) => Promise<Response>;
+
+/** Extract `resource_metadata="..."` from a WWW-Authenticate header (RFC 9728). */
+export function parseResourceMetadataFromWwwAuthenticate(
+  header: string | null | undefined,
+): string | null {
+  if (!header) return null;
+  const match = /resource_metadata\s*=\s*(?:"([^"]+)"|([^\s,]+))/i.exec(header);
+  const value = match?.[1] ?? match?.[2];
+  if (!value) return null;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Extract `scope="..."` from a WWW-Authenticate header (MCP scope hint). */
+export function parseScopeFromWwwAuthenticate(
+  header: string | null | undefined,
+): string[] | null {
+  if (!header) return null;
+  const match = /(?:^|[\s,])scope\s*=\s*"([^"]*)"/i.exec(header);
+  const scopes = match?.[1]?.split(/\s+/).filter(Boolean);
+  return scopes?.length ? scopes : null;
+}
+
 /**
- * Discover MCP OAuth endpoints from a remote MCP base URL (PRM + AS metadata).
- * Prefers `/{mcp}/.well-known/oauth-authorization-server` when present.
+ * RFC 8414 §3.1 / RFC 9728 §3.1 path insertion: for `https://h/a/b` and
+ * `.well-known/x`, the URL is `https://h/.well-known/x/a/b`.
+ */
+export function wellKnownWithPathInsertion(
+  urlStr: string,
+  suffix: string,
+): string {
+  const u = new URL(urlStr);
+  const path = u.pathname.replace(/\/+$/, "");
+  return `${u.origin}/.well-known/${suffix}${path}`;
+}
+
+/** Candidate AS metadata URLs for an issuer (RFC 8414 + OIDC discovery). */
+export function authorizationServerMetadataUrls(issuer: string): string[] {
+  const u = new URL(issuer);
+  const path = u.pathname.replace(/\/+$/, "");
+  const urls: string[] = [];
+  if (path) {
+    urls.push(
+      `${u.origin}/.well-known/oauth-authorization-server${path}`,
+      `${u.origin}/.well-known/openid-configuration${path}`,
+      `${u.origin}${path}/.well-known/openid-configuration`,
+      `${u.origin}${path}/.well-known/oauth-authorization-server`,
+    );
+  } else {
+    urls.push(
+      `${u.origin}/.well-known/oauth-authorization-server`,
+      `${u.origin}/.well-known/openid-configuration`,
+    );
+  }
+  return urls;
+}
+
+/**
+ * Discover MCP OAuth endpoints from a remote MCP URL.
+ *
+ * 1. Probe the MCP URL; read `resource_metadata` from the 401 WWW-Authenticate.
+ * 2. Fall back to `/.well-known/oauth-protected-resource[/path]`.
+ * 3. Fetch AS metadata for the PRM issuer using RFC 8414 path insertion
+ *    (and OIDC discovery); with no PRM, try the MCP origin as the issuer.
+ *
+ * Pass a guarded `fetch` (SSRF protection) when the URL is user-supplied.
  */
 export async function discoverMcpOAuthMetadata(
   mcpBaseUrl: string,
+  options?: { fetch?: DiscoverFetch },
 ): Promise<Result<DiscoveredMcpOAuth, JacklineError>> {
+  const doFetch: DiscoverFetch = options?.fetch ?? ((u, i) => fetch(u, i));
   let base: URL;
   try {
     base = new URL(mcpBaseUrl);
@@ -647,64 +731,102 @@ export async function discoverMcpOAuthMetadata(
     return err(new BadRequestError("Invalid MCP base URL"));
   }
 
-  const origin = base.origin;
-  const path = base.pathname.replace(/\/$/, "") || "";
-
-  const asCandidates = [
-    `${origin}${path}/.well-known/oauth-authorization-server`,
-    `${origin}/.well-known/oauth-authorization-server`,
-  ];
-
-  for (const asUrl of asCandidates) {
-    const asMeta = await fetchJson(asUrl);
-    if (asMeta.isOk()) {
-      const parsed = AuthorizationServerMetadataSchema.safeParse(asMeta.value);
-      if (parsed.success) {
-        return ok({
-          authorizationEndpoint: parsed.data.authorization_endpoint,
-          tokenEndpoint: parsed.data.token_endpoint,
-          ...(parsed.data.registration_endpoint
-            ? { registrationEndpoint: parsed.data.registration_endpoint }
-            : {}),
-          ...(parsed.data.scopes_supported
-            ? { scopesSupported: parsed.data.scopes_supported }
-            : {}),
-        });
-      }
+  // 1. WWW-Authenticate hint.
+  let hinted: string | null = null;
+  let hintedScopes: string[] | null = null;
+  for (const method of ["GET", "POST"] as const) {
+    try {
+      const res = await doFetch(base.toString(), {
+        method,
+        headers:
+          method === "POST"
+            ? {
+                Accept: "application/json, text/event-stream",
+                "Content-Type": "application/json",
+              }
+            : { Accept: "application/json, text/event-stream" },
+        ...(method === "POST"
+          ? {
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "initialize",
+                params: {
+                  protocolVersion: "2025-06-18",
+                  capabilities: {},
+                  clientInfo: { name: "jackline-discovery", version: "0" },
+                },
+              }),
+            }
+          : {}),
+      });
+      void res.body?.cancel().catch(() => undefined);
+      const challenge = res.headers.get("www-authenticate");
+      hinted = parseResourceMetadataFromWwwAuthenticate(challenge);
+      hintedScopes = hintedScopes ?? parseScopeFromWwwAuthenticate(challenge);
+      if (hinted) break;
+    } catch {
+      /* probe is best-effort */
     }
   }
 
+  // 2. Protected resource metadata.
   const prmCandidates = [
-    `${origin}/.well-known/oauth-protected-resource${path}`,
-    `${origin}${path}/.well-known/oauth-protected-resource`,
-    `${origin}/.well-known/oauth-protected-resource`,
+    ...(hinted ? [hinted] : []),
+    wellKnownWithPathInsertion(base.toString(), "oauth-protected-resource"),
+    `${base.origin}/.well-known/oauth-protected-resource`,
   ];
+  let prm: z.infer<typeof ProtectedResourceMetadataSchema> | undefined;
+  for (const url of [...new Set(prmCandidates)]) {
+    const json = await fetchJson(url, doFetch);
+    if (json.isErr()) continue;
+    const parsed = ProtectedResourceMetadataSchema.safeParse(json.value);
+    if (parsed.success) {
+      prm = parsed.data;
+      break;
+    }
+  }
 
-  for (const prmUrl of prmCandidates) {
-    const prm = await fetchJson(prmUrl);
-    if (prm.isErr()) continue;
-    const prmParsed = ProtectedResourceMetadataSchema.safeParse(prm.value);
-    if (!prmParsed.success || !prmParsed.data.authorization_servers?.[0]) {
+  // 3. Authorization server metadata.
+  const issuers: string[] = [];
+  if (prm?.authorization_servers) issuers.push(...prm.authorization_servers);
+  else issuers.push(base.origin);
+
+  for (const issuerRaw of issuers) {
+    let issuer: string;
+    try {
+      issuer = new URL(issuerRaw).toString().replace(/\/$/, "");
+    } catch {
       continue;
     }
-    const issuer = prmParsed.data.authorization_servers[0].replace(/\/$/, "");
-    const asMeta = await fetchJson(
-      `${issuer}/.well-known/oauth-authorization-server`,
-    );
-    if (asMeta.isErr()) continue;
-    const parsed = AuthorizationServerMetadataSchema.safeParse(asMeta.value);
-    if (!parsed.success) continue;
-    return ok({
-      authorizationEndpoint: parsed.data.authorization_endpoint,
-      tokenEndpoint: parsed.data.token_endpoint,
-      ...(parsed.data.registration_endpoint
-        ? { registrationEndpoint: parsed.data.registration_endpoint }
-        : {}),
-      ...(parsed.data.scopes_supported
-        ? { scopesSupported: parsed.data.scopes_supported }
-        : {}),
-      ...(prmParsed.data.resource ? { resource: prmParsed.data.resource } : {}),
-    });
+    const candidates = authorizationServerMetadataUrls(issuer);
+    if (!prm) {
+      // Legacy: AS metadata served beneath the MCP path.
+      const path = base.pathname.replace(/\/+$/, "");
+      if (path) {
+        candidates.unshift(
+          `${base.origin}${path}/.well-known/oauth-authorization-server`,
+        );
+      }
+    }
+    for (const url of candidates) {
+      const json = await fetchJson(url, doFetch);
+      if (json.isErr()) continue;
+      const parsed = AuthorizationServerMetadataSchema.safeParse(json.value);
+      if (!parsed.success) continue;
+      const scopes =
+        hintedScopes ?? prm?.scopes_supported ?? parsed.data.scopes_supported;
+      return ok({
+        authorizationEndpoint: parsed.data.authorization_endpoint,
+        tokenEndpoint: parsed.data.token_endpoint,
+        ...(parsed.data.registration_endpoint
+          ? { registrationEndpoint: parsed.data.registration_endpoint }
+          : {}),
+        ...(scopes?.length ? { scopesSupported: scopes } : {}),
+        resource: prm?.resource ?? base.toString(),
+        issuer,
+      });
+    }
   }
 
   return err(
@@ -716,10 +838,11 @@ export async function discoverMcpOAuthMetadata(
 
 async function fetchJson(
   url: string,
+  doFetch: DiscoverFetch,
 ): Promise<Result<unknown, JacklineError>> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await doFetch(url, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -728,9 +851,7 @@ async function fetchJson(
     return err(new JacklineError("INTERNAL", `Fetch failed: ${detail}`));
   }
   if (!res.ok) {
-    return err(
-      new JacklineError("INTERNAL", `Fetch ${url} → ${res.status}`),
-    );
+    return err(new JacklineError("INTERNAL", `Fetch ${url} → ${res.status}`));
   }
   try {
     return ok(await res.json());
@@ -738,4 +859,3 @@ async function fetchJson(
     return err(new JacklineError("INTERNAL", `Non-JSON response from ${url}`));
   }
 }
-
