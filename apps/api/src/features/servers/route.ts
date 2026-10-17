@@ -40,6 +40,8 @@ const CreateServerBodySchema = z
     oauthAuthorizeUrl: z.url().nullable().optional(),
     oauthTokenUrl: z.url().nullable().optional(),
     oauthScopes: z.string().min(1).nullable().optional(),
+    oauthRegistrationUrl: z.url().nullable().optional(),
+    oauthResource: z.url().nullable().optional(),
     oauthClientId: z.string().min(1).nullable().optional(),
   })
   .openapi("CreateServerBody");
@@ -58,6 +60,8 @@ const UpdateServerBodySchema = z
     oauthAuthorizeUrl: z.url().nullable().optional(),
     oauthTokenUrl: z.url().nullable().optional(),
     oauthScopes: z.string().min(1).nullable().optional(),
+    oauthRegistrationUrl: z.url().nullable().optional(),
+    oauthResource: z.url().nullable().optional(),
     oauthClientId: z.string().min(1).nullable().optional(),
     requiresApproval: z.boolean().optional(),
   })
@@ -218,7 +222,53 @@ const syncTools = createRoute({
   },
 });
 
+const DiscoverOauthBodySchema = z
+  .strictObject({ baseUrl: z.url() })
+  .openapi("DiscoverOauthBody");
+
+const DiscoverOauthResultSchema = z
+  .object({
+    resource: z.string().nullable(),
+    authorizeUrl: z.string(),
+    tokenUrl: z.string(),
+    registrationUrl: z.string().nullable(),
+    scopes: z.string().nullable(),
+    issuer: z.string().nullable(),
+  })
+  .openapi("DiscoverOauthResult");
+
+const discoverOauth = createRoute({
+  method: "post",
+  path: "/servers/discover-oauth",
+  tags: ["Servers"],
+  summary:
+    "Discover OAuth endpoints (RFC 9728 / 8414) and dynamic registration for a remote MCP URL",
+  middleware: [requireFullAdmin] as const,
+  request: {
+    headers: TenantIdHeaderSchema,
+    body: {
+      content: { "application/json": { schema: DiscoverOauthBodySchema } },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      description: "Discovered OAuth metadata",
+      content: {
+        "application/json": {
+          schema: successEnvelopeSchema(
+            DiscoverOauthResultSchema,
+            "DiscoverOauthResponse",
+          ),
+        },
+      },
+    },
+    ...tenantScopedErrors,
+  },
+});
+
 export const serverRoutes = {
+  discoverOauth,
   list,
   create,
   get,

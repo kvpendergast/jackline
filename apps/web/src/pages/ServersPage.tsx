@@ -362,8 +362,17 @@ function ServerForm({
 }) {
   const { tenantId } = useAuth();
   const catalogPreset = resolveFormPreset(server, preset);
-  const publicOAuthClient = catalogPreset?.oauthPublicClient === true;
-  const oauthRegistrationUrl = catalogPreset?.oauthRegistrationUrl ?? null;
+  const [oauthRegistrationUrlInput, setOauthRegistrationUrlInput] = useState(
+    server?.oauthRegistrationUrl ?? catalogPreset?.oauthRegistrationUrl ?? "",
+  );
+  const [oauthResource, setOauthResource] = useState(
+    server?.oauthResource ?? catalogPreset?.oauthResource ?? "",
+  );
+  const oauthRegistrationUrl = oauthRegistrationUrlInput.trim() || null;
+  const publicOAuthClient =
+    catalogPreset?.oauthPublicClient === true || oauthRegistrationUrl != null;
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverNote, setDiscoverNote] = useState<string | null>(null);
   const [name, setName] = useState(server?.name ?? catalogPreset?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(
     server?.baseUrl ?? catalogPreset?.baseUrl ?? "https://",
@@ -462,6 +471,34 @@ function ServerForm({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tenantId, server, authMethod]);
+
+  async function discoverOauth() {
+    if (!tenantId) return;
+    setDiscovering(true);
+    setDiscoverNote(null);
+    try {
+      const found = await jacklineApi.discoverServerOauth(
+        tenantId,
+        baseUrl.trim(),
+      );
+      setOauthAuthorizeUrl(found.authorizeUrl);
+      setOauthTokenUrl(found.tokenUrl);
+      setOauthScopes(found.scopes ?? "");
+      setOauthRegistrationUrlInput(found.registrationUrl ?? "");
+      setOauthResource(found.resource ?? "");
+      setDiscoverNote(
+        found.registrationUrl
+          ? "Discovered. This server supports dynamic client registration — leave Client ID empty and click Connect after saving."
+          : "Discovered endpoints. No dynamic registration advertised — enter a Client ID (and secret if required).",
+      );
+    } catch (err) {
+      setDiscoverNote(
+        err instanceof ApiError ? err.message : "Discovery failed",
+      );
+    } finally {
+      setDiscovering(false);
+    }
+  }
 
   async function resolveSecretPlaintext(): Promise<string | null> {
     if (authMethod === "mtls") return null;
@@ -589,12 +626,16 @@ function ServerForm({
               oauthAuthorizeUrl: oauthAuthorizeUrl.trim() || null,
               oauthTokenUrl: oauthTokenUrl.trim() || null,
               oauthScopes: oauthScopes.trim() || null,
+              oauthRegistrationUrl: oauthRegistrationUrl,
+              oauthResource: oauthResource.trim() || null,
               oauthClientId: oauthClientId.trim() || null,
             }
           : {
               oauthAuthorizeUrl: null,
               oauthTokenUrl: null,
               oauthScopes: null,
+              oauthRegistrationUrl: null,
+              oauthResource: null,
               oauthClientId: null,
             };
 
@@ -796,10 +837,28 @@ function ServerForm({
             <p className="text-sm font-medium">OAuth app (Connect)</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {oauthRegistrationUrl
-                ? "This connector supports dynamic client registration. Leave Client ID empty — Connect registers a public PKCE client automatically (CLI uses loopback; hosted My Access uses Jackline’s callback when the provider allowlists it)."
+                ? "Dynamic client registration is enabled. Leave Client ID empty — Connect registers a public PKCE client automatically (CLI uses loopback; hosted My Access uses Jackline’s callback when the provider allowlists it)."
                 : `Register a Jackline callback on the provider ({API_URL}/api/v1/oauth/callback). Members use Connect in My Access when client id${publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}`}
             </p>
           </div>
+          {!catalogPreset ? (
+            <div className="space-y-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={discovering || !/^https:\/\/.+/.test(baseUrl.trim())}
+                onClick={() => void discoverOauth()}
+              >
+                {discovering ? "Discovering…" : "Discover from MCP URL"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Uses the Base URL above to fill the OAuth fields (RFC 9728 /
+                8414) and detect dynamic client registration.
+                {discoverNote ? ` ${discoverNote}` : ""}
+              </p>
+            </div>
+          ) : null}
           <Field label="Authorize URL" htmlFor="oauth-app-authorize">
             <Input
               id="oauth-app-authorize"
@@ -824,6 +883,24 @@ function ServerForm({
               value={oauthScopes}
               onChange={(e) => setOauthScopes(e.target.value)}
               placeholder="read,write"
+            />
+          </Field>
+          <Field label="Registration URL (dynamic client registration)" htmlFor="oauth-app-registration">
+            <Input
+              id="oauth-app-registration"
+              type="url"
+              value={oauthRegistrationUrlInput}
+              onChange={(e) => setOauthRegistrationUrlInput(e.target.value)}
+              placeholder="https://auth.example.com/register (optional)"
+            />
+          </Field>
+          <Field label="Resource (RFC 8707)" htmlFor="oauth-app-resource">
+            <Input
+              id="oauth-app-resource"
+              type="url"
+              value={oauthResource}
+              onChange={(e) => setOauthResource(e.target.value)}
+              placeholder="https://mcp.example.com/mcp (optional)"
             />
           </Field>
           <Field

@@ -54,6 +54,10 @@ export const servers = pgTable(
     oauthTokenUrl: text("oauth_token_url"),
     /** Default scopes string (provider-specific delimiter, e.g. Linear commas). */
     oauthScopes: text("oauth_scopes"),
+    /** RFC 7591 dynamic client registration endpoint (custom MCP OAuth). */
+    oauthRegistrationUrl: text("oauth_registration_url"),
+    /** RFC 8707 resource indicator sent on authorize/token/refresh. */
+    oauthResource: text("oauth_resource"),
     /** Public OAuth client id (secret stored separately as kind oauth_client). */
     oauthClientId: text("oauth_client_id"),
     /**

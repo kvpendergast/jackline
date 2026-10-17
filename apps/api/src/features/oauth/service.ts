@@ -31,9 +31,38 @@ import {
   upstreamSecretKind,
   type StartOauthResult,
 } from "@jackline/shared";
+import { safeFetch } from "../../lib/http/safeFetch.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
+
+/** Per-server override first, then the catalog preset. */
+function effectiveRegistrationUrl(
+  server: typeof servers.$inferSelect,
+): string | null {
+  return (
+    server.oauthRegistrationUrl?.trim() ||
+    connectorOAuthRegistrationUrl(server.connectorKey)
+  );
+}
+
+function effectiveResource(
+  server: typeof servers.$inferSelect,
+): string | undefined {
+  const preset =
+    server.connectorKey != null
+      ? getConnectorPreset(server.connectorKey)
+      : undefined;
+  return server.oauthResource?.trim() || preset?.oauthResource || undefined;
+}
+
+/** Public PKCE client: catalog flag, or any server with a registration URL. */
+function isPublicClient(server: typeof servers.$inferSelect): boolean {
+  return (
+    connectorUsesPublicOAuthClient(server.connectorKey) ||
+    Boolean(server.oauthRegistrationUrl?.trim())
+  );
+}
 
 async function loadOauthClientSecret(
   tenantId: string,
@@ -94,7 +123,7 @@ async function ensureOauthClientId(
     return ok(server.oauthClientId.trim());
   }
 
-  const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
+  const registrationUrl = effectiveRegistrationUrl(server);
   if (!registrationUrl) {
     return err(
       new BadRequestError(
@@ -109,6 +138,9 @@ async function ensureOauthClientId(
     redirectUris: [redirectUri],
     applicationType: "web",
     scopes: server.oauthScopes,
+    tokenEndpointAuthMethod: "none",
+    // Custom URLs are admin-supplied → SSRF-guard; catalog URLs are trusted.
+    ...(server.oauthRegistrationUrl?.trim() ? { fetch: safeFetch } : {}),
   });
   if (registered.isErr()) return err(registered.error);
 
@@ -180,8 +212,8 @@ async function startConnect(
     );
   }
 
-  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
-  const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
+  const publicClient = isPublicClient(server);
+  const registrationUrl = effectiveRegistrationUrl(server);
   if (!server.oauthClientId && !registrationUrl) {
     return err(
       new BadRequestError(
@@ -224,8 +256,9 @@ async function startConnect(
   const authorizeExtra: Record<string, string> = {
     ...(catalogPreset?.oauthAuthorizeExtraParams ?? {}),
   };
-  if (catalogPreset?.oauthResource) {
-    authorizeExtra["resource"] = catalogPreset.oauthResource;
+  const resource = effectiveResource(server);
+  if (resource) {
+    authorizeExtra["resource"] = resource;
   }
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
@@ -286,7 +319,7 @@ async function handleCallback(
     return err(new NotFoundError("Server OAuth configuration missing"));
   }
 
-  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
+  const publicClient = isPublicClient(server);
   let clientSecretValue = "";
   if (!publicClient) {
     const clientSecret = await loadOauthClientSecret(
@@ -297,10 +330,7 @@ async function handleCallback(
     clientSecretValue = clientSecret.value;
   }
 
-  const catalogPreset =
-    server.connectorKey != null
-      ? getConnectorPreset(server.connectorKey)
-      : undefined;
+  const resource = effectiveResource(server);
 
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
   const tokens = await exchangeAuthorizationCode({
@@ -310,9 +340,7 @@ async function handleCallback(
     clientId: server.oauthClientId,
     ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
     codeVerifier: pending.codeVerifier,
-    ...(catalogPreset?.oauthResource
-      ? { resource: catalogPreset.oauthResource }
-      : {}),
+    ...(resource ? { resource } : {}),
   });
   if (tokens.isErr()) return err(tokens.error);
 
@@ -326,6 +354,7 @@ async function handleCallback(
           clientId: server.oauthClientId,
           ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
           ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
+          ...(resource ? { resource } : {}),
           ...(tokens.value.expiresAt
             ? { expiresAt: tokens.value.expiresAt }
             : {}),

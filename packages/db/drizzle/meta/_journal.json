@@ -141,6 +141,13 @@
       "when": 1788805000000,
       "tag": "0019_agent_activity_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792242270440,
+      "tag": "0020_mcp_oauth_dynamic_registration",
+      "breakpoints": true
     }
   ]
 }

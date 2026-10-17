@@ -77,7 +77,22 @@ const syncTools: RouteHandler<typeof Server.routes.syncTools, JacklineEnv> = asy
   return c.json(okEnvelope(result.value), 200);
 };
 
+const discoverOauth: RouteHandler<
+  typeof Server.routes.discoverOauth,
+  JacklineEnv
+> = async (c) => {
+  const { log } = c.get("tenantContext");
+  const body = c.req.valid("json");
+  const result = await Server.services.discoverOauth(log, body.baseUrl);
+  if (result.isErr()) {
+    throw result.error;
+  }
+
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const serverHandlers = {
+  discoverOauth,
   list,
   create,
   get,

@@ -80,8 +80,12 @@ async function listMyServers(
         s.kind === kind,
     );
     const canConnect = server.credentialMode !== "shared";
-    const publicOAuthClient = connectorUsesPublicOAuthClient(server.connectorKey);
-    const registrationUrl = connectorOAuthRegistrationUrl(server.connectorKey);
+    const registrationUrl =
+      server.oauthRegistrationUrl?.trim() ||
+      connectorOAuthRegistrationUrl(server.connectorKey);
+    const publicOAuthClient =
+      connectorUsesPublicOAuthClient(server.connectorKey) ||
+      !!server.oauthRegistrationUrl?.trim();
     const hasOauthAppSecret = secretRows.some(
       (s) =>
         s.serverId === server.id &&
