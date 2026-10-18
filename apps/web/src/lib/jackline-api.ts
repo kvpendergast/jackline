@@ -130,6 +130,7 @@ export const jacklineApi = {
   syncServerTools: (tenantId: string, id: string) =>
     api<{
       discovered: number;
+      removed?: number;
       created: number;
       updated: number;
       tools: PublicTool[];
