@@ -64,6 +64,7 @@ export function MyAccessPage() {
         const nextItems = await load();
         if (cancelled) return;
 
+        const returnToParam = searchParams.get("return_to");
         const oauthError = searchParams.get("oauth_error");
         if (oauthError) {
           setError(`OAuth failed: ${oauthError}`);
@@ -86,6 +87,7 @@ export function MyAccessPage() {
                 const result = await jacklineApi.startOauthConnect(
                   tenantId!,
                   target.serverId,
+                  returnToParam,
                 );
                 window.location.assign(result.authorizeUrl);
                 return;
@@ -110,7 +112,8 @@ export function MyAccessPage() {
         if (
           searchParams.has("server") ||
           searchParams.has("connected") ||
-          searchParams.has("oauth_error")
+          searchParams.has("oauth_error") ||
+          searchParams.has("return_to")
         ) {
           setSearchParams(
             (prev) => {
@@ -118,6 +121,7 @@ export function MyAccessPage() {
               next.delete("server");
               next.delete("connected");
               next.delete("oauth_error");
+              next.delete("return_to");
               return next;
             },
             { replace: true },

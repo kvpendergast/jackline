@@ -23,6 +23,10 @@ Jackline sits between an agent host (Cursor, Grok, Claude, …) and upstream MCP
 
 Clients that support [URL mode elicitation](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation) should open that URL (with user consent), wait for reconnect, then **retry the original tool**. Clients that only surface the error text should still show the My Access link from the message.
 
+### Returning to the host after reconnect
+
+Hosts may append `&return_to=<https URL>` to the My Access link. After the upstream OAuth callback completes, Jackline redirects the browser to that URL. It is honored only when its https origin is the web app, the origin of a registered Jackline OAuth client redirect URI, or listed in `OAUTH_RETURN_ALLOWED_ORIGINS` (comma-separated origins); otherwise the user stays on Jackline. If the Jackline session has expired, the login page preserves the My Access link (and `return_to`) and resumes it after sign-in.
+
 ## What hosts should do
 
 | If you see… | Do this |

@@ -28,6 +28,8 @@ export const oauthStates = pgTable(
     serverId: uuid("server_id")
       .notNull()
       .references(() => servers.id, { onDelete: "cascade" }),
+    /** Validated https URL to send the user back to after upstream Connect completes. */
+    returnTo: text("return_to"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [index("oauth_states_expires_at_idx").on(t.expiresAt)],

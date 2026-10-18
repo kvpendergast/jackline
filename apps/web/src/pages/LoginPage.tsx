@@ -1,3 +1,4 @@
+import { safeLoginReturnTo } from "@jackline/shared";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,10 @@ export function LoginPage() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get("return_to");
+  const returnTo = safeLoginReturnTo(
+    searchParams.get("return_to"),
+    window.location.origin,
+  );
   const oauthError = searchParams.get("error");
   const oauthErrorDescription = searchParams.get("error_description");
   const [email, setEmail] = useState("");
@@ -115,7 +119,10 @@ export function LoginPage() {
       if (result.error) {
         const code = result.error.code ?? "";
         if (code === "EMAIL_NOT_VERIFIED") {
-          navigate("/verify-email", { replace: true, state: { email } });
+          navigate("/verify-email", {
+            replace: true,
+            state: { email, returnTo },
+          });
           return;
         }
         setError(result.error.message ?? "Sign in failed");

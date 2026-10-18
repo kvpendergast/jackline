@@ -70,6 +70,10 @@ export {
   type ConnectorCategory,
 } from "./connectors/catalog.js";
 export {
+  safeLoginReturnTo,
+  loginPathWithReturnTo,
+} from "./myAccess/safeReturnTo.js";
+export {
   myAccessReconnectUrl,
   formatUpstreamCredentialFailure,
   isPersonalUpstreamCredentialFailure,

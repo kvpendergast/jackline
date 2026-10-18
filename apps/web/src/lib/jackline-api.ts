@@ -525,11 +525,15 @@ export const jacklineApi = {
   listMyAccessServers: (tenantId: string) =>
     api<{ items: MyAccessServer[] }>("/api/v1/me/servers", { tenantId }),
 
-  startOauthConnect: (tenantId: string, serverId: string) =>
+  startOauthConnect: (
+    tenantId: string,
+    serverId: string,
+    returnTo?: string | null,
+  ) =>
     api<{ authorizeUrl: string; redirectUri: string }>("/api/v1/oauth/start", {
       tenantId,
       method: "POST",
-      body: { serverId },
+      body: { serverId, ...(returnTo ? { returnTo } : {}) },
     }),
 
   upsertMyAccessCredential: (

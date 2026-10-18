@@ -3,6 +3,7 @@ import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { auth } from "@jackline/auth";
 import {
+  clients,
   db,
   oauthStates,
   secrets,
@@ -32,6 +33,7 @@ import {
   type StartOauthResult,
 } from "@jackline/shared";
 import { safeFetch } from "../../lib/http/safeFetch.js";
+import { originsFromRedirectUris, validateReturnTo } from "./returnTo.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
@@ -176,9 +178,12 @@ async function startConnect(
   tenantId: string,
   userId: string,
   serverId: string,
+  returnToRaw?: string,
 ): Promise<Result<StartOauthResult, JacklineError>> {
   const config = getConfig();
   if (config.isErr()) return err(config.error);
+
+  const returnTo = await resolveReturnTo(returnToRaw, config.value.WEB_ORIGIN);
 
   const [server] = await db
     .select()
@@ -245,6 +250,7 @@ async function startConnect(
     tenantId,
     userId,
     serverId,
+    returnTo,
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   });
 
@@ -273,6 +279,30 @@ async function startConnect(
 
   log.info({ tenantId, userId, serverId }, "Oauth.services.startConnect");
   return ok({ authorizeUrl, redirectUri });
+}
+
+/**
+ * Allowed return origins: the web app, origins of registered OAuth client
+ * redirect URIs (https), and optional OAUTH_RETURN_ALLOWED_ORIGINS (comma list).
+ * Invalid values are dropped silently (default behavior: stay on Jackline).
+ */
+async function resolveReturnTo(
+  raw: string | undefined,
+  webOrigin: string,
+): Promise<string | null> {
+  if (!raw) return null;
+  const rows = await db
+    .select({ redirectUris: clients.redirectUris })
+    .from(clients);
+  const extra = (process.env["OAUTH_RETURN_ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowed = [
+    ...originsFromRedirectUris([webOrigin, ...extra]),
+    ...originsFromRedirectUris(rows.flatMap((r) => r.redirectUris ?? [])),
+  ];
+  return validateReturnTo(raw, allowed);
 }
 
 async function handleCallback(
@@ -445,6 +475,11 @@ async function handleCallback(
   );
 
   const redirectTo = `${webOrigin}/my-access?server=${encodeURIComponent(pending.serverId)}&connected=1`;
+  // Re-validate: the allowlist may have changed since Connect started.
+  if (pending.returnTo) {
+    const safe = await resolveReturnTo(pending.returnTo, config.value.WEB_ORIGIN);
+    if (safe) return ok({ redirectTo: safe });
+  }
   return ok({ redirectTo });
 }
 

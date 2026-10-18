@@ -1,5 +1,13 @@
 import type { ReactNode } from "react";
-import { Navigate, Outlet, Route, Routes, useSearchParams } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
+import { loginPathWithReturnTo } from "@jackline/shared";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { AppShell } from "@/components/layout/AppShell";
 import { AccessRequestsPage } from "@/pages/AccessRequestsPage";
@@ -24,6 +32,7 @@ import { UsersPage } from "@/pages/UsersPage";
 
 function ProtectedLayout() {
   const { loading, user, tenantId } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -34,7 +43,7 @@ function ProtectedLayout() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPathWithReturnTo(location)} replace />;
   }
 
   if (!user.emailVerified) {
