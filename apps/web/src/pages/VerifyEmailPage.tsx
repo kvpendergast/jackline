@@ -1,3 +1,4 @@
+import { safeLoginReturnTo } from "@jackline/shared";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,8 +8,11 @@ import { authClient } from "@/lib/auth-client";
 import { jacklineApi } from "@/lib/jackline-api";
 import { authCompleteRedirect } from "@/pages/AuthCompletePage";
 
-function authCompleteCallback(intent: "login" | "signup" = "login") {
-  return authCompleteRedirect(intent);
+function authCompleteCallback(
+  intent: "login" | "signup" = "login",
+  returnTo?: string | null,
+) {
+  return authCompleteRedirect(intent, undefined, returnTo);
 }
 
 const NOT_CONFIGURED_MESSAGE =
@@ -24,6 +28,11 @@ export function VerifyEmailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deliveryReady, setDeliveryReady] = useState<boolean | null>(null);
 
+  const returnTo = safeLoginReturnTo(
+    (location.state as { returnTo?: string | null } | null)?.returnTo ??
+      searchParams.get("return_to"),
+    window.location.origin,
+  );
   const emailFromState = (location.state as { email?: string } | null)?.email;
   const email = user?.email ?? emailFromState ?? "";
   const verificationError = searchParams.get("error");
@@ -59,10 +68,15 @@ export function VerifyEmailPage() {
   useEffect(() => {
     if (user?.emailVerified) {
       void refresh().then(() => {
-        navigate("/auth/complete?intent=login", { replace: true });
+        navigate(
+          returnTo
+            ? `/auth/complete?intent=login&return_to=${encodeURIComponent(returnTo)}`
+            : "/auth/complete?intent=login",
+          { replace: true },
+        );
       });
     }
-  }, [user?.emailVerified, refresh, navigate]);
+  }, [user?.emailVerified, refresh, navigate, returnTo]);
 
   async function onResend() {
     if (!email) {
@@ -86,7 +100,7 @@ export function VerifyEmailPage() {
 
       const result = await authClient.sendVerificationEmail({
         email,
-        callbackURL: authCompleteCallback("login"),
+        callbackURL: authCompleteCallback("login", returnTo),
       });
       if (result.error) {
         setError(result.error.message ?? "Failed to send verification email");

@@ -6,7 +6,11 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/auth-provider";
 import { authClient } from "@/lib/auth-client";
 import { jacklineApi } from "@/lib/jackline-api";
-import type { AuthCompleteIntent, AuthCompleteResult } from "@jackline/shared";
+import {
+  safeLoginReturnTo,
+  type AuthCompleteIntent,
+  type AuthCompleteResult,
+} from "@jackline/shared";
 
 function authCompleteUrl(
   intent: AuthCompleteIntent,
@@ -38,7 +42,10 @@ export function AuthCompletePage() {
 
   const intent = (searchParams.get("intent") ?? "login") as AuthCompleteIntent;
   const inviteToken = searchParams.get("invite") ?? undefined;
-  const returnTo = searchParams.get("return_to");
+  const returnTo = safeLoginReturnTo(
+    searchParams.get("return_to"),
+    window.location.origin,
+  );
   const oauthError = searchParams.get("error");
 
   useEffect(() => {
@@ -75,7 +82,10 @@ export function AuthCompletePage() {
 
   async function handleResult(result: AuthCompleteResult) {
     if (result.status === "require_email_verification") {
-      navigate("/verify-email", { replace: true });
+      navigate("/verify-email", {
+        replace: true,
+        state: { returnTo },
+      });
       return;
     }
     if (result.status === "ok") {
