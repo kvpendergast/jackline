@@ -35,6 +35,7 @@ export const SyncToolsResultSchema = z.strictObject({
   discovered: z.number().int().nonnegative(),
   created: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
+  removed: z.number().int().nonnegative().default(0),
   tools: z.array(PublicToolSchema),
 });
 

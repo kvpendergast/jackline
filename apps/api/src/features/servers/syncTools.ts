@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -18,6 +18,7 @@ import {
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 import { importToolsFromOpenApi } from "./importOpenApi.js";
+import { listAllUpstreamTools, planToolSync } from "./toolSyncPlan.js";
 
 function toPublicTool(row: Tool): PublicTool {
   return {
@@ -193,34 +194,34 @@ async function upsertImportedTools(
     .from(tools)
     .where(and(eq(tools.tenantId, tenantId), eq(tools.serverId, serverId)));
 
-  const byName = new Map(existing.map((row) => [row.name, row]));
+  const plan = planToolSync(existing, imported);
   let created = 0;
   let updated = 0;
   const resultRows: Tool[] = [];
 
-  for (const item of imported) {
-    const found = byName.get(item.name);
-    if (!found) {
-      const [row] = await db
-        .insert(tools)
-        .values({
-          name: item.name,
-          description: item.description,
-          inputSchema: item.inputSchema,
-          httpMethod: item.httpMethod ?? null,
-          pathTemplate: item.pathTemplate ?? null,
-          status: "needs_review",
-          serverId,
-          tenantId,
-        })
-        .returning();
-      if (row) {
-        created += 1;
-        resultRows.push(row);
-      }
-      continue;
+  for (const item of plan.toCreate) {
+    const [row] = await db
+      .insert(tools)
+      .values({
+        name: item.name,
+        description: item.description,
+        inputSchema: item.inputSchema,
+        httpMethod: item.httpMethod ?? null,
+        pathTemplate: item.pathTemplate ?? null,
+        status: "needs_review",
+        serverId,
+        tenantId,
+      })
+      .returning();
+    if (row) {
+      created += 1;
+      resultRows.push(row);
     }
+  }
 
+  const foundById = new Map(existing.map((row) => [row.id, row]));
+  for (const { id, item } of plan.toUpdate) {
+    const found = foundById.get(id)!;
     const [row] = await db
       .update(tools)
       .set({
@@ -230,12 +231,27 @@ async function upsertImportedTools(
         pathTemplate: item.pathTemplate ?? found.pathTemplate,
         updatedAt: new Date(),
       })
-      .where(eq(tools.id, found.id))
+      .where(eq(tools.id, id))
       .returning();
     if (row) {
       updated += 1;
       resultRows.push(row);
     }
+  }
+
+  let removed = 0;
+  if (plan.toDisable.length > 0) {
+    await db
+      .update(tools)
+      .set({ status: "disabled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(tools.tenantId, tenantId),
+          eq(tools.serverId, serverId),
+          inArray(tools.id, plan.toDisable),
+        ),
+      );
+    removed = plan.toDisable.length;
   }
 
   await db
@@ -250,6 +266,7 @@ async function upsertImportedTools(
       discovered: imported.length,
       created,
       updated,
+      removed,
     },
     "syncToolsFromUpstream ok",
   );
@@ -258,6 +275,7 @@ async function upsertImportedTools(
     discovered: imported.length,
     created,
     updated,
+    removed,
     tools: resultRows.map(toPublicTool),
   });
 }
@@ -297,10 +315,14 @@ async function syncMcpTools(
   });
   const client = new Client({ name: "jackline-api-sync", version: "0.0.0" });
 
-  let listed: Awaited<ReturnType<Client["listTools"]>>;
+  let listed: { tools: Awaited<ReturnType<Client["listTools"]>>["tools"] };
   try {
     await client.connect(transport as unknown as Transport);
-    listed = await client.listTools();
+    listed = {
+      tools: await listAllUpstreamTools((cursor) =>
+        client.listTools(cursor ? { cursor } : undefined),
+      ),
+    };
   } catch (cause) {
     const detail =
       cause instanceof Error ? cause.message : "upstream tools/list failed";

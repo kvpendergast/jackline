@@ -111,7 +111,7 @@ export function ServersPage() {
       const result = await jacklineApi.syncServerTools(tenantId, id);
       await load();
       setInfo(
-        `Synced ${result.discovered} tool(s): ${result.created} created, ${result.updated} updated (new tools need review)`,
+        `Synced ${result.discovered} tool(s): ${result.created} created, ${result.updated} updated${result.removed ? `, ${result.removed} disabled (removed upstream)` : ""} (new tools need review)`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Sync failed");
