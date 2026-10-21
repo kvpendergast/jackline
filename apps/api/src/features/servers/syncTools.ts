@@ -10,8 +10,9 @@ import {
   JacklineError,
   NotFoundError,
   NotImplementedError,
-  resolveOAuthAccessToken,
+  resolveStoredOAuthAccessToken,
   upstreamSecretKind,
+  type OAuthSecretLock,
   type PublicTool,
   type SyncToolsResult,
   type ToolHttpMethod,
@@ -45,6 +46,68 @@ function asObjectSchema(
   return schema as Record<string, unknown>;
 }
 
+function decryptPlaintext(
+  row: typeof secrets.$inferSelect,
+): Result<string, JacklineError> {
+  const boxResult = getSecretBox();
+  if (boxResult.isErr()) return err(boxResult.error);
+  const decrypted = boxResult.value.decrypt(
+    { ciphertext: row.ciphertext, nonce: row.nonce, keyVersion: row.keyVersion },
+    secretAad({
+      tenantId: row.tenantId,
+      kind: row.kind,
+      serverId: row.serverId,
+      userId: row.userId,
+      connectionId: row.connectionId,
+    }),
+  );
+  if (decrypted.isErr()) return err(decrypted.error);
+  return ok(new TextDecoder().decode(decrypted.value));
+}
+
+/**
+ * Same row lock as the gateway: serialize refreshes of one rotating refresh
+ * token and persist the rotated pair inside the lock.
+ */
+function lockSecretRow(row: typeof secrets.$inferSelect): OAuthSecretLock {
+  return (fn) =>
+    db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(secrets)
+        .where(eq(secrets.id, row.id))
+        .for("update")
+        .limit(1);
+      if (!locked) throw new Error("secret row no longer exists");
+      const current = decryptPlaintext(locked);
+      if (current.isErr()) throw current.error;
+      return fn(current.value, async (plaintext) => {
+        const boxResult = getSecretBox();
+        if (boxResult.isErr()) throw boxResult.error;
+        const encrypted = boxResult.value.encrypt(
+          new TextEncoder().encode(plaintext),
+          secretAad({
+            tenantId: locked.tenantId,
+            kind: locked.kind,
+            serverId: locked.serverId,
+            userId: locked.userId,
+            connectionId: locked.connectionId,
+          }),
+        );
+        if (encrypted.isErr()) throw encrypted.error;
+        await tx
+          .update(secrets)
+          .set({
+            ciphertext: encrypted.value.ciphertext,
+            nonce: encrypted.value.nonce,
+            keyVersion: encrypted.value.keyVersion,
+            updatedAt: new Date(),
+          })
+          .where(eq(secrets.id, locked.id));
+      });
+    });
+}
+
 async function resolveUpstreamBearer(
   authMethod: "api_key" | "oauth" | "mtls",
   plaintext: string,
@@ -54,35 +117,12 @@ async function resolveUpstreamBearer(
     return ok(plaintext);
   }
   if (authMethod === "oauth") {
-    const token = await resolveOAuthAccessToken(plaintext);
+    const token = await resolveStoredOAuthAccessToken({
+      key: secretRow.id,
+      plaintext,
+      withLock: lockSecretRow(secretRow),
+    });
     if (token.isErr()) return err(token.error);
-    if (token.value.updatedPlaintext) {
-      const boxResult = getSecretBox();
-      if (boxResult.isOk()) {
-        const aad = secretAad({
-          tenantId: secretRow.tenantId,
-          kind: secretRow.kind,
-          serverId: secretRow.serverId,
-          userId: secretRow.userId,
-          connectionId: secretRow.connectionId,
-        });
-        const encrypted = boxResult.value.encrypt(
-          new TextEncoder().encode(token.value.updatedPlaintext),
-          aad,
-        );
-        if (encrypted.isOk()) {
-          await db
-            .update(secrets)
-            .set({
-              ciphertext: encrypted.value.ciphertext,
-              nonce: encrypted.value.nonce,
-              keyVersion: encrypted.value.keyVersion,
-              updatedAt: new Date(),
-            })
-            .where(eq(secrets.id, secretRow.id));
-        }
-      }
-    }
     return ok(token.value.accessToken);
   }
   return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));

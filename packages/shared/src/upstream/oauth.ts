@@ -80,11 +80,69 @@ function isFresh(expiresAt: number | undefined, skewMs = 30_000): boolean {
   return Date.now() + skewMs < expiresAt;
 }
 
+/** Refresh this long before `expiresAt` so in-flight calls never carry a dying token. */
+export const OAUTH_REFRESH_SKEW_MS = 120_000;
+
+/** Upper bound for a single token endpoint round-trip. */
+const TOKEN_REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Token endpoint failure with enough detail to decide between "reconnect"
+ * (invalid_grant) and "retry later" (network / timeout / 5xx / 429).
+ * Never carries secret material.
+ */
+export class OAuthTokenEndpointError extends JacklineError {
+  readonly status: number | null;
+  readonly oauthError: string | null;
+  readonly transient: boolean;
+
+  constructor(input: {
+    message: string;
+    status: number | null;
+    oauthError: string | null;
+    transient: boolean;
+  }) {
+    super("INTERNAL", input.message);
+    this.name = "OAuthTokenEndpointError";
+    this.status = input.status;
+    this.oauthError = input.oauthError;
+    this.transient = input.transient;
+  }
+}
+
+/** Lock / persistence failure around a refresh (DB down, row vanished, …). */
+export class OAuthRefreshTransientError extends JacklineError {
+  constructor(message: string) {
+    super("INTERNAL", message);
+    this.name = "OAuthRefreshTransientError";
+  }
+}
+
+export type OAuthRefreshFailureClass =
+  /** Grant is dead (invalid_grant / no refresh path): user must reconnect. */
+  | "reauth"
+  /** Network, timeout, 5xx, 429, lock/persist failure: retry, do not reconnect. */
+  | "transient"
+  /** Token endpoint rejected the client config (invalid_client, …). */
+  | "config";
+
+export function classifyOAuthRefreshFailure(
+  error: JacklineError,
+): OAuthRefreshFailureClass {
+  if (error instanceof OAuthRefreshTransientError) return "transient";
+  if (error instanceof OAuthTokenEndpointError) {
+    if (error.oauthError === "invalid_grant") return "reauth";
+    if (error.transient) return "transient";
+    return "config";
+  }
+  return "reauth";
+}
+
 async function tokenRequest(
   tokenUrl: string,
   body: URLSearchParams,
   basic?: { clientId: string; clientSecret: string },
-): Promise<Result<z.infer<typeof TokenResponseSchema>, JacklineError>> {
+): Promise<Result<z.infer<typeof TokenResponseSchema>, OAuthTokenEndpointError>> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/x-www-form-urlencoded",
@@ -105,49 +163,78 @@ async function tokenRequest(
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
     });
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : "network error";
-    return err(new JacklineError("INTERNAL", `OAuth token request failed: ${detail}`));
+    return err(
+      new OAuthTokenEndpointError({
+        message: `OAuth token request failed: ${detail}`,
+        status: null,
+        oauthError: null,
+        transient: true,
+      }),
+    );
   }
 
-  const text = await res.text();
+  const transientStatus = res.status >= 500 || res.status === 429;
+
+  let text: string;
+  try {
+    text = await res.text();
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "read error";
+    return err(
+      new OAuthTokenEndpointError({
+        message: `OAuth token response read failed (${res.status}): ${detail}`,
+        status: res.status,
+        oauthError: null,
+        transient: true,
+      }),
+    );
+  }
   let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
     return err(
-      new JacklineError(
-        "INTERNAL",
-        `OAuth token endpoint returned non-JSON (${res.status})`,
-      ),
+      new OAuthTokenEndpointError({
+        message: `OAuth token endpoint returned non-JSON (${res.status})`,
+        status: res.status,
+        oauthError: null,
+        // HTML error pages from a proxy / outage are not a verdict on the grant.
+        transient: transientStatus || res.ok,
+      }),
     );
   }
 
   if (!res.ok) {
+    const obj =
+      json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+    const oauthError = typeof obj["error"] === "string" ? obj["error"] : null;
     const message =
-      json &&
-      typeof json === "object" &&
-      "error_description" in json &&
-      typeof (json as { error_description: unknown }).error_description ===
-        "string"
-        ? (json as { error_description: string }).error_description
-        : text.slice(0, 200) || res.statusText;
+      typeof obj["error_description"] === "string"
+        ? obj["error_description"]
+        : oauthError ?? (text.slice(0, 200) || res.statusText);
     return err(
-      new JacklineError(
-        "INTERNAL",
-        `OAuth token endpoint → ${res.status}: ${message}`,
-      ),
+      new OAuthTokenEndpointError({
+        message: `OAuth token endpoint → ${res.status}${oauthError ? ` ${oauthError}` : ""}: ${message}`,
+        status: res.status,
+        oauthError,
+        transient: transientStatus && oauthError !== "invalid_grant",
+      }),
     );
   }
 
   const parsed = TokenResponseSchema.safeParse(json);
   if (!parsed.success) {
     return err(
-      new JacklineError(
-        "INTERNAL",
-        "OAuth token endpoint response missing access_token",
-      ),
+      new OAuthTokenEndpointError({
+        message: "OAuth token endpoint response missing access_token",
+        status: res.status,
+        oauthError: null,
+        transient: true,
+      }),
     );
   }
 
@@ -181,8 +268,9 @@ function refreshedPlaintext(
  */
 export async function resolveOAuthAccessToken(
   plaintext: string,
-  options?: { forceRefresh?: boolean },
+  options?: { forceRefresh?: boolean; skewMs?: number },
 ): Promise<Result<ResolvedUpstreamBearer, JacklineError>> {
+  const skewMs = options?.skewMs ?? 30_000;
   const parsed = parseUpstreamOAuthSecret(plaintext);
   if (parsed.isErr()) return err(parsed.error);
 
@@ -194,7 +282,7 @@ export async function resolveOAuthAccessToken(
   if (
     secret.accessToken &&
     !options?.forceRefresh &&
-    isFresh(secret.expiresAt)
+    isFresh(secret.expiresAt, skewMs)
   ) {
     return ok({
       accessToken: secret.accessToken,
@@ -207,7 +295,9 @@ export async function resolveOAuthAccessToken(
       grant_type: "refresh_token",
       refresh_token: secret.refreshToken,
     });
-    if (secret.scopes) body.set("scope", secret.scopes);
+    // No `scope` on refresh: RFC 6749 §6 defaults to the original grant, and
+    // replaying a catalog string (e.g. Linear's comma-joined "read,write")
+    // risks invalid_scope on strict providers.
     if (secret.resource) body.set("resource", secret.resource);
     if (secret.clientId && !secret.clientSecret) {
       body.set("client_id", secret.clientId);
@@ -274,6 +364,167 @@ export async function resolveOAuthAccessToken(
       "OAuth secret needs accessToken, or refreshToken+tokenUrl, or clientId+clientSecret+tokenUrl",
     ),
   );
+}
+
+/**
+ * Run `fn` while holding an exclusive lock on the stored secret (e.g. a
+ * `SELECT … FOR UPDATE` transaction). `current` is the plaintext as stored
+ * *now*; `save` must persist the new plaintext inside the same lock so the
+ * rotated refresh token is written atomically with the access token.
+ */
+export type OAuthSecretLock = <T>(
+  fn: (current: string, save: (plaintext: string) => Promise<void>) => Promise<T>,
+) => Promise<T>;
+
+const inflightRefreshes = new Map<
+  string,
+  Promise<Result<ResolvedUpstreamBearer, JacklineError>>
+>();
+
+function hasRefreshPath(secret: Exclude<UpstreamOAuthSecret, string>): boolean {
+  return Boolean(
+    (secret.refreshToken && secret.tokenUrl) ||
+      (secret.clientId && secret.clientSecret && secret.tokenUrl),
+  );
+}
+
+/**
+ * Resolve a bearer for a *stored* OAuth secret, refreshing safely:
+ *
+ * - refreshes {@link OAUTH_REFRESH_SKEW_MS} before expiry (or when forced after
+ *   an upstream 401);
+ * - single-flight per `key` in-process, plus `withLock` across processes, so
+ *   concurrent callers never spend the same rotating refresh token twice;
+ * - after taking the lock, re-reads the secret and reuses a token another
+ *   caller already minted instead of refreshing again;
+ * - persists the new access + refresh token via `save` before releasing;
+ * - on a transient refresh failure, keeps using a not-yet-expired token.
+ *
+ * Returned bearers never include `updatedPlaintext` (already persisted).
+ */
+export async function resolveStoredOAuthAccessToken(input: {
+  /** Stable id of the stored secret (row id). */
+  key: string;
+  /** Plaintext as loaded by the caller (may be stale). */
+  plaintext: string;
+  withLock: OAuthSecretLock;
+  forceRefresh?: boolean;
+  skewMs?: number;
+}): Promise<Result<ResolvedUpstreamBearer, JacklineError>> {
+  const skewMs = input.skewMs ?? OAUTH_REFRESH_SKEW_MS;
+  const parsed = parseUpstreamOAuthSecret(input.plaintext);
+  if (parsed.isErr()) return err(parsed.error);
+  const secret = parsed.value;
+  if (typeof secret === "string") return ok({ accessToken: secret });
+
+  if (
+    secret.accessToken &&
+    !input.forceRefresh &&
+    isFresh(secret.expiresAt, skewMs)
+  ) {
+    return ok({ accessToken: secret.accessToken, expiresAt: secret.expiresAt });
+  }
+
+  if (!hasRefreshPath(secret)) {
+    // Nothing to refresh with; plain resolution yields the right error / token.
+    const plain = await resolveOAuthAccessToken(input.plaintext, {
+      ...(input.forceRefresh ? { forceRefresh: true } : {}),
+      skewMs: 0,
+    });
+    if (plain.isErr()) return err(plain.error);
+    return ok({
+      accessToken: plain.value.accessToken,
+      expiresAt: plain.value.expiresAt,
+    });
+  }
+
+  const existing = inflightRefreshes.get(input.key);
+  if (existing) return existing;
+
+  const startedWith = secret.accessToken;
+  const forceRefresh = Boolean(input.forceRefresh);
+
+  const run = (async (): Promise<Result<ResolvedUpstreamBearer, JacklineError>> => {
+    try {
+      return await input.withLock(async (current, save) => {
+        const cur = parseUpstreamOAuthSecret(current);
+        if (cur.isErr()) return err(cur.error);
+        if (typeof cur.value === "string") {
+          return ok({ accessToken: cur.value });
+        }
+        const stored = cur.value;
+
+        // Another caller (or process) refreshed while we waited for the lock.
+        if (
+          stored.accessToken &&
+          stored.accessToken !== startedWith &&
+          isFresh(stored.expiresAt, skewMs)
+        ) {
+          return ok({
+            accessToken: stored.accessToken,
+            expiresAt: stored.expiresAt,
+          });
+        }
+        if (
+          !forceRefresh &&
+          stored.accessToken &&
+          isFresh(stored.expiresAt, skewMs)
+        ) {
+          return ok({
+            accessToken: stored.accessToken,
+            expiresAt: stored.expiresAt,
+          });
+        }
+
+        const refreshed = await resolveOAuthAccessToken(current, {
+          forceRefresh: true,
+          skewMs,
+        });
+        if (refreshed.isErr()) {
+          if (
+            classifyOAuthRefreshFailure(refreshed.error) === "transient" &&
+            !forceRefresh &&
+            stored.accessToken &&
+            isFresh(stored.expiresAt, 0)
+          ) {
+            // Proactive refresh failed transiently; current token still valid.
+            return ok({
+              accessToken: stored.accessToken,
+              expiresAt: stored.expiresAt,
+            });
+          }
+          return err(refreshed.error);
+        }
+
+        if (refreshed.value.updatedPlaintext) {
+          try {
+            await save(refreshed.value.updatedPlaintext);
+          } catch (cause) {
+            const detail = cause instanceof Error ? cause.message : "unknown";
+            return err(
+              new OAuthRefreshTransientError(
+                `OAuth refresh succeeded but persisting the rotated token failed: ${detail}`,
+              ),
+            );
+          }
+        }
+        return ok({
+          accessToken: refreshed.value.accessToken,
+          expiresAt: refreshed.value.expiresAt,
+        });
+      });
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : "unknown";
+      return err(
+        new OAuthRefreshTransientError(`OAuth refresh lock failed: ${detail}`),
+      );
+    } finally {
+      inflightRefreshes.delete(input.key);
+    }
+  })();
+
+  inflightRefreshes.set(input.key, run);
+  return run;
 }
 
 /** Build the JSON string stored as the encrypted secret value for OAuth. */

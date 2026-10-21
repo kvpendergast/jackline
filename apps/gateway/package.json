@@ -12,7 +12,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\"",
+    "test": "tsx --test src/lib/mcp/authRetry.test.ts",
     "lint": "echo \"lint later\""
   },
   "devDependencies": {

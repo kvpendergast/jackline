@@ -15,6 +15,7 @@ import {
   assertHttpBinding,
   proxyHttpToolCall,
 } from "./proxyHttpToolCall.js";
+import { callWithAuthRetry, type UpstreamAttemptFailure } from "./authRetry.js";
 import {
   connectUpstream,
   formatUpstreamError,
@@ -46,9 +47,9 @@ function toolResultErrorText(result: CallToolResult): string {
 }
 
 /**
- * One MCP tools/call attempt. Auth-looking tool isError / transport failures
- * are returned as INTERNAL errors whose message matches
- * {@link isInvalidUpstreamTokenError} so callers can refresh + retry.
+ * One MCP tools/call attempt. Connect-phase auth failures are already
+ * refresh-retried inside {@link connectUpstream}; only a tools/call that the
+ * upstream rejects as unauthorized is flagged `authRejected` for one retry.
  */
 async function attemptMcpToolCall(
   ctx: GatewayConnectionContext,
@@ -56,19 +57,24 @@ async function attemptMcpToolCall(
   server: UpstreamServerRow,
   toolName: string,
   args: Record<string, unknown>,
-  options?: { forceRefresh?: boolean },
-): Promise<Result<CallToolResult, JacklineError>> {
+  forceRefresh: boolean,
+): Promise<Result<CallToolResult, UpstreamAttemptFailure>> {
   const connected = await connectUpstream(
     ctx.log,
     ctx.tenantId,
     ctx.connection.userId,
     server,
-    options,
+    forceRefresh ? { forceRefresh: true } : undefined,
   );
   if (connected.isErr()) {
     await touchServerHealth(server.id, "unhealthy");
-    return err(connected.error);
+    return err({ error: connected.error, authRejected: false });
   }
+
+  const authRejected = (e: JacklineError) =>
+    server.authMethod === "oauth" &&
+    !(e instanceof UpstreamCredentialFailureError) &&
+    isInvalidUpstreamTokenError(e.message);
 
   try {
     const result = (await connected.value.client.callTool({
@@ -83,9 +89,11 @@ async function attemptMcpToolCall(
         { toolId: tool.toolId, serverId: server.id, detail },
         "proxyToolCall upstream isError",
       );
-      return err(
-        new JacklineError("INTERNAL", `Upstream tool returned error: ${detail}`),
+      const e = new JacklineError(
+        "INTERNAL",
+        `Upstream tool returned error: ${detail}`,
       );
+      return err({ error: e, authRejected: authRejected(e) });
     }
 
     await touchServerHealth(server.id, "healthy");
@@ -106,7 +114,7 @@ async function attemptMcpToolCall(
       { err: cause, toolId: tool.toolId, serverId: server.id },
       "proxyToolCall failed",
     );
-    return err(jacklineErr);
+    return err({ error: jacklineErr, authRejected: authRejected(jacklineErr) });
   } finally {
     await connected.value.close();
   }
@@ -119,42 +127,16 @@ async function proxyMcpToolCall(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<Result<CallToolResult, JacklineError>> {
-  const first = await attemptMcpToolCall(ctx, tool, server, toolName, args);
-  if (first.isOk()) return first;
-
-  // Credential resolution / refresh already produced a reconnect signal.
-  if (first.error instanceof UpstreamCredentialFailureError) {
-    return first;
-  }
-
-  if (
-    server.authMethod !== "oauth" ||
-    !isInvalidUpstreamTokenError(first.error.message)
-  ) {
-    return first;
-  }
-
-  ctx.log.info(
-    { serverId: server.id, toolId: tool.toolId },
-    "upstream MCP tool auth failed; force-refreshing OAuth and retrying call",
-  );
-
-  const retry = await attemptMcpToolCall(ctx, tool, server, toolName, args, {
-    forceRefresh: true,
+  return callWithAuthRetry({
+    attempt: (forceRefresh) =>
+      attemptMcpToolCall(ctx, tool, server, toolName, args, forceRefresh),
+    expiredError: () => upstreamExpiredCredentialError(server),
+    onRetry: () =>
+      ctx.log.info(
+        { serverId: server.id, toolId: tool.toolId },
+        "upstream MCP tool auth failed; force-refreshing OAuth and retrying call",
+      ),
   });
-  if (retry.isOk()) return retry;
-
-  if (retry.error instanceof UpstreamCredentialFailureError) {
-    return retry;
-  }
-
-  // Refresh succeeded (or was a no-op) but Google/upstream still rejects —
-  // elicit My Access reconnect instead of leaving harnesses with a raw 401.
-  if (isInvalidUpstreamTokenError(retry.error.message)) {
-    return err(upstreamExpiredCredentialError(server));
-  }
-
-  return retry;
 }
 
 /**
