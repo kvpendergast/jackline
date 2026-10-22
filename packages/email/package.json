@@ -19,7 +19,7 @@
     "nodemailer": "^9.1.1"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.6.1",
     "@types/nodemailer": "^6.4.17",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"
