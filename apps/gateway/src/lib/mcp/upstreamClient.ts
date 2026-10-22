@@ -9,14 +9,16 @@ import { UrlElicitationRequiredError } from "@modelcontextprotocol/sdk/types.js"
 import { db, secrets, servers, type Secret as SecretRow } from "@jackline/db";
 import {
   BadRequestError,
+  classifyOAuthRefreshFailure,
   getConfig,
   isInvalidUpstreamTokenError,
   JacklineError,
   NotFoundError,
   NotImplementedError,
-  resolveOAuthAccessToken,
+  resolveStoredOAuthAccessToken,
   upstreamCredentialFailure,
   upstreamSecretKind,
+  type OAuthSecretLock,
   type UpstreamCredentialFailureError,
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
@@ -204,56 +206,69 @@ function decryptSecret(row: SecretRow): Result<string, JacklineError> {
   return ok(new TextDecoder().decode(decrypted.value));
 }
 
-async function persistSecretPlaintext(
-  log: Logger,
-  row: SecretRow,
-  plaintext: string,
-): Promise<void> {
-  const boxResult = getSecretBox();
-  if (boxResult.isErr()) {
-    log.warn(
-      { err: boxResult.error, secretId: row.id },
-      "oauth refresh: secret box unavailable; token used in-memory only",
-    );
-    return;
-  }
+/**
+ * Lock the secret row (`SELECT … FOR UPDATE`) for the duration of a refresh so
+ * the API (tool sync) and every gateway request serialize on one rotating
+ * refresh token, and the rotated pair is written in the same transaction.
+ */
+export function lockSecretRow(row: SecretRow): OAuthSecretLock {
+  return (fn) =>
+    db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(secrets)
+        .where(eq(secrets.id, row.id))
+        .for("update")
+        .limit(1);
+      if (!locked) throw new Error("secret row no longer exists");
 
-  const aad = secretAad({
-    tenantId: row.tenantId,
-    kind: row.kind,
-    serverId: row.serverId,
-    userId: row.userId,
-    connectionId: row.connectionId,
-  });
+      const current = decryptSecret(locked);
+      if (current.isErr()) throw current.error;
 
-  const encrypted = boxResult.value.encrypt(
-    new TextEncoder().encode(plaintext),
-    aad,
-  );
-  if (encrypted.isErr()) {
-    log.warn(
-      { err: encrypted.error, secretId: row.id },
-      "oauth refresh: encrypt failed; token used in-memory only",
-    );
-    return;
-  }
+      return fn(current.value, async (plaintext) => {
+        const boxResult = getSecretBox();
+        if (boxResult.isErr()) throw boxResult.error;
+        const encrypted = boxResult.value.encrypt(
+          new TextEncoder().encode(plaintext),
+          secretAad({
+            tenantId: locked.tenantId,
+            kind: locked.kind,
+            serverId: locked.serverId,
+            userId: locked.userId,
+            connectionId: locked.connectionId,
+          }),
+        );
+        if (encrypted.isErr()) throw encrypted.error;
+        await tx
+          .update(secrets)
+          .set({
+            ciphertext: encrypted.value.ciphertext,
+            nonce: encrypted.value.nonce,
+            keyVersion: encrypted.value.keyVersion,
+            updatedAt: new Date(),
+          })
+          .where(eq(secrets.id, locked.id));
+      });
+    });
+}
 
-  try {
-    await db
-      .update(secrets)
-      .set({
-        ciphertext: encrypted.value.ciphertext,
-        nonce: encrypted.value.nonce,
-        keyVersion: encrypted.value.keyVersion,
-        updatedAt: new Date(),
-      })
-      .where(eq(secrets.id, row.id));
-    log.debug({ secretId: row.id }, "persisted refreshed upstream OAuth secret");
-  } catch (cause) {
-    log.warn(
-      { err: cause, secretId: row.id },
-      "oauth refresh: persist failed; token used in-memory only",
+/** Refresh failed for a reason a reconnect will not fix (network, 5xx, config). */
+export class UpstreamOAuthRefreshError extends JacklineError {
+  readonly refreshFailure: "transient" | "config";
+
+  constructor(
+    server: Pick<UpstreamServerRow, "name">,
+    failure: "transient" | "config",
+    detail: string,
+  ) {
+    super(
+      "INTERNAL",
+      failure === "transient"
+        ? `${server.name} OAuth token refresh failed temporarily (${detail}). Retry shortly; no reconnect needed.`
+        : `${server.name} OAuth token refresh was rejected (${detail}). Check the server's OAuth client settings.`,
     );
+    this.name = "UpstreamOAuthRefreshError";
+    this.refreshFailure = failure;
   }
 }
 
@@ -269,20 +284,38 @@ async function bearerFromPlaintext(
   }
 
   if (server.authMethod === "oauth") {
-    const token = await resolveOAuthAccessToken(
+    const token = await resolveStoredOAuthAccessToken({
+      key: secretRow.id,
       plaintext,
-      options?.forceRefresh ? { forceRefresh: true } : undefined,
-    );
+      withLock: lockSecretRow(secretRow),
+      ...(options?.forceRefresh ? { forceRefresh: true } : {}),
+    });
     if (token.isErr()) {
+      const failure = classifyOAuthRefreshFailure(token.error);
+      const e = token.error as { status?: unknown; oauthError?: unknown };
+      log.warn(
+        {
+          serverId: server.id,
+          secretId: secretRow.id,
+          personal: secretRow.userId != null,
+          failure,
+          status: e.status ?? null,
+          oauthError: e.oauthError ?? null,
+          detail: token.error.message,
+        },
+        "upstream OAuth token refresh failed",
+      );
+      if (failure !== "reauth") {
+        return err(
+          new UpstreamOAuthRefreshError(server, failure, token.error.message),
+        );
+      }
       const personal = secretRow.userId != null;
       return err(
         personal
           ? personalCredentialError(server, "expired_personal")
           : sharedCredentialError(server, "expired_shared"),
       );
-    }
-    if (token.value.updatedPlaintext) {
-      await persistSecretPlaintext(log, secretRow, token.value.updatedPlaintext);
     }
     return ok(token.value.accessToken);
   }
@@ -444,10 +477,15 @@ export async function connectUpstream(
   if (
     refreshed.value["Authorization"] === headers.value["Authorization"]
   ) {
-    return first;
+    return err(upstreamExpiredCredentialError(server));
   }
 
-  return openUpstream(server, refreshed.value);
+  const second = await openUpstream(server, refreshed.value);
+  if (second.isErr() && isInvalidUpstreamTokenError(second.error.message)) {
+    // Upstream rejects a freshly minted token: the grant itself is unusable.
+    return err(upstreamExpiredCredentialError(server));
+  }
+  return second;
 }
 
 export async function loadUpstreamServer(
