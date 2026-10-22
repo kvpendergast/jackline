@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@jackline/shared": "workspace:*",
-    "nodemailer": "^9.1.1"
+    "nodemailer": "^10.0.10"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
