@@ -51,7 +51,7 @@ CMD ["pnpm", "db:migrate"]
 FROM deps AS web-build
 RUN pnpm --filter @jackline/web build
 
-FROM nginx:1.27-alpine AS web
+FROM nginx:1.29-alpine AS web
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
@@ -62,7 +62,7 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
 FROM deps AS docs-build
 RUN pnpm --filter @jackline/docs build
 
-FROM nginx:1.27-alpine AS docs
+FROM nginx:1.29-alpine AS docs
 COPY deploy/nginx/docs.conf /etc/nginx/conf.d/default.conf
 COPY --from=docs-build /app/apps/docs/dist /usr/share/nginx/html
 EXPOSE 80
