@@ -30,15 +30,15 @@
     "@jackline/policy": "workspace:*",
     "@jackline/quotas": "workspace:*",
     "@jackline/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@tanstack/ai": "^0.46.0",
     "@tanstack/ai-anthropic": "^0.16.7",
     "@tanstack/ai-openai": "^0.20.0",
     "@tanstack/ai-openrouter": "^0.18.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.5",
+    "hono": "^4.13.13",
     "neverthrow": "^8.2.0",
     "pino": "^10.3.1",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   }
 }

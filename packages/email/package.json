@@ -16,11 +16,10 @@
   },
   "dependencies": {
     "@jackline/shared": "workspace:*",
-    "nodemailer": "^9.1.1"
+    "nodemailer": "^10.1.7"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
-    "@types/nodemailer": "^6.4.17",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"
   }
