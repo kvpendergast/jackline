@@ -17,6 +17,26 @@ updates:
           - minor
           - patch
 
+  # Pulumi programs have their own npm lockfiles (deploy/pulumi/{vm,gke}).
+  - package-ecosystem: npm
+    directories:
+      - /deploy/pulumi/vm
+      - /deploy/pulumi/gke
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      pulumi-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
