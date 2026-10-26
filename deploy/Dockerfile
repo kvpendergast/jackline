@@ -10,7 +10,7 @@
 # Published to GHCR by .github/workflows/publish-images.yml:
 #   ghcr.io/kvpendergast/jackline-{api,gateway,web,docs,migrate}
 
-FROM node:22-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 WORKDIR /app
 RUN corepack enable \
   && corepack prepare pnpm@10.33.3 --activate \
