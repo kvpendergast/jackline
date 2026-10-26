@@ -20,8 +20,8 @@
     "tsx": "^4.19.0"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.10",
-    "@hono/zod-openapi": "^1.5.1",
+    "@hono/node-server": "^2.1.5",
+    "@hono/zod-openapi": "^1.6.3",
     "@jackline/auth": "workspace:*",
     "@jackline/crypto": "workspace:*",
     "@jackline/db": "workspace:*",
@@ -35,10 +35,10 @@
     "@tanstack/ai-anthropic": "^0.16.7",
     "@tanstack/ai-openai": "^0.20.0",
     "@tanstack/ai-openrouter": "^0.18.0",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13",
     "neverthrow": "^8.2.0",
-    "pino": "^10.3.1",
+    "pino": "^10.4.0",
     "zod": "^4.6.7"
   }
 }
