@@ -26,6 +26,8 @@ export const PublicConnectionSchema = z.strictObject({
 export const PublicConnectionDetailSchema = PublicConnectionSchema.extend({
   roleIds: z.array(z.uuid()),
   toolOverrides: z.array(PublicConnectionToolOverrideSchema),
+  /** Public MCP endpoint hosts should connect to (JACKLINE_PUBLIC_MCP_URL). */
+  mcpUrl: z.url(),
 });
 
 export type PublicConnection = z.infer<typeof PublicConnectionSchema>;

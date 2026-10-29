@@ -3060,6 +3060,10 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "mcpUrl": {
+                "type": "string",
+                "format": "uri"
               }
             },
             "required": [
@@ -3071,7 +3075,8 @@
               "createdAt",
               "updatedAt",
               "roleIds",
-              "toolOverrides"
+              "toolOverrides",
+              "mcpUrl"
             ],
             "additionalProperties": false
           }
