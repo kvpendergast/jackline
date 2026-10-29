@@ -65,6 +65,11 @@ export const PublicPlatformEmailSettingsSchema = z.strictObject({
 export const PublicEmailDeliveryStatusSchema = z.strictObject({
   deliveryReady: z.boolean(),
   connectorKey: EmailConnectorKeySchema,
+  /**
+   * True when email verification is skipped because this single-tenant
+   * instance cannot send mail (password sign-in verifies the account).
+   */
+  verificationSkipped: z.boolean(),
 });
 
 export const UpdatePlatformEmailSettingsBodySchema = z.strictObject({

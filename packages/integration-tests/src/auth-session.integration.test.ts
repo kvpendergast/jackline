@@ -51,3 +51,53 @@ describe("auth session", () => {
     );
   });
 });
+
+describe("email verification without an email provider", () => {
+  it("still requires verification on multi-tenant instances (open signup)", async () => {
+    const client = await createApiClient();
+
+    const status = await client.api<{
+      deliveryReady: boolean;
+      verificationSkipped: boolean;
+    }>("/api/v1/platform/email/status");
+    assert.equal(status.data.deliveryReady, false);
+    // Integration stack runs JACKLINE_TENANCY=multi: the no-email bypass is
+    // single-tenant only, so an unverified address must never be trusted.
+    assert.equal(status.data.verificationSkipped, false);
+
+    const email = `unverified-${Date.now()}@jackline.local`;
+    const password = "integration-password-12345";
+    const signup = await fetch(`${client.apiUrl}/api/v1/signup`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Accept: "application/json",
+        Origin: client.webOrigin,
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        name: "Unverified Admin",
+        organizationName: `Unverified Org ${Date.now()}`,
+      }),
+    });
+    const signupJson = (await signup.json()) as {
+      data?: { user: { emailVerified: boolean } };
+    };
+    assert.equal(signup.status, 201);
+    assert.equal(signupJson.data?.user.emailVerified, false);
+
+    const signIn = await fetch(`${client.apiUrl}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Accept: "application/json",
+        Origin: client.webOrigin,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    assert.equal(signIn.status, 403);
+    const body = (await signIn.json()) as { code?: string };
+    assert.equal(body.code, "EMAIL_NOT_VERIFIED");
+  });
+});
