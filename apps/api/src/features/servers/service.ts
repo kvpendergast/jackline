@@ -25,6 +25,7 @@ import {
   type PaginationQuery,
 } from "../../lib/http/pagination.js";
 
+import { assertOAuthAppInTenant } from "../oauthApps/credentials.js";
 import { syncToolsFromUpstream } from "./syncTools.js";
 
 export type CreateServerInput = {
@@ -42,6 +43,7 @@ export type CreateServerInput = {
   oauthRegistrationUrl?: string | null | undefined;
   oauthResource?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  oauthAppId?: string | null | undefined;
   requiresApproval?: boolean | undefined;
 };
 
@@ -61,6 +63,7 @@ export type UpdateServerInput = {
   oauthRegistrationUrl?: string | null | undefined;
   oauthResource?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  oauthAppId?: string | null | undefined;
   requiresApproval?: boolean | undefined;
 };
 
@@ -109,6 +112,7 @@ function toPublicServer(
     oauthResource: row.oauthResource,
     oauthClientId: row.oauthClientId,
     hasOauthClientSecret,
+    oauthAppId: row.oauthAppId,
     requiresApproval: row.requiresApproval,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
@@ -154,6 +158,8 @@ async function create(
   tenantId: string,
   input: CreateServerInput,
 ): Promise<Result<PublicServer, JacklineError>> {
+  const appCheck = await assertOAuthAppInTenant(tenantId, input.oauthAppId);
+  if (appCheck.isErr()) return err(appCheck.error);
   try {
     const [row] = await db
       .insert(servers)
@@ -172,6 +178,7 @@ async function create(
         oauthRegistrationUrl: input.oauthRegistrationUrl ?? null,
         oauthResource: input.oauthResource ?? null,
         oauthClientId: input.oauthClientId ?? null,
+        oauthAppId: input.oauthAppId ?? null,
         tenantId,
       })
       .returning();
@@ -304,6 +311,11 @@ async function update(
   }
   if (input.oauthClientId !== undefined) {
     patch.oauthClientId = input.oauthClientId;
+  }
+  if (input.oauthAppId !== undefined) {
+    const appCheck = await assertOAuthAppInTenant(tenantId, input.oauthAppId);
+    if (appCheck.isErr()) return err(appCheck.error);
+    patch.oauthAppId = input.oauthAppId;
   }
   if (input.requiresApproval !== undefined) {
     patch.requiresApproval = input.requiresApproval;

@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { baseColumns } from "./columns.js";
 import { tenants } from "./tenants.js";
+import { oauthApps } from "./oauthApps.js";
 
 export const serverAuthMethodEnum = pgEnum("server_auth_method", [
   "oauth",
@@ -60,6 +61,13 @@ export const servers = pgTable(
     oauthResource: text("oauth_resource"),
     /** Public OAuth client id (secret stored separately as kind oauth_client). */
     oauthClientId: text("oauth_client_id"),
+    /**
+     * Optional shared OAuth app. When set, Connect / token exchange / refresh
+     * use the app's client id + secret instead of the per-server fields.
+     */
+    oauthAppId: uuid("oauth_app_id").references(() => oauthApps.id, {
+      onDelete: "set null",
+    }),
     /**
      * When true, members must request access to this server.
      * When false, members may self-attach auto-allowed tools.

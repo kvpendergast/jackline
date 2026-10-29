@@ -29,6 +29,16 @@ export {
   ServerCredentialModeSchema,
 } from './server.js';
 export {
+  type PublicOAuthApp,
+  PublicOAuthAppSchema,
+  type CreateOAuthAppBody,
+  CreateOAuthAppBodySchema,
+  type UpdateOAuthAppBody,
+  UpdateOAuthAppBodySchema,
+  type CreateOAuthAppFromServerBody,
+  CreateOAuthAppFromServerBodySchema,
+} from './oauthApp.js';
+export {
   type MyAccessServer,
   MyAccessServerSchema,
   type MyAccessCredentialStatus,

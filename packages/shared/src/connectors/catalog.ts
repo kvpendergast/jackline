@@ -711,7 +711,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
       "https://developers.google.com/workspace/guides/configure-mcp-servers",
     ...GOOGLE_OAUTH,
     oauthScopes:
-      "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.modify",
   },
   {
     key: "google_drive",
@@ -747,7 +747,7 @@ export const CONNECTOR_PRESETS: readonly ConnectorPreset[] = [
       "https://developers.google.com/workspace/guides/configure-mcp-servers",
     ...GOOGLE_OAUTH,
     oauthScopes:
-      "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy https://www.googleapis.com/auth/calendar.events",
   },
   {
     key: "google_docs",

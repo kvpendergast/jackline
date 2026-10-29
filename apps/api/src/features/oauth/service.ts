@@ -35,6 +35,10 @@ import {
 import { safeFetch } from "../../lib/http/safeFetch.js";
 import { originsFromRedirectUris, validateReturnTo } from "./returnTo.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import {
+  resolveServerOAuthClientForRow,
+  type ServerOAuthClientResolution,
+} from "../oauthApps/credentials.js";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 
@@ -120,7 +124,12 @@ async function ensureOauthClientId(
   log: Logger,
   server: typeof servers.$inferSelect,
   redirectUri: string,
+  client: ServerOAuthClientResolution,
 ): Promise<Result<string, JacklineError>> {
+  // Linked shared app: its client id always wins (no dynamic registration).
+  if (client.resolved.source === "app") {
+    return ok(client.resolved.clientId);
+  }
   if (server.oauthClientId?.trim()) {
     return ok(server.oauthClientId.trim());
   }
@@ -209,7 +218,12 @@ async function startConnect(
     );
   }
 
-  if (!server.oauthAuthorizeUrl || !server.oauthTokenUrl) {
+  const clientResult = await resolveServerOAuthClientForRow(server);
+  if (clientResult.isErr()) return err(clientResult.error);
+  const client = clientResult.value;
+  const oauthAuthorizeUrl = client.resolved.authorizeUrl;
+
+  if (!oauthAuthorizeUrl || !client.resolved.tokenUrl) {
     return err(
       new BadRequestError(
         "OAuth Connect is not configured. Ask an admin to set authorize URL and token URL on the server.",
@@ -217,19 +231,22 @@ async function startConnect(
     );
   }
 
-  const publicClient = isPublicClient(server);
-  const registrationUrl = effectiveRegistrationUrl(server);
-  if (!server.oauthClientId && !registrationUrl) {
-    return err(
-      new BadRequestError(
-        "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
-      ),
-    );
-  }
+  if (client.resolved.source === "server") {
+    // Unchanged per-server behavior.
+    const publicClient = isPublicClient(server);
+    const registrationUrl = effectiveRegistrationUrl(server);
+    if (!server.oauthClientId && !registrationUrl) {
+      return err(
+        new BadRequestError(
+          "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
+        ),
+      );
+    }
 
-  if (!publicClient) {
-    const clientSecret = await loadOauthClientSecret(tenantId, serverId);
-    if (clientSecret.isErr()) return err(clientSecret.error);
+    if (!publicClient) {
+      const clientSecret = await loadOauthClientSecret(tenantId, serverId);
+      if (clientSecret.isErr()) return err(clientSecret.error);
+    }
   }
 
   await db
@@ -240,7 +257,12 @@ async function startConnect(
   const pkce = await createPkcePair();
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
 
-  const clientIdResult = await ensureOauthClientId(log, server, redirectUri);
+  const clientIdResult = await ensureOauthClientId(
+    log,
+    server,
+    redirectUri,
+    client,
+  );
   if (clientIdResult.isErr()) return err(clientIdResult.error);
   const clientId = clientIdResult.value;
 
@@ -268,7 +290,7 @@ async function startConnect(
   }
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
-    authorizeUrl: server.oauthAuthorizeUrl,
+    authorizeUrl: oauthAuthorizeUrl,
     clientId,
     redirectUri,
     state,
@@ -277,7 +299,10 @@ async function startConnect(
     extraParams: Object.keys(authorizeExtra).length > 0 ? authorizeExtra : null,
   });
 
-  log.info({ tenantId, userId, serverId }, "Oauth.services.startConnect");
+  log.info(
+    { tenantId, userId, serverId, oauthAppId: client.resolved.appId },
+    "Oauth.services.startConnect",
+  );
   return ok({ authorizeUrl, redirectUri });
 }
 
@@ -345,13 +370,23 @@ async function handleCallback(
     )
     .limit(1);
 
-  if (!server || !server.oauthTokenUrl || !server.oauthClientId) {
+  if (!server) {
     return err(new NotFoundError("Server OAuth configuration missing"));
   }
 
-  const publicClient = isPublicClient(server);
+  const clientResult = await resolveServerOAuthClientForRow(server);
+  if (clientResult.isErr()) return err(clientResult.error);
+  const client = clientResult.value;
+  const oauthTokenUrl = client.resolved.tokenUrl;
+  const oauthClientId = client.resolved.clientId;
+  if (!oauthTokenUrl || !oauthClientId) {
+    return err(new NotFoundError("Server OAuth configuration missing"));
+  }
+
   let clientSecretValue = "";
-  if (!publicClient) {
+  if (client.resolved.source === "app") {
+    clientSecretValue = client.appClientSecret ?? "";
+  } else if (!isPublicClient(server)) {
     const clientSecret = await loadOauthClientSecret(
       pending.tenantId,
       pending.serverId,
@@ -364,10 +399,10 @@ async function handleCallback(
 
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
   const tokens = await exchangeAuthorizationCode({
-    tokenUrl: server.oauthTokenUrl,
+    tokenUrl: oauthTokenUrl,
     code: input.code,
     redirectUri,
-    clientId: server.oauthClientId,
+    clientId: oauthClientId,
     ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
     codeVerifier: pending.codeVerifier,
     ...(resource ? { resource } : {}),
@@ -380,8 +415,8 @@ async function handleCallback(
           mode: "refreshable" as const,
           accessToken: tokens.value.accessToken,
           refreshToken: tokens.value.refreshToken,
-          tokenUrl: server.oauthTokenUrl,
-          clientId: server.oauthClientId,
+          tokenUrl: oauthTokenUrl,
+          clientId: oauthClientId,
           ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
           ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
           ...(resource ? { resource } : {}),

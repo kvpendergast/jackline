@@ -61,6 +61,16 @@ export {
   authorizationServerMetadataUrls,
 } from "./upstream/oauth.js";
 export {
+  resolveServerOAuthClient,
+  applyOAuthClientOverride,
+  oauthAppSecretAad,
+  OAUTH_APP_SECRET_AAD_KIND,
+  type OAuthClientOverride,
+  type OAuthAppClientRef,
+  type ServerOAuthClientFields,
+  type ResolvedServerOAuthClient,
+} from "./upstream/oauthApps.js";
+export {
   formatMcpToolName,
   sanitizeMcpNameSegment,
 } from "./mcp/toolName.js";

@@ -388,6 +388,35 @@ function hasRefreshPath(secret: Exclude<UpstreamOAuthSecret, string>): boolean {
   );
 }
 
+/** Current client credentials of a linked app, applied at refresh time. */
+export type OAuthClientOverride = {
+  clientId: string;
+  clientSecret?: string | undefined;
+};
+
+/**
+ * Apply a linked app's *current* client secret to a stored per-user / shared
+ * token before a refresh, so rotating the app secret takes effect for every
+ * linked server without users reconnecting.
+ *
+ * Only applies when the token was issued to the same client id: a token minted
+ * under a different client (e.g. before the server was linked) keeps the
+ * credentials it was issued with, since a refresh token is bound to its client.
+ * Returns the input unchanged when nothing applies.
+ */
+export function applyOAuthClientOverride(
+  plaintext: string,
+  override: OAuthClientOverride | null | undefined,
+): string {
+  if (!override?.clientSecret) return plaintext;
+  const parsed = parseUpstreamOAuthSecret(plaintext);
+  if (parsed.isErr() || typeof parsed.value === "string") return plaintext;
+  const secret = parsed.value;
+  if (!secret.clientId || secret.clientId !== override.clientId) return plaintext;
+  if (secret.clientSecret === override.clientSecret) return plaintext;
+  return JSON.stringify({ ...secret, clientSecret: override.clientSecret });
+}
+
 /**
  * Resolve a bearer for a *stored* OAuth secret, refreshing safely:
  *
@@ -410,6 +439,12 @@ export async function resolveStoredOAuthAccessToken(input: {
   withLock: OAuthSecretLock;
   forceRefresh?: boolean;
   skewMs?: number;
+  /**
+   * Lazily loads the current client credentials of a linked shared OAuth app.
+   * Called only when a refresh actually happens (inside the lock); applied via
+   * {@link applyOAuthClientOverride}. Return null to keep embedded credentials.
+   */
+  clientOverride?: () => Promise<OAuthClientOverride | null>;
 }): Promise<Result<ResolvedUpstreamBearer, JacklineError>> {
   const skewMs = input.skewMs ?? OAUTH_REFRESH_SKEW_MS;
   const parsed = parseUpstreamOAuthSecret(input.plaintext);
@@ -476,7 +511,18 @@ export async function resolveStoredOAuthAccessToken(input: {
           });
         }
 
-        const refreshed = await resolveOAuthAccessToken(current, {
+        let effective = current;
+        if (input.clientOverride) {
+          let override: OAuthClientOverride | null = null;
+          try {
+            override = await input.clientOverride();
+          } catch {
+            override = null; // fall back to the credentials embedded in the token
+          }
+          effective = applyOAuthClientOverride(current, override);
+        }
+
+        const refreshed = await resolveOAuthAccessToken(effective, {
           forceRefresh: true,
           skewMs,
         });

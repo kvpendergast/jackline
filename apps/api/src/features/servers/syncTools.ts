@@ -19,6 +19,7 @@ import {
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 import { importToolsFromOpenApi } from "./importOpenApi.js";
+import { loadOAuthClientOverrideForServer } from "../oauthApps/credentials.js";
 
 function toPublicTool(row: Tool): PublicTool {
   return {
@@ -121,6 +122,16 @@ async function resolveUpstreamBearer(
       key: secretRow.id,
       plaintext,
       withLock: lockSecretRow(secretRow),
+      // Shared OAuth app: refresh with the app's current (possibly rotated) secret.
+      ...(secretRow.serverId
+        ? {
+            clientOverride: () =>
+              loadOAuthClientOverrideForServer(
+                secretRow.tenantId,
+                secretRow.serverId!,
+              ),
+          }
+        : {}),
     });
     if (token.isErr()) return err(token.error);
     return ok(token.value.accessToken);

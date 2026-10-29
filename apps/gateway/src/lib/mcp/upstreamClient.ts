@@ -22,6 +22,7 @@ import {
   type UpstreamCredentialFailureError,
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
+import { loadOAuthClientOverrideForServer } from "./oauthAppOverride.js";
 
 export type UpstreamServerRow = {
   id: string;
@@ -289,6 +290,9 @@ async function bearerFromPlaintext(
       plaintext,
       withLock: lockSecretRow(secretRow),
       ...(options?.forceRefresh ? { forceRefresh: true } : {}),
+      // Shared OAuth app: refresh with the app's current (possibly rotated) secret.
+      clientOverride: () =>
+        loadOAuthClientOverrideForServer(log, secretRow.tenantId, server.id),
     });
     if (token.isErr()) {
       const failure = classifyOAuthRefreshFailure(token.error);

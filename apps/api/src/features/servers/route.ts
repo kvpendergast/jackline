@@ -43,6 +43,8 @@ const CreateServerBodySchema = z
     oauthRegistrationUrl: z.url().nullable().optional(),
     oauthResource: z.url().nullable().optional(),
     oauthClientId: z.string().min(1).nullable().optional(),
+    /** Link a shared OAuth app (its client id + secret win over oauthClientId). */
+    oauthAppId: z.uuid().nullable().optional(),
   })
   .openapi("CreateServerBody");
 
@@ -63,6 +65,8 @@ const UpdateServerBodySchema = z
     oauthRegistrationUrl: z.url().nullable().optional(),
     oauthResource: z.url().nullable().optional(),
     oauthClientId: z.string().min(1).nullable().optional(),
+    /** Link a shared OAuth app (its client id + secret win over oauthClientId). */
+    oauthAppId: z.uuid().nullable().optional(),
     requiresApproval: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
