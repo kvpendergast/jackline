@@ -133,6 +133,75 @@
           "grant_type"
         ]
       },
+      "SignupStatusResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/SignupStatus"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "SignupStatus": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "open"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorBody"
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "ApiErrorBody": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
       "SignupResponse": {
         "type": "object",
         "properties": {
@@ -174,13 +243,17 @@
                   "human",
                   "service"
                 ]
+              },
+              "emailVerified": {
+                "type": "boolean"
               }
             },
             "required": [
               "id",
               "email",
               "name",
-              "kind"
+              "kind",
+              "emailVerified"
             ],
             "additionalProperties": false
           },
@@ -248,44 +321,6 @@
         ],
         "additionalProperties": false
       },
-      "ErrorEnvelope": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiErrorBody"
-          }
-        },
-        "required": [
-          "success",
-          "error"
-        ],
-        "additionalProperties": false
-      },
-      "ApiErrorBody": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {
-            "nullable": true
-          }
-        },
-        "required": [
-          "code",
-          "message"
-        ],
-        "additionalProperties": false
-      },
       "SignupBody": {
         "type": "object",
         "properties": {
@@ -311,6 +346,135 @@
           "password",
           "name",
           "organizationName"
+        ],
+        "additionalProperties": false
+      },
+      "SocialSignupBody": {
+        "type": "object",
+        "properties": {
+          "organizationName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "organizationName"
+        ],
+        "additionalProperties": false
+      },
+      "AuthCompleteResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ok"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "require_email_verification"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "require_sso"
+                    ]
+                  },
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "membership",
+                      "domain_join"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "providerId",
+                  "tenantId",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "founder_signup"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "no_access"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "data"
         ],
         "additionalProperties": false
       },
@@ -355,13 +519,17 @@
                   "human",
                   "service"
                 ]
+              },
+              "emailVerified": {
+                "type": "boolean"
               }
             },
             "required": [
               "id",
               "email",
               "name",
-              "kind"
+              "kind",
+              "emailVerified"
             ],
             "additionalProperties": false
           },
@@ -548,6 +716,151 @@
         ],
         "additionalProperties": false
       },
+      "EmailDeliveryStatusResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "deliveryReady": {
+                "type": "boolean"
+              },
+              "connectorKey": {
+                "type": "string",
+                "enum": [
+                  "resend",
+                  "smtp",
+                  "console"
+                ]
+              }
+            },
+            "required": [
+              "deliveryReady",
+              "connectorKey"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AgentDirectoryResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "type": "string"
+              },
+              "agents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "handle": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]{3,32}$"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "publicSkills": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "agentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "knocksEnabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "handle",
+                    "displayName",
+                    "description",
+                    "publicSkills",
+                    "agentCardUrl",
+                    "knocksEnabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "network",
+              "agents"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ExchangeTrustGrantResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string"
+              },
+              "grantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "token",
+              "grantId",
+              "expiresAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "UserListResponse": {
         "type": "object",
         "properties": {
@@ -581,13 +894,17 @@
                         "human",
                         "service"
                       ]
+                    },
+                    "emailVerified": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "id",
                     "email",
                     "name",
-                    "kind"
+                    "kind",
+                    "emailVerified"
                   ],
                   "additionalProperties": false
                 }
@@ -638,13 +955,17 @@
                   "human",
                   "service"
                 ]
+              },
+              "emailVerified": {
+                "type": "boolean"
               }
             },
             "required": [
               "id",
               "email",
               "name",
-              "kind"
+              "kind",
+              "emailVerified"
             ],
             "additionalProperties": false
           }
@@ -676,6 +997,73 @@
         "required": [
           "kind",
           "name"
+        ],
+        "additionalProperties": false
+      },
+      "DiscoverOauthResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/DiscoverOauthResult"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "DiscoverOauthResult": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorizeUrl": {
+            "type": "string"
+          },
+          "tokenUrl": {
+            "type": "string"
+          },
+          "registrationUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "scopes": {
+            "type": "string",
+            "nullable": true
+          },
+          "issuer": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "resource",
+          "authorizeUrl",
+          "tokenUrl",
+          "registrationUrl",
+          "scopes",
+          "issuer"
+        ]
+      },
+      "DiscoverOauthBody": {
+        "type": "object",
+        "properties": {
+          "baseUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "baseUrl"
         ],
         "additionalProperties": false
       },
@@ -772,12 +1160,25 @@
                       "type": "string",
                       "nullable": true
                     },
+                    "oauthRegistrationUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "oauthResource": {
+                      "type": "string",
+                      "nullable": true
+                    },
                     "oauthClientId": {
                       "type": "string",
                       "nullable": true
                     },
                     "hasOauthClientSecret": {
                       "type": "boolean"
+                    },
+                    "oauthAppId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
                     },
                     "requiresApproval": {
                       "type": "boolean"
@@ -810,8 +1211,11 @@
                     "oauthAuthorizeUrl",
                     "oauthTokenUrl",
                     "oauthScopes",
+                    "oauthRegistrationUrl",
+                    "oauthResource",
                     "oauthClientId",
                     "hasOauthClientSecret",
+                    "oauthAppId",
                     "requiresApproval",
                     "tenantId",
                     "createdAt",
@@ -926,12 +1330,25 @@
                 "type": "string",
                 "nullable": true
               },
+              "oauthRegistrationUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "oauthResource": {
+                "type": "string",
+                "nullable": true
+              },
               "oauthClientId": {
                 "type": "string",
                 "nullable": true
               },
               "hasOauthClientSecret": {
                 "type": "boolean"
+              },
+              "oauthAppId": {
+                "type": "string",
+                "nullable": true,
+                "format": "uuid"
               },
               "requiresApproval": {
                 "type": "boolean"
@@ -964,8 +1381,11 @@
               "oauthAuthorizeUrl",
               "oauthTokenUrl",
               "oauthScopes",
+              "oauthRegistrationUrl",
+              "oauthResource",
               "oauthClientId",
               "hasOauthClientSecret",
+              "oauthAppId",
               "requiresApproval",
               "tenantId",
               "createdAt",
@@ -1046,10 +1466,25 @@
             "nullable": true,
             "minLength": 1
           },
+          "oauthRegistrationUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          },
+          "oauthResource": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          },
           "oauthClientId": {
             "type": "string",
             "nullable": true,
             "minLength": 1
+          },
+          "oauthAppId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
           }
         },
         "required": [
@@ -1134,10 +1569,25 @@
             "nullable": true,
             "minLength": 1
           },
+          "oauthRegistrationUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          },
+          "oauthResource": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          },
           "oauthClientId": {
             "type": "string",
             "nullable": true,
             "minLength": 1
+          },
+          "oauthAppId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
           },
           "requiresApproval": {
             "type": "boolean"
@@ -1260,6 +1710,169 @@
               "created",
               "updated",
               "tools"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthAppListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "clientId": {
+                      "type": "string"
+                    },
+                    "authorizeUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "tokenUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "registrationUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "hasClientSecret": {
+                      "type": "boolean"
+                    },
+                    "linkedServerCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "clientId",
+                    "authorizeUrl",
+                    "tokenUrl",
+                    "registrationUrl",
+                    "hasClientSecret",
+                    "linkedServerCount",
+                    "tenantId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "items"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthAppResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "clientId": {
+                "type": "string"
+              },
+              "authorizeUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "tokenUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "registrationUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "hasClientSecret": {
+                "type": "boolean"
+              },
+              "linkedServerCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tenantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "clientId",
+              "authorizeUrl",
+              "tokenUrl",
+              "registrationUrl",
+              "hasClientSecret",
+              "linkedServerCount",
+              "tenantId",
+              "createdAt",
+              "updatedAt"
             ],
             "additionalProperties": false
           }
@@ -1946,6 +2559,42 @@
                       "nullable": true,
                       "format": "date-time"
                     },
+                    "systemKey": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "registrationType": {
+                      "type": "string",
+                      "enum": [
+                        "static",
+                        "cimd",
+                        "dcr",
+                        "pre_registered"
+                      ]
+                    },
+                    "redirectUris": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "applicationType": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "native",
+                        "web",
+                        null
+                      ]
+                    },
+                    "metadataUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "oauthClientId": {
+                      "type": "string",
+                      "nullable": true
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -1965,6 +2614,12 @@
                     "apiRole",
                     "apiTeam",
                     "clientSecretRotatedAt",
+                    "systemKey",
+                    "registrationType",
+                    "redirectUris",
+                    "applicationType",
+                    "metadataUrl",
+                    "oauthClientId",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -2043,6 +2698,42 @@
                 "nullable": true,
                 "format": "date-time"
               },
+              "systemKey": {
+                "type": "string",
+                "nullable": true
+              },
+              "registrationType": {
+                "type": "string",
+                "enum": [
+                  "static",
+                  "cimd",
+                  "dcr",
+                  "pre_registered"
+                ]
+              },
+              "redirectUris": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "applicationType": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "native",
+                  "web",
+                  null
+                ]
+              },
+              "metadataUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "oauthClientId": {
+                "type": "string",
+                "nullable": true
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time"
@@ -2062,6 +2753,12 @@
               "apiRole",
               "apiTeam",
               "clientSecretRotatedAt",
+              "systemKey",
+              "registrationType",
+              "redirectUris",
+              "applicationType",
+              "metadataUrl",
+              "oauthClientId",
               "createdAt",
               "updatedAt"
             ],
@@ -2092,6 +2789,15 @@
             "type": "string",
             "nullable": true,
             "minLength": 1
+          },
+          "registrationType": {
+            "type": "string",
+            "enum": [
+              "static",
+              "cimd",
+              "dcr",
+              "pre_registered"
+            ]
           }
         },
         "required": [
@@ -3549,6 +4255,23 @@
               "autoCreateUsers": {
                 "type": "boolean"
               },
+              "requireSso": {
+                "type": "boolean"
+              },
+              "allowedDomains": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "autoJoinRole": {
+                "type": "string",
+                "enum": [
+                  "full_admin",
+                  "delegated_admin",
+                  "member"
+                ]
+              },
               "scimEnabled": {
                 "type": "boolean"
               },
@@ -3575,6 +4298,9 @@
               "clientId",
               "hasClientSecret",
               "autoCreateUsers",
+              "requireSso",
+              "allowedDomains",
+              "autoJoinRole",
               "scimEnabled",
               "hasScimToken",
               "providerId",
@@ -4535,6 +5261,1293 @@
           "data"
         ],
         "additionalProperties": false
+      },
+      "ChatSessionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "clientId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "connectionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "connectionStatus": {
+                "type": "string"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mcpName": {
+                      "type": "string"
+                    },
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "allowed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "mcpName",
+                    "serverName",
+                    "allowed"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "llm": {
+                "type": "object",
+                "properties": {
+                  "configured": {
+                    "type": "boolean"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "openrouter",
+                      "openai",
+                      "anthropic",
+                      "ollama",
+                      "openai_compatible",
+                      null
+                    ]
+                  },
+                  "model": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "configured",
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "clientId",
+              "connectionId",
+              "connectionStatus",
+              "tools",
+              "llm"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ChatSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "configured": {
+                "type": "boolean"
+              },
+              "provider": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "openrouter",
+                  "openai",
+                  "anthropic",
+                  "ollama",
+                  "openai_compatible",
+                  null
+                ]
+              },
+              "model": {
+                "type": "string",
+                "nullable": true
+              },
+              "baseUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "baseUrlSet": {
+                "type": "boolean"
+              },
+              "apiKeySet": {
+                "type": "boolean"
+              },
+              "apiKeyMasked": {
+                "type": "string",
+                "nullable": true
+              },
+              "reasoningEffort": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "none",
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high",
+                  null
+                ]
+              },
+              "reasoningSummary": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "auto",
+                  "detailed",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "configured",
+              "provider",
+              "model",
+              "baseUrl",
+              "baseUrlSet",
+              "apiKeySet",
+              "apiKeyMasked",
+              "reasoningEffort",
+              "reasoningSummary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ChatRunBody": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            }
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {
+          "nullable": true
+        }
+      },
+      "PlatformEmailSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "connectorKey": {
+                "type": "string",
+                "enum": [
+                  "resend",
+                  "smtp",
+                  "console"
+                ]
+              },
+              "fromEmail": {
+                "type": "string",
+                "nullable": true
+              },
+              "fromName": {
+                "type": "string",
+                "nullable": true
+              },
+              "smtpHost": {
+                "type": "string",
+                "nullable": true
+              },
+              "smtpPort": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "smtpSecure": {
+                "type": "boolean"
+              },
+              "smtpUser": {
+                "type": "string",
+                "nullable": true
+              },
+              "hasApiKey": {
+                "type": "boolean"
+              },
+              "deliveryReady": {
+                "type": "boolean"
+              },
+              "configured": {
+                "type": "boolean"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "database",
+                  "environment",
+                  "default"
+                ]
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "connectorKey",
+              "fromEmail",
+              "fromName",
+              "smtpHost",
+              "smtpPort",
+              "smtpSecure",
+              "smtpUser",
+              "hasApiKey",
+              "deliveryReady",
+              "configured",
+              "source",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AgentListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerUserId": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]{3,32}$"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "runtimeMode": {
+                      "type": "string",
+                      "enum": [
+                        "hosted",
+                        "upstream"
+                      ]
+                    },
+                    "upstreamAgentUrl": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uri"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "paused"
+                      ]
+                    },
+                    "knocksEnabled": {
+                      "type": "boolean"
+                    },
+                    "defaultGrantTtlSeconds": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true
+                    },
+                    "instructions": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "publicSkills": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "toolIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    },
+                    "agentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "a2aUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenantId",
+                    "ownerUserId",
+                    "handle",
+                    "displayName",
+                    "description",
+                    "runtimeMode",
+                    "upstreamAgentUrl",
+                    "status",
+                    "knocksEnabled",
+                    "defaultGrantTtlSeconds",
+                    "instructions",
+                    "publicSkills",
+                    "toolIds",
+                    "agentCardUrl",
+                    "a2aUrl",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "items"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AgentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tenantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "ownerUserId": {
+                "type": "string"
+              },
+              "handle": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]{3,32}$"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "runtimeMode": {
+                "type": "string",
+                "enum": [
+                  "hosted",
+                  "upstream"
+                ]
+              },
+              "upstreamAgentUrl": {
+                "type": "string",
+                "nullable": true,
+                "format": "uri"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "paused"
+                ]
+              },
+              "knocksEnabled": {
+                "type": "boolean"
+              },
+              "defaultGrantTtlSeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "instructions": {
+                "type": "string",
+                "nullable": true
+              },
+              "publicSkills": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "toolIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "agentCardUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "a2aUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "tenantId",
+              "ownerUserId",
+              "handle",
+              "displayName",
+              "description",
+              "runtimeMode",
+              "upstreamAgentUrl",
+              "status",
+              "knocksEnabled",
+              "defaultGrantTtlSeconds",
+              "instructions",
+              "publicSkills",
+              "toolIds",
+              "agentCardUrl",
+              "a2aUrl",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "SetAgentToolsBody": {
+        "type": "object",
+        "properties": {
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "toolIds"
+        ],
+        "additionalProperties": false
+      },
+      "KnockListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "agentId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "peerAgentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "peerDisplayName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "denied"
+                      ]
+                    },
+                    "decisionNote": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "trustGrantId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "a2aTaskId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "agentId",
+                    "tenantId",
+                    "peerAgentCardUrl",
+                    "peerDisplayName",
+                    "message",
+                    "status",
+                    "decisionNote",
+                    "trustGrantId",
+                    "a2aTaskId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "items"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ApproveKnockResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tenantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "peerAgentCardUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "peerDisplayName": {
+                "type": "string",
+                "nullable": true
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "expired",
+                  "revoked"
+                ]
+              },
+              "skillPolicy": {
+                "type": "object",
+                "properties": {
+                  "skillIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "skillIds"
+                ],
+                "additionalProperties": false
+              },
+              "createdBy": {
+                "type": "string"
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revokedAt": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "agentId",
+              "tenantId",
+              "peerAgentCardUrl",
+              "peerDisplayName",
+              "status",
+              "skillPolicy",
+              "createdBy",
+              "grantedAt",
+              "expiresAt",
+              "revokedAt",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "DenyKnockResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tenantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "peerAgentCardUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "peerDisplayName": {
+                "type": "string",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "approved",
+                  "denied"
+                ]
+              },
+              "decisionNote": {
+                "type": "string",
+                "nullable": true
+              },
+              "trustGrantId": {
+                "type": "string",
+                "nullable": true,
+                "format": "uuid"
+              },
+              "a2aTaskId": {
+                "type": "string",
+                "nullable": true,
+                "format": "uuid"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "agentId",
+              "tenantId",
+              "peerAgentCardUrl",
+              "peerDisplayName",
+              "message",
+              "status",
+              "decisionNote",
+              "trustGrantId",
+              "a2aTaskId",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "TrustGrantListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "agentId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "peerAgentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "peerDisplayName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "active",
+                        "expired",
+                        "revoked"
+                      ]
+                    },
+                    "skillPolicy": {
+                      "type": "object",
+                      "properties": {
+                        "skillIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "skillIds"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "grantedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revokedAt": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "agentId",
+                    "tenantId",
+                    "peerAgentCardUrl",
+                    "peerDisplayName",
+                    "status",
+                    "skillPolicy",
+                    "createdBy",
+                    "grantedAt",
+                    "expiresAt",
+                    "revokedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "items"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AgentTranscriptResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "threads": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "peerAgentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "peerDisplayName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "trustGrantId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "knockId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "knockStatus": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "lastActivityAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "entryCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "peerAgentCardUrl",
+                    "peerDisplayName",
+                    "trustGrantId",
+                    "knockId",
+                    "knockStatus",
+                    "lastActivityAt",
+                    "entryCount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "knock",
+                        "decision",
+                        "peer_message",
+                        "agent_message",
+                        "tool_call"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "peerAgentCardUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "peerDisplayName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "knockId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "trustGrantId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "taskId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    },
+                    "text": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "decisionNote": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "toolName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "toolArgs": {
+                      "nullable": true
+                    },
+                    "toolOutput": {
+                      "nullable": true
+                    },
+                    "taskState": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "createdAt",
+                    "peerAgentCardUrl",
+                    "peerDisplayName",
+                    "knockId",
+                    "trustGrantId",
+                    "taskId",
+                    "text",
+                    "status",
+                    "decisionNote",
+                    "toolName",
+                    "taskState"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "threads",
+              "entries"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "RevokeTrustGrantResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tenantId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "peerAgentCardUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "peerDisplayName": {
+                "type": "string",
+                "nullable": true
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "expired",
+                  "revoked"
+                ]
+              },
+              "skillPolicy": {
+                "type": "object",
+                "properties": {
+                  "skillIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "skillIds"
+                ],
+                "additionalProperties": false
+              },
+              "createdBy": {
+                "type": "string"
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revokedAt": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "agentId",
+              "tenantId",
+              "peerAgentCardUrl",
+              "peerDisplayName",
+              "status",
+              "skillPolicy",
+              "createdBy",
+              "grantedAt",
+              "expiresAt",
+              "revokedAt",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
       }
     },
     "parameters": {}
@@ -4617,6 +6630,37 @@
         }
       }
     },
+    "/api/v1/signup/status": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Whether organization signup is open",
+        "description": "Returns whether `/api/v1/signup` can create a new organization (tenancy limits). Separate from Better Auth public email signup, which is disabled once any tenant exists.",
+        "responses": {
+          "200": {
+            "description": "Signup availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupStatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/signup": {
       "post": {
         "tags": [
@@ -4670,6 +6714,117 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signup/social": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create organization for an authenticated social-login user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialSignupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Organization created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or signup error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Tenant limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/complete": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Resolve post-login/signup routing (SSO enforcement, domain join)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "enum": [
+                      "login",
+                      "signup"
+                    ]
+                  },
+                  "inviteToken": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "organizationName": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "intent"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Next auth step for the client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthCompleteResponse"
                 }
               }
             }
@@ -4770,6 +6925,320 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SsoProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/email/status": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "Public outbound email readiness (no secrets)",
+        "responses": {
+          "200": {
+            "description": "Whether verification/notification email can be delivered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliveryStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/public/directory": {
+      "get": {
+        "tags": [
+          "AgentDirectory"
+        ],
+        "summary": "Search public agent directory",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "handle",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "skill",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDirectoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-registry": {
+      "get": {
+        "tags": [
+          "AgentDirectory"
+        ],
+        "summary": "Alias for public agent directory search",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "handle",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "skill",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDirectoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trust/exchange": {
+      "post": {
+        "tags": [
+          "AgentDirectory"
+        ],
+        "summary": "Exchange knock credentials for a jka_ peer grant token",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "knockSecret": {
+                    "type": "string",
+                    "minLength": 16
+                  },
+                  "exchangeToken": {
+                    "type": "string",
+                    "minLength": 16
+                  }
+                },
+                "required": [
+                  "knockSecret",
+                  "exchangeToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Minted peer credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeTrustGrantResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -5046,6 +7515,90 @@
           },
           "404": {
             "description": "User not found in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/discover-oauth": {
+      "post": {
+        "tags": [
+          "Servers"
+        ],
+        "summary": "Discover OAuth endpoints (RFC 9728 / 8414) and dynamic registration for a remote MCP URL",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverOauthBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Discovered OAuth metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverOauthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
             "content": {
               "application/json": {
                 "schema": {
@@ -5609,6 +8162,646 @@
           },
           "404": {
             "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth-apps": {
+      "get": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "List shared OAuth apps for the active tenant (secrets are never returned)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth apps sorted by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "Create a shared OAuth app (client secret is write-only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "authorizeUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  },
+                  "tokenUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  },
+                  "registrationUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "name",
+                  "clientId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OAuth app created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth-apps/from-server": {
+      "post": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "Save a server's own OAuth client id + secret as a shared app and link the server to it",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "serverId",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OAuth app created and linked to the server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth-apps/{id}": {
+      "get": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "Get a shared OAuth app by id",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth app",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "OAuth app not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "Update a shared OAuth app; pass clientSecret to rotate it for every linked server",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clearClientSecret": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "authorizeUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  },
+                  "tokenUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  },
+                  "registrationUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OAuth app updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "OAuth app not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "OAuth apps"
+        ],
+        "summary": "Delete a shared OAuth app (refused while servers use it unless detach=true)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "When true, unlink servers that use this app (they fall back to their own OAuth fields) instead of refusing."
+            },
+            "required": false,
+            "description": "When true, unlink servers that use this app (they fall back to their own OAuth fields) instead of refusing.",
+            "name": "detach",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth app deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "OAuth app not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -10236,6 +13429,23 @@
                   "autoCreateUsers": {
                     "type": "boolean"
                   },
+                  "requireSso": {
+                    "type": "boolean"
+                  },
+                  "allowedDomains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "autoJoinRole": {
+                    "type": "string",
+                    "enum": [
+                      "full_admin",
+                      "delegated_admin",
+                      "member"
+                    ]
+                  },
                   "scimEnabled": {
                     "type": "boolean"
                   }
@@ -10940,6 +14150,10 @@
                   "serverId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "maxLength": 2048
                   }
                 },
                 "required": [
@@ -11829,6 +15043,1914 @@
           },
           "404": {
             "description": "Notification not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/session": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Get this member's Jackline Chat connection and tool catalog",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chat session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/settings": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Get Chat LLM settings",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chat settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Set Chat LLM provider, model, and API key",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openrouter",
+                      "openai",
+                      "anthropic",
+                      "ollama",
+                      "openai_compatible"
+                    ]
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 1
+                  },
+                  "reasoningEffort": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      null
+                    ]
+                  },
+                  "reasoningSummary": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "auto",
+                      "detailed",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated Chat settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Run the in-product Chat agent (SSE AG-UI stream)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRunBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AG-UI server-sent events"
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/email": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "Get platform-wide outbound email connector settings",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform email settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformEmailSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "Update platform-wide outbound email connector settings",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connectorKey": {
+                    "type": "string",
+                    "enum": [
+                      "resend",
+                      "smtp",
+                      "console"
+                    ]
+                  },
+                  "fromEmail": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "fromName": {
+                    "type": "string"
+                  },
+                  "smtpHost": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "smtpPort": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "smtpSecure": {
+                    "type": "boolean"
+                  },
+                  "smtpUser": {
+                    "type": "string"
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "smtpPass": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clearApiKey": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated platform email settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformEmailSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "List my agents",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Create an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{3,32}$"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "knocksEnabled": {
+                    "type": "boolean"
+                  },
+                  "defaultGrantTtlSeconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 31536000
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "maxLength": 32000
+                  },
+                  "publicSkills": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "description"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "toolIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                },
+                "required": [
+                  "handle",
+                  "displayName"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Update an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 2000
+                  },
+                  "knocksEnabled": {
+                    "type": "boolean"
+                  },
+                  "defaultGrantTtlSeconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 31536000
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 32000
+                  },
+                  "publicSkills": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "description"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "runtimeMode": {
+                    "type": "string",
+                    "enum": [
+                      "hosted",
+                      "upstream"
+                    ]
+                  },
+                  "upstreamAgentUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/tools": {
+      "put": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Replace the MCP tools bound to an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAgentToolsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent with replaced toolIds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/publish": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Publish agent to public network directory",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/pause": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Pause agent (remove from directory)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/knocks": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "List knocks for an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knock list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnockListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knocks/{id}/approve": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Approve a knock and create a trust grant",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grantTtlSeconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 31536000
+                  },
+                  "skillIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "decisionNote": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trust grant created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApproveKnockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knocks/{id}/deny": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Deny a knock",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decisionNote": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knock denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DenyKnockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/trust-grants": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "List trust grants for an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trust grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustGrantListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/transcript": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Peer conversation transcript for an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "required": false,
+            "name": "peerAgentCardUrl",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation threads and transcript entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTranscriptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/transcript/stream": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Live SSE stream of peer activity for an agent",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "required": false,
+            "name": "peerAgentCardUrl",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events (entry / snapshot / ping)"
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trust-grants/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Revoke a trust grant",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeTrustGrantResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
             "content": {
               "application/json": {
                 "schema": {
