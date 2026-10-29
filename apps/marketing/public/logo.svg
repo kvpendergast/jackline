@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 32" fill="none" aria-label="Jackline">
+  <path
+    fill="currentColor"
+    d="M12 5.5h11.5a1.25 1.25 0 0 1 0 2.5H20.5v13.25c0 3.45-2.2 5.75-5.75 5.75-3.4 0-5.75-2.15-5.75-5.5a1.25 1.25 0 1 1 2.5 0c0 1.85 1.2 3 3.25 3 2.05 0 3.25-1.2 3.25-3.25V8H12A1.25 1.25 0 0 1 12 5.5Z"
+  />
+  <text
+    x="38"
+    y="21.5"
+    font-family="Instrument Serif, Georgia, serif"
+    font-size="20"
+    font-weight="600"
+    fill="currentColor"
+    letter-spacing="-0.02em"
+  >
+    Jackline
+  </text>
+</svg>
