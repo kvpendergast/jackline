@@ -126,7 +126,12 @@ async function toDetail(
     loadRoleIds(tenantId, row.id),
     loadToolOverrides(tenantId, row.id),
   ]);
-  return { ...toPublicConnection(row), roleIds, toolOverrides };
+  return {
+    ...toPublicConnection(row),
+    roleIds,
+    toolOverrides,
+    mcpUrl: connectionMcpUrl(),
+  };
 }
 
 async function getConnectionRow(
@@ -806,13 +811,17 @@ function toPublicGatewayCredential(row: SecretRow): PublicGatewayCredential {
   };
 }
 
-function gatewayMcpConfig(token: string): MintedGatewayCredential["mcp"] {
+/** Public MCP endpoint advertised to hosts (snippets + minted credentials). */
+function connectionMcpUrl(): string {
   const configResult = getConfig();
-  const url = configResult.isOk()
+  return configResult.isOk()
     ? publicMcpUrl(configResult.value)
     : "http://127.0.0.1:8081/mcp";
+}
+
+function gatewayMcpConfig(token: string): MintedGatewayCredential["mcp"] {
   return {
-    url,
+    url: connectionMcpUrl(),
     headers: {
       Authorization: `Bearer ${token}`,
     },
