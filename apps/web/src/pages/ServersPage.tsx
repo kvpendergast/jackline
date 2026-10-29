@@ -6,6 +6,7 @@ import {
   getConnectorPreset,
   upstreamSecretKind,
   type ConnectorPreset,
+  type PublicOAuthApp,
   type PublicServer,
   type ServerAuthMethod,
   type ServerCredentialMode,
@@ -17,6 +18,7 @@ import { ConnectorLogo } from "@/components/jackline/ConnectorLogo";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { KindBadge } from "@/components/jackline/StatusBadge";
+import { OAuthAppsSection } from "@/components/jackline/OAuthAppsSection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +47,7 @@ export function ServersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createPreset, setCreatePreset] = useState<ConnectorPreset | null>(null);
   const [editing, setEditing] = useState<PublicServer | null>(null);
+  const [oauthApps, setOauthApps] = useState<PublicOAuthApp[]>([]);
 
   const addedConnectorKeys = new Set(
     items
@@ -64,8 +67,16 @@ export function ServersPage() {
 
   async function load() {
     if (!tenantId) return;
-    const page = await jacklineApi.listServers(tenantId);
+    const [page, apps] = await Promise.all([
+      jacklineApi.listServers(tenantId),
+      jacklineApi
+        .listOAuthApps(tenantId)
+        .then((r) => r.items)
+        // Non-admins / older APIs: the selector is simply empty.
+        .catch(() => [] as PublicOAuthApp[]),
+    ]);
     setItems(page.items);
+    setOauthApps(apps);
   }
 
   useEffect(() => {
@@ -275,6 +286,22 @@ export function ServersPage() {
         </Table>
       </section>
 
+      {tenantId ? (
+        <OAuthAppsSection
+          tenantId={tenantId}
+          apps={oauthApps}
+          onChanged={load}
+          onError={(m) => {
+            setInfo(null);
+            setError(m);
+          }}
+          onInfo={(m) => {
+            setError(null);
+            setInfo(m);
+          }}
+        />
+      ) : null}
+
       <Dialog
         open={createOpen}
         onOpenChange={(next) => {
@@ -294,6 +321,7 @@ export function ServersPage() {
             key={createPreset?.key ?? "custom"}
             mode="create"
             preset={createPreset}
+            oauthApps={oauthApps}
             onDone={async () => {
               closeCreate();
               await load();
@@ -317,6 +345,8 @@ export function ServersPage() {
             <ServerForm
               mode="edit"
               server={editing}
+              oauthApps={oauthApps}
+              onAppsChanged={load}
               onDone={async () => {
                 setEditing(null);
                 await load();
@@ -331,6 +361,8 @@ export function ServersPage() {
 }
 
 type OAuthMode = "access_token" | "client_credentials" | "refreshable";
+
+const NEW_OAUTH_APP = "__new__";
 
 function resolveFormPreset(
   server: PublicServer | undefined,
@@ -351,12 +383,16 @@ function ServerForm({
   mode,
   server,
   preset,
+  oauthApps = [],
+  onAppsChanged,
   onDone,
   onError,
 }: {
   mode: "create" | "edit";
   server?: PublicServer;
   preset?: ConnectorPreset | null;
+  oauthApps?: PublicOAuthApp[];
+  onAppsChanged?: () => Promise<void>;
   onDone: () => Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -432,6 +468,37 @@ function ServerForm({
   const [existingSecretId, setExistingSecretId] = useState<string | null>(null);
   const [hasExistingSecret, setHasExistingSecret] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Shared OAuth app selection: "" = this server's own client fields,
+  // NEW_OAUTH_APP = create a shared app from the fields below, else an app id.
+  const [oauthAppChoice, setOauthAppChoice] = useState<string>(
+    server?.oauthAppId ?? "",
+  );
+  const [newOauthAppName, setNewOauthAppName] = useState("");
+  const [saveAsAppName, setSaveAsAppName] = useState("");
+  const [savingAsApp, setSavingAsApp] = useState(false);
+  const selectedOauthApp =
+    oauthAppChoice && oauthAppChoice !== NEW_OAUTH_APP
+      ? (oauthApps.find((a) => a.id === oauthAppChoice) ?? null)
+      : null;
+  const usesSharedApp = oauthAppChoice !== "";
+
+  async function saveCredentialsAsSharedApp() {
+    if (!tenantId || !server || !saveAsAppName.trim()) return;
+    setSavingAsApp(true);
+    try {
+      const app = await jacklineApi.createOAuthAppFromServer(tenantId, {
+        serverId: server.id,
+        name: saveAsAppName.trim(),
+      });
+      setSaveAsAppName("");
+      setOauthAppChoice(app.id);
+      await onAppsChanged?.();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Save as shared app failed");
+    } finally {
+      setSavingAsApp(false);
+    }
+  }
 
   useEffect(() => {
     if (mode !== "edit" || !tenantId || !server) return;
@@ -609,8 +676,20 @@ function ServerForm({
         }
       }
 
+      if (authMethod === "oauth" && oauthAppChoice === NEW_OAUTH_APP) {
+        if (!newOauthAppName.trim() || !oauthClientId.trim()) {
+          onError("A shared OAuth app needs a name and a client id.");
+          return;
+        }
+        if (!oauthAppSecret.trim() && !publicOAuthClient) {
+          onError("OAuth client secret is required for a confidential client.");
+          return;
+        }
+      }
+
       if (
         authMethod === "oauth" &&
+        !usesSharedApp &&
         mode === "create" &&
         oauthClientId.trim() &&
         !oauthAppSecret.trim() &&
@@ -620,6 +699,26 @@ function ServerForm({
         return;
       }
 
+      // Create the shared app first so the server can link to it.
+      let oauthAppId: string | null =
+        authMethod === "oauth" && selectedOauthApp ? selectedOauthApp.id : null;
+      if (authMethod === "oauth" && oauthAppChoice === NEW_OAUTH_APP) {
+        const app = await jacklineApi.createOAuthApp(tenantId, {
+          name: newOauthAppName.trim(),
+          clientId: oauthClientId.trim(),
+          ...(oauthAppSecret.trim() && !publicOAuthClient
+            ? { clientSecret: oauthAppSecret.trim() }
+            : {}),
+          authorizeUrl: oauthAuthorizeUrl.trim() || null,
+          tokenUrl: oauthTokenUrl.trim() || null,
+          registrationUrl: null,
+        });
+        oauthAppId = app.id;
+        setOauthAppChoice(app.id);
+        await onAppsChanged?.();
+      }
+      const linkedToApp = oauthAppId != null;
+
       const oauthFields =
         authMethod === "oauth"
           ? {
@@ -628,7 +727,11 @@ function ServerForm({
               oauthScopes: oauthScopes.trim() || null,
               oauthRegistrationUrl: oauthRegistrationUrl,
               oauthResource: oauthResource.trim() || null,
-              oauthClientId: oauthClientId.trim() || null,
+              // Linked servers keep their own client id untouched (fallback).
+              ...(linkedToApp
+                ? {}
+                : { oauthClientId: oauthClientId.trim() || null }),
+              oauthAppId,
             }
           : {
               oauthAuthorizeUrl: null,
@@ -637,6 +740,7 @@ function ServerForm({
               oauthRegistrationUrl: null,
               oauthResource: null,
               oauthClientId: null,
+              oauthAppId: null,
             };
 
       let serverId = server?.id;
@@ -673,7 +777,7 @@ function ServerForm({
       if (serverId && plaintext) {
         await upsertServerSecret(serverId, plaintext);
       }
-      if (serverId && authMethod === "oauth") {
+      if (serverId && authMethod === "oauth" && !linkedToApp) {
         await upsertOauthAppSecret(serverId);
       }
 
@@ -903,6 +1007,76 @@ function ServerForm({
               placeholder="https://mcp.example.com/mcp (optional)"
             />
           </Field>
+          <Field label="Use saved OAuth app" htmlFor="oauth-app-choice">
+            <FieldSelect
+              id="oauth-app-choice"
+              value={oauthAppChoice}
+              onChange={(e) => setOauthAppChoice(e.target.value)}
+            >
+              <option value="">None — this server&apos;s own client</option>
+              {oauthApps.map((app) => (
+                <option key={app.id} value={app.id}>
+                  {app.name} ({app.clientId.slice(0, 24)}
+                  {app.clientId.length > 24 ? "…" : ""})
+                </option>
+              ))}
+              <option value={NEW_OAUTH_APP}>Create new shared app…</option>
+            </FieldSelect>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {selectedOauthApp
+                ? `Uses “${selectedOauthApp.name}” client id${selectedOauthApp.hasClientSecret ? " + stored secret" : " (public client)"}${selectedOauthApp.authorizeUrl || selectedOauthApp.tokenUrl ? " and its authorize/token URLs" : ""}. Scopes stay per server.`
+                : oauthAppChoice === NEW_OAUTH_APP
+                  ? "The client id and secret below are saved as a shared app (with the authorize/token URLs above) so other servers can reuse them."
+                  : "Pick a shared app to reuse one OAuth client across servers (e.g. Gmail + Google Calendar)."}
+            </p>
+          </Field>
+          {oauthAppChoice === NEW_OAUTH_APP ? (
+            <Field label="Shared app name" htmlFor="oauth-app-new-name">
+              <Input
+                id="oauth-app-new-name"
+                value={newOauthAppName}
+                onChange={(e) => setNewOauthAppName(e.target.value)}
+                placeholder="Google Workspace"
+                required
+              />
+            </Field>
+          ) : null}
+          {mode === "edit" &&
+          server &&
+          !usesSharedApp &&
+          server.oauthClientId &&
+          (server.hasOauthClientSecret || publicOAuthClient) ? (
+            <div className="space-y-1">
+              <Field
+                label="Save these credentials as a shared app"
+                htmlFor="oauth-app-save-as"
+              >
+                <div className="flex gap-2">
+                  <Input
+                    id="oauth-app-save-as"
+                    value={saveAsAppName}
+                    onChange={(e) => setSaveAsAppName(e.target.value)}
+                    placeholder="Shared app name"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingAsApp || !saveAsAppName.trim()}
+                    onClick={() => void saveCredentialsAsSharedApp()}
+                  >
+                    {savingAsApp ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                Copies this server&apos;s saved client id and secret into a
+                shared app and links this server to it.
+              </p>
+            </div>
+          ) : null}
+          {selectedOauthApp ? null : (
+          <>
           <Field
             label={
               oauthRegistrationUrl
@@ -927,7 +1101,7 @@ function ServerForm({
             label={
               publicOAuthClient
                 ? "Client secret (not used)"
-                : hasOauthAppSecret
+                : hasOauthAppSecret && oauthAppChoice !== NEW_OAUTH_APP
                   ? "Client secret (optional)"
                   : "Client secret"
             }
@@ -942,19 +1116,22 @@ function ServerForm({
               placeholder={
                 publicOAuthClient
                   ? "Public OAuth client — leave empty"
-                  : hasOauthAppSecret
+                  : hasOauthAppSecret && oauthAppChoice !== NEW_OAUTH_APP
                     ? "•••••••• (unchanged)"
                     : undefined
               }
               disabled={publicOAuthClient}
               required={
                 !publicOAuthClient &&
-                mode === "create" &&
-                !!oauthClientId.trim() &&
-                !hasOauthAppSecret
+                (oauthAppChoice === NEW_OAUTH_APP ||
+                  (mode === "create" &&
+                    !!oauthClientId.trim() &&
+                    !hasOauthAppSecret))
               }
             />
           </Field>
+          </>
+          )}
         </div>
       ) : null}
 

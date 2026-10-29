@@ -8,6 +8,7 @@ import type {
   PublicAuditEvent,
   PublicClient,
   PublicConnection,
+  PublicOAuthApp,
   PublicConnectionDetail,
   PublicGatewayCredential,
   PublicRole,
@@ -82,6 +83,7 @@ export const jacklineApi = {
       oauthRegistrationUrl?: string | null;
       oauthResource?: string | null;
       oauthClientId?: string | null;
+      oauthAppId?: string | null;
     },
   ) => api<PublicServer>("/api/v1/servers", { tenantId, method: "POST", body }),
 
@@ -104,6 +106,7 @@ export const jacklineApi = {
       oauthRegistrationUrl?: string | null;
       oauthResource?: string | null;
       oauthClientId?: string | null;
+      oauthAppId?: string | null;
       requiresApproval?: boolean;
     },
   ) =>
@@ -111,6 +114,58 @@ export const jacklineApi = {
       tenantId,
       method: "PATCH",
       body,
+    }),
+
+  // Shared OAuth apps (client secret is write-only; never returned).
+  listOAuthApps: (tenantId: string) =>
+    api<{ items: PublicOAuthApp[] }>("/api/v1/oauth-apps", { tenantId }),
+
+  createOAuthApp: (
+    tenantId: string,
+    body: {
+      name: string;
+      clientId: string;
+      clientSecret?: string;
+      authorizeUrl?: string | null;
+      tokenUrl?: string | null;
+      registrationUrl?: string | null;
+    },
+  ) =>
+    api<PublicOAuthApp>("/api/v1/oauth-apps", { tenantId, method: "POST", body }),
+
+  createOAuthAppFromServer: (
+    tenantId: string,
+    body: { serverId: string; name: string },
+  ) =>
+    api<PublicOAuthApp>("/api/v1/oauth-apps/from-server", {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  updateOAuthApp: (
+    tenantId: string,
+    id: string,
+    body: {
+      name?: string;
+      clientId?: string;
+      clientSecret?: string;
+      authorizeUrl?: string | null;
+      tokenUrl?: string | null;
+      registrationUrl?: string | null;
+    },
+  ) =>
+    api<PublicOAuthApp>(`/api/v1/oauth-apps/${id}`, {
+      tenantId,
+      method: "PATCH",
+      body,
+    }),
+
+  deleteOAuthApp: (tenantId: string, id: string, options?: { detach?: boolean }) =>
+    api<PublicOAuthApp>(`/api/v1/oauth-apps/${id}`, {
+      tenantId,
+      method: "DELETE",
+      ...(options?.detach ? { searchParams: { detach: "true" } } : {}),
     }),
 
   discoverServerOauth: (tenantId: string, baseUrl: string) =>

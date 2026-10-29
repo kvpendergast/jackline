@@ -1,6 +1,7 @@
 export * from "./tenants.js";
 export * from "./auth.js";
 export * from "./memberships.js";
+export * from "./oauthApps.js";
 export * from "./servers.js";
 export * from "./tools.js";
 export * from "./roles.js";

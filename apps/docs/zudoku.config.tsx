@@ -26,6 +26,7 @@ const config: ZudokuConfig = {
         "/harness-reauth",
         "/authentication",
         "/mcp-oauth",
+        "/shared-oauth-apps",
         "/a2a-agents",
       ],
     },

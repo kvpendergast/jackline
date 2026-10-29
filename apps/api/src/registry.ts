@@ -22,6 +22,7 @@ import {
 } from "./features/identity/index.js";
 import { myAccessFeature } from "./features/myAccess/index.js";
 import { oauthFeature } from "./features/oauth/index.js";
+import { oauthAppsFeature } from "./features/oauthApps/index.js";
 import { rolesFeature } from "./features/roles/index.js";
 import { secretsFeature } from "./features/secrets/index.js";
 import { serversFeature } from "./features/servers/index.js";
@@ -44,6 +45,7 @@ export const publicV1Features: AppSlice[] = [
 export const tenantV1Features: AppSlice[] = [
   usersFeature,
   serversFeature,
+  oauthAppsFeature,
   toolsFeature,
   rolesFeature,
   clientsFeature,

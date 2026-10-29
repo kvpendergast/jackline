@@ -32,6 +32,11 @@ export const PublicServerSchema = z.strictObject({
   /** True when an encrypted oauth_client secret exists for this server. */
   hasOauthClientSecret: z.boolean(),
   /**
+   * Linked shared OAuth app. When set, Connect / token exchange / refresh use
+   * the app's client id + secret instead of oauthClientId / the per-server secret.
+   */
+  oauthAppId: z.uuid().nullable(),
+  /**
    * When true, members must request access. When false, members may
    * self-attach tools that do not themselves require approval.
    */
