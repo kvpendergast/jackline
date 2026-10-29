@@ -19,18 +19,18 @@
     "tsx": "^4.19.0"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.10",
+    "@hono/node-server": "^2.1.5",
     "@jackline/crypto": "workspace:*",
     "@jackline/db": "workspace:*",
     "@jackline/observability": "workspace:*",
     "@jackline/policy": "workspace:*",
     "@jackline/quotas": "workspace:*",
     "@jackline/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.13",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.14",
     "neverthrow": "^8.2.0",
-    "pino": "^10.3.1",
+    "pino": "^10.4.0",
     "zod": "^4.6.7"
   }
 }
