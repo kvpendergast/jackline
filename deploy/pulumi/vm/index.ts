@@ -30,6 +30,13 @@ const postgresPassword = cfg.getSecret("postgresPassword") ?? pulumi.output("jac
 const githubDeployToken = cfg.getSecret("githubDeployToken");
 // CI deploy SA (WIF). Used to grant actAs on the VM SA for OS Login / instance attach.
 const deployServiceAccount = cfg.get("deployServiceAccount");
+// Spot VM (opt-in, default off). See deploy/pulumi/README.md § Spot VM.
+// NOTE: provisioningModel/preemptible are ForceNew in pulumi-gcp 8.x, so flipping
+// this on an existing stack REPLACES the VM (delete-first: fixed name + static IP).
+const spot = cfg.getBoolean("spot") ?? false;
+// Cloud Scheduler cron for the Spot autoheal workflow (start if preempted,
+// stop/start if /health keeps failing). Every 2 min ≈ $1.30/mo of Workflows steps.
+const spotAutohealSchedule = cfg.get("spotAutohealSchedule") ?? "*/2 * * * *";
 
 const publicBaseUrl = `https://${domain}`;
 const docsBaseUrl = `https://${docsDomain}`;
@@ -246,7 +253,34 @@ const startupScript = pulumi
     };
     const envJson = JSON.stringify(envPayload);
 
-    return `#!/bin/bash
+    // Spot only: GCE runs startup-script on EVERY boot. Without this fast path a
+    // preemption restart would re-clone main, overwrite the CI-rendered .env.prod
+    // with the Pulumi-rendered one, and \`compose up --build\` on the VM. Instead,
+    // once bootstrapped, just start the containers that were running (same images
+    // + env as the last CI deploy). Standard (non-Spot) VMs keep the script
+    // byte-identical so Pulumi shows no metadata diff.
+    const spotRebootFastPath = spot
+      ? `#!/bin/bash
+# --- Spot VM restart fast path (deploy/pulumi/vm spot=true) ---
+if [ -d ${installRoot}/.git ] && [ -f ${installRoot}/.env.prod ] && command -v docker >/dev/null 2>&1; then
+  exec > >(tee -a /var/log/jackline-startup.log) 2>&1
+  echo "=== Jackline Spot restart $(date -u): starting existing containers ==="
+  systemctl start docker
+  # shutdown-script ran \`docker compose stop\`, which marks containers explicitly
+  # stopped, so restart: unless-stopped will not bring them back by itself.
+  for id in $(docker ps -aq --filter status=exited --filter status=created); do
+    policy="$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$id" 2>/dev/null || true)"
+    if [ "$policy" = "unless-stopped" ] || [ "$policy" = "always" ]; then
+      docker start "$id" || true
+    fi
+  done
+  echo "=== Jackline Spot restart complete ==="
+  exit 0
+fi
+`
+      : "";
+
+    return `${spotRebootFastPath}#!/bin/bash
 set -euo pipefail
 exec > >(tee /var/log/jackline-startup.log) 2>&1
 echo "=== Jackline VM bootstrap $(date -u) ==="
@@ -291,6 +325,16 @@ echo "=== Jackline bootstrap complete ==="
 `;
   });
 
+// Spot only: preemption gives ~30s notice (ACPI soft-off). Drain the app so
+// in-flight requests finish and Cloud SQL connections close cleanly. Containers
+// are started again by the startup-script fast path on the next boot.
+const spotShutdownScript = `#!/bin/bash
+echo "=== Jackline shutdown $(date -u): preempted=$(curl -fs -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/preempted || echo unknown) ==="
+cd ${installRoot} 2>/dev/null || exit 0
+[ -f .env.prod ] || exit 0
+timeout 27 docker compose -f deploy/compose.prod.yml -f deploy/compose.otel.yml --env-file .env.prod stop -t 20 || true
+`;
+
 // ---------------------------------------------------------------------------
 // Regional static external IP (DNS-stable; VMs cannot use global LB addresses)
 // ---------------------------------------------------------------------------
@@ -307,6 +351,204 @@ const staticIp = new gcp.compute.Address(
 );
 
 // ---------------------------------------------------------------------------
+// Spot autoheal (spot=true only): Cloud Scheduler -> Cloud Workflows
+//
+// Spot VMs cannot use automaticRestart, so every few minutes a tiny workflow:
+//   - TERMINATED (preempted / stopped) for > 90s  -> instances.start
+//   - RUNNING but https://<domain>/health fails 4x over ~1 min
+//     (VM up > 15 min, created > 1 h ago)          -> stop, wait, start
+// The instance keeps its name, boot disk and static IP (no MIG / recreate).
+// No code to build or deploy; ~$1.30/mo of Workflows steps at */2.
+// ---------------------------------------------------------------------------
+const instanceNameStr = "jackline";
+const spotAutohealDeps: pulumi.Resource[] = [];
+let autohealSa: gcp.serviceaccount.Account | undefined;
+let autohealWorkflow: gcp.workflows.Workflow | undefined;
+if (spot) {
+  const workflowsApi = new gcp.projects.Service("workflows", {
+    service: "workflows.googleapis.com",
+    disableOnDestroy: false,
+  });
+  const schedulerApi = new gcp.projects.Service("cloudscheduler", {
+    service: "cloudscheduler.googleapis.com",
+    disableOnDestroy: false,
+  });
+
+  autohealSa = new gcp.serviceaccount.Account(
+    "jackline-autoheal",
+    {
+      accountId: "jackline-autoheal",
+      displayName: "Jackline Spot autoheal",
+      description: "Runs the Jackline Spot autoheal workflow (start/stop the jackline VM only).",
+    },
+    { dependsOn: [iamApi] },
+  );
+
+  // CI deploy SA must be able to attach this SA to the workflow + scheduler job.
+  const actAs: pulumi.Resource[] = [];
+  if (deployServiceAccount) {
+    actAs.push(
+      new gcp.serviceaccount.IAMMember("jackline-autoheal-deploy-act-as", {
+        serviceAccountId: autohealSa.name,
+        role: "roles/iam.serviceAccountUser",
+        member: `serviceAccount:${deployServiceAccount}`,
+      }),
+    );
+  }
+
+  const q = (v: string) => JSON.stringify(v);
+  // Workflows expressions use ${...}; built by concatenation to avoid TS template clashes.
+  const e = (expr: string) => "${" + expr + "}";
+  const ts = (field: string) => `time.parse(default(map.get(vm, "${field}"), "1970-01-01T00:00:00Z"))`;
+  const vmArgs = [
+    "        args:",
+    `          project: ${e("project")}`,
+    `          zone: ${e("zone")}`,
+    `          instance: ${e("instance")}`,
+  ];
+  const noPoll = ["          connector_params:", "            skip_polling: true"];
+  // Healthy path = 4 internal steps + 1 external HTTP step per execution.
+  const workflowSource = [
+    "main:",
+    "  steps:",
+    "    - init:",
+    "        assign:",
+    `          - project: ${q(project)}`,
+    `          - zone: ${q(zone)}`,
+    `          - instance: ${q(instanceNameStr)}`,
+    `          - healthUrl: ${q(`${publicBaseUrl}/health`)}`,
+    "          - healthy: true",
+    "          - polls: 0",
+    `          - now: ${e("sys.now()")}`,
+    "    - getVm:",
+    "        call: googleapis.compute.v1.instances.get",
+    ...vmArgs,
+    "        result: vm",
+    "    - route:",
+    "        switch:",
+    // Short grace so a Pulumi stop-for-update or an operator stop isn't raced.
+    `          - condition: ${e(`vm.status == "TERMINATED" and now - ${ts("lastStopTimestamp")} < 90`)}`,
+    "            next: end",
+    `          - condition: ${e('vm.status == "TERMINATED"')}`,
+    "            next: start",
+    // Fresh VM (first boot + CI deploy can take ~25 min) or recent boot: don't probe.
+    `          - condition: ${e(`vm.status == "RUNNING" and (now - ${ts("creationTimestamp")} < 3600 or now - ${ts("lastStartTimestamp")} < 900)`)}`,
+    "            next: end",
+    `          - condition: ${e('vm.status == "RUNNING"')}`,
+    "            next: probe",
+    "        next: end",
+    "    - start:",
+    "        call: googleapis.compute.v1.instances.start",
+    ...vmArgs,
+    ...noPoll,
+    "        next: end",
+    "    - probe:",
+    "        try:",
+    "          call: http.get",
+    "          args:",
+    `            url: ${e("healthUrl")}`,
+    "            timeout: 10",
+    "        retry:",
+    `          predicate: ${e("always_retry")}`,
+    "          max_retries: 3",
+    "          backoff:",
+    "            initial_delay: 15",
+    "            max_delay: 15",
+    "            multiplier: 1",
+    "        except:",
+    "          as: err",
+    "          steps:",
+    "            - markUnhealthy:",
+    "                assign:",
+    "                  - healthy: false",
+    "    - afterProbe:",
+    "        switch:",
+    `          - condition: ${e("healthy")}`,
+    "            next: end",
+    "        next: stopVm",
+    "    - stopVm:",
+    "        call: googleapis.compute.v1.instances.stop",
+    ...vmArgs,
+    ...noPoll,
+    "    - waitStopped:",
+    "        call: sys.sleep",
+    "        args:",
+    "          seconds: 10",
+    "    - pollVm:",
+    "        call: googleapis.compute.v1.instances.get",
+    ...vmArgs,
+    "        result: vm",
+    "    - countPoll:",
+    "        assign:",
+    `          - polls: ${e("polls + 1")}`,
+    "    - checkStopped:",
+    "        switch:",
+    `          - condition: ${e('vm.status == "TERMINATED"')}`,
+    "            next: restart",
+    `          - condition: ${e("polls < 30")}`,
+    "            next: waitStopped",
+    "        next: stopTimeout",
+    "    - stopTimeout:",
+    "        raise: \"jackline VM did not stop within 5 minutes\"",
+    "    - restart:",
+    "        call: googleapis.compute.v1.instances.start",
+    ...vmArgs,
+    ...noPoll,
+    "    - restarted:",
+    "        return: \"restarted after failed health checks\"",
+    "",
+    "always_retry:",
+    "  params: [e]",
+    "  steps:",
+    "    - retryAll:",
+    "        return: true",
+    "",
+  ].join("\n");
+
+  autohealWorkflow = new gcp.workflows.Workflow(
+    "jackline-autoheal",
+    {
+      name: "jackline-autoheal",
+      region,
+      description: "Restart the Jackline Spot VM after preemption or failed /health checks.",
+      serviceAccount: autohealSa.email,
+      sourceContents: workflowSource,
+      deletionProtection: false,
+      labels: { app: "jackline" },
+    },
+    { dependsOn: [workflowsApi, autohealSa, ...actAs] },
+  );
+
+  // Scheduler -> Workflows Executions API (OAuth as the autoheal SA).
+  // Requires a one-time project grant: roles/workflows.invoker for this SA
+  // (the CI deploy SA usually cannot set project IAM — see README § Spot VM).
+  const autohealJob = new gcp.cloudscheduler.Job(
+    "jackline-autoheal",
+    {
+      name: "jackline-autoheal",
+      region,
+      description: "Trigger jackline-autoheal workflow (Spot VM restart / health).",
+      schedule: spotAutohealSchedule,
+      timeZone: "Etc/UTC",
+      attemptDeadline: "60s",
+      httpTarget: {
+        httpMethod: "POST",
+        uri: pulumi.interpolate`https://workflowexecutions.googleapis.com/v1/projects/${project}/locations/${region}/workflows/${autohealWorkflow.name}/executions`,
+        headers: { "Content-Type": "application/json" },
+        body: Buffer.from("{}").toString("base64"),
+        oauthToken: {
+          serviceAccountEmail: autohealSa.email,
+          scope: "https://www.googleapis.com/auth/cloud-platform",
+        },
+      },
+    },
+    { dependsOn: [schedulerApi, autohealWorkflow, ...actAs] },
+  );
+
+  spotAutohealDeps.push(autohealWorkflow, autohealJob);
+}
+
+// ---------------------------------------------------------------------------
 // Compute Engine instance
 // ---------------------------------------------------------------------------
 const image = gcp.compute.getImageOutput({
@@ -317,7 +559,7 @@ const image = gcp.compute.getImageOutput({
 const instance = new gcp.compute.Instance(
   "jackline",
   {
-    name: "jackline",
+    name: instanceNameStr,
     zone,
     machineType,
     tags: [networkTag],
@@ -343,7 +585,24 @@ const instance = new gcp.compute.Instance(
     metadata: {
       "enable-oslogin": "TRUE",
       "startup-script": startupScript,
+      ...(spot ? { "shutdown-script": spotShutdownScript } : {}),
     },
+    // Unset when spot=false so the existing standard VM sees no diff (the
+    // provider keeps whatever GCE reports: automaticRestart=true, MIGRATE, STANDARD).
+    ...(spot
+      ? {
+          scheduling: {
+            provisioningModel: "SPOT",
+            preemptible: true,
+            // Spot VMs cannot use automaticRestart; the autoheal workflow below
+            // restarts the VM after preemption instead.
+            automaticRestart: false,
+            onHostMaintenance: "TERMINATE",
+            // STOP (not DELETE) keeps the boot disk, Docker volumes and Caddy certs.
+            instanceTerminationAction: "STOP",
+          },
+        }
+      : {}),
     serviceAccount: {
       email: vmSa.email,
       // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring
@@ -361,7 +620,9 @@ const instance = new gcp.compute.Instance(
     },
   },
   {
-    dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp],
+    // With spot=true, create the autoheal workflow + scheduler first so a missing
+    // IAM permission fails `pulumi up` before the VM is replaced.
+    dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp, ...spotAutohealDeps],
     // `image` above resolves the *newest* image in the ubuntu-2404-lts-amd64
     // family on every run. Boot disk params are ForceNew, so whenever Canonical
     // publishes a new image, `pulumi up` (run by every Deploy prod) planned
@@ -377,6 +638,20 @@ const instance = new gcp.compute.Instance(
   },
 );
 
+// Autoheal SA may only get/start/stop this one instance (instance-level IAM).
+if (spot && autohealSa) {
+  new gcp.compute.InstanceIAMMember("jackline-autoheal-instance-admin", {
+    project,
+    zone,
+    instanceName: instance.name,
+    role: "roles/compute.instanceAdmin.v1",
+    member: pulumi.interpolate`serviceAccount:${autohealSa.email}`,
+  });
+}
+
+export const spotEnabled = spot;
+export const autohealServiceAccount = autohealSa ? pulumi.secret(autohealSa.email) : undefined;
+export const autohealWorkflowName = autohealWorkflow ? autohealWorkflow.name : undefined;
 export const instanceName = instance.name;
 export const instanceZone = zone;
 export const vmServiceAccount = pulumi.secret(vmSa.email);

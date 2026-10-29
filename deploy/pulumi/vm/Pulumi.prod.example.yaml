@@ -7,6 +7,11 @@ config:
   # Optional docs host (defaults to docs.<domain>)
   # jackline-vm:docsDomain: docs.jackline.example.com
   jackline-vm:machineType: e2-small
+  # Spot VM (~60-70% cheaper VM; can be preempted). Off by default. Toggling it
+  # REPLACES the instance (new boot disk) - see ../README.md "Spot VM".
+  # jackline-vm:spot: "false"
+  # Autoheal check cadence when spot=true (Cloud Scheduler cron, UTC)
+  # jackline-vm:spotAutohealSchedule: "*/2 * * * *"
   jackline-vm:gitRepo: https://github.com/YOUR_ORG_OR_USER/jackline.git
   jackline-vm:gitRef: main
   # CI deploy SA (WIF). Grants actAs on the dedicated jackline-vm SA for OS Login / instance attach.

@@ -15,6 +15,8 @@
 #   JACKLINE_SECRET_PREFIX     default jackline-pulumi-
 #   JACKLINE_GIT_REF           default main (vm)
 #   JACKLINE_MACHINE_TYPE      (vm)
+#   JACKLINE_SPOT              (vm) true|false → pulumi config spot (default false;
+#                              see deploy/pulumi/README.md "Spot VM" — toggling replaces the VM)
 #   JACKLINE_VM_ZONE           (vm) → pulumi config zone
 #   JACKLINE_DOCS_DOMAIN       (vm)
 #   JACKLINE_CADDY_EMAIL       (vm)
@@ -51,6 +53,16 @@ if [[ "${DEPLOY_PATH}" == "vm" ]]; then
   pulumi config set gitRef "${JACKLINE_GIT_REF:-main}"
   if [[ -n "${JACKLINE_MACHINE_TYPE:-}" ]]; then
     pulumi config set machineType "${JACKLINE_MACHINE_TYPE}"
+  fi
+  if [[ -n "${JACKLINE_SPOT:-}" ]]; then
+    case "${JACKLINE_SPOT,,}" in
+      true|1|yes) pulumi config set spot true ;;
+      false|0|no) pulumi config set spot false ;;
+      *)
+        echo "error: JACKLINE_SPOT must be true or false (got ${JACKLINE_SPOT})" >&2
+        exit 1
+        ;;
+    esac
   fi
   if [[ -n "${JACKLINE_VM_ZONE:-}" ]]; then
     pulumi config set zone "${JACKLINE_VM_ZONE}"

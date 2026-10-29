@@ -94,6 +94,63 @@ If you previously used project name `jackline-infra`, config keys in `Pulumi.pro
 - **GKE:** day-scale bills are often dominated by Autopilot, then load balancing. Removing the Ingress alone does not stop Autopilot burn.
 - Illustration only (one partial day on Autopilot): ~72% GKE / ~10% LB of ~$1.22 — not a guarantee for your project.
 
+## Spot VM (optional, off by default)
+
+Set `spot=true` (CI: repository/Environment variable `JACKLINE_SPOT=true`) to run the `vm` path on a
+[Spot VM](https://cloud.google.com/compute/docs/instances/spot). With it unset or `false` nothing changes:
+no scheduling block, no shutdown script, no extra resources.
+
+**Savings.** Spot pricing is typically ~60–70% below on-demand for the VM's vCPU/RAM (e2-small: roughly
+$12/mo → $4–5/mo, so ~$7–8/mo saved; check current Spot prices for your region). Boot disk, static IP,
+Cloud SQL and egress are billed the same. The autoheal below adds about **$1.30/mo** at the default
+2-minute cadence (Cloud Workflows: ~4 internal + 1 external step per run past the free tier; one Cloud
+Scheduler job, free if the billing account has fewer than 3). `spotAutohealSchedule: "*/5 * * * *"`
+cuts that to ~$0.50/mo at the cost of slower recovery.
+
+**What `spot=true` creates.**
+
+- Instance `scheduling`: `provisioningModel=SPOT`, `instanceTerminationAction=STOP` (preemption *stops*
+  the VM, keeping name, boot disk and static IP), `automaticRestart=false`, `onHostMaintenance=TERMINATE`.
+- `shutdown-script` metadata: `docker compose stop -t 20` (GCE gives Spot VMs ~30s after preemption notice).
+- A boot fast path in `startup-script`: on reboot of an already-bootstrapped VM it just restarts the
+  existing containers instead of re-running the first-boot bootstrap (which would reset the checkout).
+- Autoheal: service account `jackline-autoheal`, Cloud Workflow `jackline-autoheal`, Cloud Scheduler job
+  `jackline-autoheal` (APIs `workflows` + `cloudscheduler` enabled). Every run it reads the instance:
+  - `TERMINATED` (preempted, or stopped >90s ago) → `instances.start`.
+  - `RUNNING` and older than 1h, last started >15 min ago → `GET https://<domain>/health` (4 tries, 15s
+    apart). If all fail → stop, wait for `TERMINATED`, start. So a hung VM or app is power-cycled at most
+    about once per ~17 min.
+
+**Downtime per preemption.** Up to one schedule interval to notice (≤2 min) + ~1–2 min to boot and
+start containers ≈ **2–4 min**. Spot VMs can be preempted at any time (often rarely, sometimes several
+times a day; no SLA), and capacity may be unavailable, in which case `start` fails and is retried
+every interval until it succeeds.
+
+**Enable (one-time).**
+
+1. The CI deploy SA needs to create Workflows / Scheduler jobs / service accounts and set instance IAM
+   (e.g. `roles/workflows.admin`, `roles/cloudscheduler.admin`, `compute.instances.setIamPolicy`).
+2. Workflows has no per-resource IAM, so grant the invoker role at project level (the deploy SA can't):
+   ```bash
+   gcloud projects add-iam-policy-binding PROJECT_ID \
+     --member=serviceAccount:jackline-autoheal@PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/workflows.invoker
+   ```
+   (Run after the first apply creates the SA, or pre-create it; until then the scheduler calls 403.)
+3. Set the variable `JACKLINE_SPOT=true` on the `production` Environment and run Deploy prod.
+
+> **The first enable REPLACES the VM.** `provisioningModel`/`preemptible` are ForceNew in the GCP
+> provider, so Pulumi deletes and recreates `jackline` (same name and static IP, **new boot disk**):
+> expect ~20 min downtime while it bootstraps, and on-VM Docker volumes (e.g. Caddy certificates) are
+> recreated. Data in Cloud SQL is unaffected. Do it in a quiet window and check `pulumi preview` first.
+
+**Pause for maintenance.** If you stop the VM on purpose, autoheal will start it again after 90s. Pause it:
+`gcloud scheduler jobs pause jackline-autoheal --location=REGION` (and `resume` afterwards).
+
+**Revert.** Unset `JACKLINE_SPOT` (or set `false`) and deploy. This removes the autoheal resources and the
+shutdown script, and **also replaces the VM** back to on-demand (same ~20 min). Optionally remove the
+`roles/workflows.invoker` binding.
+
 ## Secrets hygiene
 
 - Personal `Pulumi.*.yaml` stack files are **gitignored**. Commit only `Pulumi.*.example.yaml`.
