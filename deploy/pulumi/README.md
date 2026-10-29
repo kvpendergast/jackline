@@ -63,6 +63,14 @@ gcloud compute ssh jackline --zone=ZONE --command='sudo GIT_SHA=main bash -s' \
   < ../scripts/remote-deploy.sh
 ```
 
+**VM rebuilds are explicit.** The instance ignores boot disk changes (`ignoreChanges: ["bootDisk"]` in [`vm/index.ts`](vm/index.ts)), so a newly published Ubuntu image (or a changed disk size/type) no longer makes `pulumi up` delete and recreate the VM on every deploy. The existing VM keeps its current image and patches in place. To rebuild it on purpose, pick a quiet window (replacement is delete-first: fixed name + static IP, roughly 20 minutes of downtime while the new VM bootstraps) and run:
+
+```bash
+cd vm
+pulumi stack --show-urns | grep 'gcp:compute/instance:Instance'
+pulumi up --replace '<that URN>'
+```
+
 ## GKE (advanced)
 
 ```bash

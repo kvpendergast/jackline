@@ -360,7 +360,21 @@ const instance = new gcp.compute.Instance(
       path: "vm",
     },
   },
-  { dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp] },
+  {
+    dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp],
+    // `image` above resolves the *newest* image in the ubuntu-2404-lts-amd64
+    // family on every run. Boot disk params are ForceNew, so whenever Canonical
+    // publishes a new image, `pulumi up` (run by every Deploy prod) planned
+    // `replace [diff: ~bootDisk]`. Because the instance name and static IP are
+    // fixed, that replacement is delete-first and took prod down ~20 min
+    // (Deploy prod runs 39866975615 on Oct 22 and 40106372663 on Oct 24).
+    // Ignore boot disk drift so routine deploys keep the existing VM; the OS
+    // patches in place via unattended-upgrades. To rebuild the VM on purpose
+    // (new image, disk size/type), run
+    // `pulumi up --replace <instance URN>` (see deploy/pulumi/README.md) or
+    // temporarily remove this ignoreChanges entry.
+    ignoreChanges: ["bootDisk"],
+  },
 );
 
 export const instanceName = instance.name;
