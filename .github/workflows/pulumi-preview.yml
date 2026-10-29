@@ -45,7 +45,7 @@ jobs:
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Mask production identifiers
         run: bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-mask-log-values.sh"
