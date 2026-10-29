@@ -169,6 +169,12 @@ compose() {
   local -a files=(-f "${COMPOSE_FILE}")
   if [[ -f "${COMPOSE_OTEL_FILE}" ]]; then
     files+=(-f "${COMPOSE_OTEL_FILE}")
+    # Bind-mounted config edits don't trigger a recreate on their own; the
+    # hash lands in a container label so `compose up` recreates on change.
+    if [[ -f deploy/logging/otel-collector-config.yaml ]]; then
+      JACKLINE_OTEL_CONFIG_SHA="$(sha256sum deploy/logging/otel-collector-config.yaml | cut -c1-16)"
+      export JACKLINE_OTEL_CONFIG_SHA
+    fi
   fi
   docker compose "${files[@]}" --env-file .env.prod "$@"
 }
