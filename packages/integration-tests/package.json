@@ -17,8 +17,8 @@
     "@jackline/auth": "workspace:*",
     "@jackline/db": "workspace:*",
     "@jackline/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "drizzle-orm": "^0.45.2",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "drizzle-orm": "^0.45.4",
     "zod": "^4.6.7"
   }
 }
