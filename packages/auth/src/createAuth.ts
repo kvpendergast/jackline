@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import { genericOAuth } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -7,6 +8,10 @@ import { count, eq } from "drizzle-orm";
 import { createSecretBox } from "@jackline/crypto";
 import { db, schema, ssoConfigs, tenants } from "@jackline/db";
 import { getConfig, webTrustedOrigins } from "@jackline/shared";
+import {
+  autoVerifyPasswordSignIn,
+  isEmailVerificationBypassed,
+} from "./emailVerificationBypass.js";
 
 export type VerificationEmailSender = (input: {
   to: string;
@@ -237,6 +242,36 @@ function buildAuth(
       requireEmailVerification: true,
     },
     socialProviders,
+    hooks: {
+      // No email provider configured: verification links can never arrive, so
+      // let a correct password sign-in verify the account (see
+      // emailVerificationBypass.ts). Inactive once email delivery is ready.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email") return;
+        const body = (ctx.body ?? {}) as { email?: unknown; password?: unknown };
+        await autoVerifyPasswordSignIn(body, {
+          isBypassed: isEmailVerificationBypassed,
+          findPasswordUser: async (email) => {
+            const found = await ctx.context.internalAdapter.findUserByEmail(
+              email,
+              { includeAccounts: true },
+            );
+            if (!found) return null;
+            const credential = found.accounts.find(
+              (a) => a.providerId === "credential",
+            );
+            return { user: found.user, passwordHash: credential?.password };
+          },
+          verifyPassword: (hash, password) =>
+            ctx.context.password.verify({ hash, password }),
+          markVerified: async (userId) => {
+            await ctx.context.internalAdapter.updateUser(userId, {
+              emailVerified: true,
+            });
+          },
+        });
+      }),
+    },
     plugins:
       oauthConfigs.length > 0
         ? [genericOAuth({ config: oauthConfigs })]
@@ -322,6 +357,26 @@ export async function createHumanUserWithSession(input: {
         emailVerified?: boolean;
       };
     };
+    // No email provider: sign in right away (which verifies the account via
+    // the sign-in hook) instead of waiting for a link that can't be sent.
+    if (await isEmailVerificationBypassed()) {
+      const signInResponse = await auth.api.signInEmail({
+        body: { email: input.email, password: input.password },
+        asResponse: true,
+      });
+      if (signInResponse.ok) {
+        return {
+          ok: true,
+          user: {
+            id: signUpJson.user.id,
+            email: signUpJson.user.email,
+            name: signUpJson.user.name,
+            emailVerified: true,
+          },
+          authResponse: signInResponse,
+        };
+      }
+    }
     return {
       ok: true,
       user: {

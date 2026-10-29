@@ -15,7 +15,11 @@ if (configResult.isErr()) throw configResult.error;
 const config = configResult.value;
 
 const { serve } = await import("@hono/node-server");
-const { initAuth, setVerificationEmailSender } = await import("@jackline/auth");
+const {
+  initAuth,
+  setVerificationEmailSender,
+  setEmailVerificationBypassPolicy,
+} = await import("@jackline/auth");
 const { initObservability, shutdownObservability } = await import(
   "@jackline/observability"
 );
@@ -51,6 +55,15 @@ setVerificationEmailSender(async ({ to, url }) => {
     }
     throw result.error;
   }
+});
+
+// Without an email provider, verification links can't be delivered: let
+// password sign-in verify the account (single-tenant only) instead of leaving
+// the first admin stuck on /verify-email. Re-checked on every sign-in, so it
+// switches off as soon as Resend/SMTP is configured.
+setEmailVerificationBypassPolicy(async () => {
+  const status = await platformEmailServices.getStatus(logger);
+  return status.isOk() && status.value.verificationSkipped;
 });
 
 await initAuth();

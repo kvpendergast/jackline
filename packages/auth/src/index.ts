@@ -31,3 +31,9 @@ export {
   probeGoogleCredentials,
   type GoogleCredentialProbeResult,
 } from "./probeGoogleCredentials.js";
+export {
+  setEmailVerificationBypassPolicy,
+  isEmailVerificationBypassed,
+  shouldBypassEmailVerification,
+  type EmailVerificationBypassPolicy,
+} from "./emailVerificationBypass.js";

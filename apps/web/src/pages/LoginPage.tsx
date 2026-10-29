@@ -262,7 +262,7 @@ export function LoginPage() {
 }
 
 export function SignupPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const oauthError = searchParams.get("error");
@@ -277,6 +277,7 @@ export function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signupOpen, setSignupOpen] = useState<boolean | null>(null);
+  const [verificationSkipped, setVerificationSkipped] = useState(false);
 
   const googleProvider = providers.find((p) => p.providerId === PLATFORM_GOOGLE_ID);
 
@@ -289,6 +290,10 @@ export function SignupPage() {
       .signupStatus()
       .then((s) => setSignupOpen(s.open))
       .catch(() => setSignupOpen(false));
+    void jacklineApi
+      .getEmailDeliveryStatus()
+      .then((s) => setVerificationSkipped(s.verificationSkipped))
+      .catch(() => setVerificationSkipped(false));
   }, []);
 
   useEffect(() => {
@@ -310,7 +315,18 @@ export function SignupPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await jacklineApi.signup({ name, email, password, organizationName });
+      const result = await jacklineApi.signup({
+        name,
+        email,
+        password,
+        organizationName,
+      });
+      if (result.user.emailVerified) {
+        // No email provider: the API skipped verification and signed us in.
+        await refresh();
+        navigate("/auth/complete?intent=login", { replace: true });
+        return;
+      }
       navigate("/verify-email", { replace: true, state: { email } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
@@ -404,6 +420,12 @@ export function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
+        {verificationSkipped ? (
+          <p className="text-xs text-muted-foreground">
+            Email isn't configured on this instance, so your email address
+            won't be verified. Set up Settings → Email before inviting others.
+          </p>
+        ) : null}
         {error ? <p className="text-sm text-deny">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? "Creating…" : "Create organization"}
