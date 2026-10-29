@@ -1,5 +1,6 @@
+import { safeLoginReturnTo } from "@jackline/shared";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +11,50 @@ import { authCompleteRedirect } from "@/pages/AuthCompletePage";
 
 const PLATFORM_GOOGLE_ID = "google";
 
+function oauthErrorMessage(code: string, description?: string | null): string {
+  const detail = description?.trim();
+  const withDetail = (message: string) =>
+    detail ? `${message} (${detail})` : message;
+
+  switch (code) {
+    case "account_not_linked":
+      return "This Google email matches an existing password account that is not verified yet. Sign in with email and password first — we will send a verification link — then try Google again.";
+    case "unable_to_create_user":
+      return "Could not create your account from Google. Try again or use email and password.";
+    case "unable_to_create_session":
+      return "Signed in with Google but could not start a session. Try again.";
+    case "signup_disabled":
+      return "New account creation is disabled on this instance. Ask an admin for an invite.";
+    case "state_mismatch":
+    case "please_restart_the_process":
+      return "Sign-in expired or was interrupted. Please try Google again.";
+    case "oauth_provider_not_found":
+      return "Google sign-in is not enabled on this instance. Ask an operator to set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.";
+    case "invalid_code":
+      return withDetail(
+        "Google sign-in failed while exchanging the auth code. Confirm the Google Cloud OAuth client secret matches Secret Manager (jackline-pulumi-googleClientSecret) and that the authorized redirect URI is exactly /api/auth/callback/google.",
+      );
+    default:
+      return withDetail(
+        `Google sign-in failed (${code.replace(/_/g, " ")}). Try again.`,
+      );
+  }
+}
+
+function loginErrorCallbackUrl(): string {
+  return `${window.location.origin}/login`;
+}
+
 export function LoginPage() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeLoginReturnTo(
+    searchParams.get("return_to"),
+    window.location.origin,
+  );
+  const oauthError = searchParams.get("error");
+  const oauthErrorDescription = searchParams.get("error_description");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -23,6 +65,7 @@ export function LoginPage() {
   const tenantProviders = providers.filter(
     (p) => p.providerId !== PLATFORM_GOOGLE_ID,
   );
+  const [signupOpen, setSignupOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,9 +74,31 @@ export function LoginPage() {
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
   }, []);
 
+  useEffect(() => {
+    if (oauthError) {
+      setError(oauthErrorMessage(oauthError, oauthErrorDescription));
+    }
+  }, [oauthError, oauthErrorDescription]);
+
+  function finishLoginRedirect() {
+    if (returnTo) {
+      window.location.assign(returnTo);
+      return;
+    }
+    navigate("/auth/complete?intent=login", { replace: true });
+  }
+
   if (!loading && user?.emailVerified) {
+    if (returnTo) {
+      window.location.assign(returnTo);
+      return null;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -45,12 +110,19 @@ export function LoginPage() {
       const result = await authClient.signIn.email({
         email,
         password,
-        callbackURL: authCompleteRedirect("login", inviteToken.trim() || undefined),
+        callbackURL: authCompleteRedirect(
+          "login",
+          inviteToken.trim() || undefined,
+          returnTo,
+        ),
       });
       if (result.error) {
         const code = result.error.code ?? "";
         if (code === "EMAIL_NOT_VERIFIED") {
-          navigate("/verify-email", { replace: true, state: { email } });
+          navigate("/verify-email", {
+            replace: true,
+            state: { email, returnTo },
+          });
           return;
         }
         setError(result.error.message ?? "Sign in failed");
@@ -60,7 +132,7 @@ export function LoginPage() {
         await jacklineApi.acceptInvite(inviteToken.trim());
       }
       await refresh();
-      navigate("/auth/complete?intent=login", { replace: true });
+      finishLoginRedirect();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
@@ -77,7 +149,9 @@ export function LoginPage() {
         callbackURL: authCompleteRedirect(
           intent,
           intent === "login" ? inviteToken.trim() || undefined : undefined,
+          returnTo,
         ),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
@@ -94,7 +168,9 @@ export function LoginPage() {
         callbackURL: authCompleteRedirect(
           "login",
           inviteToken.trim() || undefined,
+          returnTo,
         ),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "SSO failed");
@@ -107,12 +183,16 @@ export function LoginPage() {
       title="Sign in"
       subtitle="Access your Jackline control plane."
       footer={
-        <>
-          No organization yet?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
-            Create one
-          </Link>
-        </>
+        signupOpen ? (
+          <>
+            No organization yet?{" "}
+            <Link to="/signup" className="text-primary hover:underline">
+              Create one
+            </Link>
+          </>
+        ) : (
+          <>Need access? Ask an admin for an invite.</>
+        )
       }
     >
       {googleProvider ? (
@@ -184,6 +264,9 @@ export function LoginPage() {
 export function SignupPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get("error");
+  const oauthErrorDescription = searchParams.get("error_description");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -193,6 +276,7 @@ export function SignupPage() {
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signupOpen, setSignupOpen] = useState<boolean | null>(null);
 
   const googleProvider = providers.find((p) => p.providerId === PLATFORM_GOOGLE_ID);
 
@@ -201,10 +285,24 @@ export function SignupPage() {
       .listSsoProviders()
       .then((page) => setProviders(page.items))
       .catch(() => setProviders([]));
+    void jacklineApi
+      .signupStatus()
+      .then((s) => setSignupOpen(s.open))
+      .catch(() => setSignupOpen(false));
   }, []);
+
+  useEffect(() => {
+    if (oauthError) {
+      setError(oauthErrorMessage(oauthError, oauthErrorDescription));
+    }
+  }, [oauthError, oauthErrorDescription]);
 
   if (!loading && user?.emailVerified) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (signupOpen === false) {
+    return <Navigate to="/login" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -228,11 +326,20 @@ export function SignupPage() {
       await authClient.signIn.social({
         provider: "google",
         callbackURL: authCompleteRedirect("signup"),
+        errorCallbackURL: loginErrorCallbackUrl(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-up failed");
       setSubmitting(false);
     }
+  }
+
+  if (signupOpen === null) {
+    return (
+      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   return (
@@ -318,8 +425,8 @@ function AuthScreen({
   children: ReactNode;
 }) {
   return (
-    <div className="lattice-bg flex min-h-svh items-center justify-center p-6">
-      <div className="w-full max-w-md border border-border bg-card p-6 shadow-none">
+    <div className="lattice-bg flex min-h-svh items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+      <div className="w-full max-w-md border border-border bg-card p-5 shadow-none sm:p-6">
         <div className="mb-6 space-y-1">
           <p className="section-label">Jackline</p>
           <h1 className="text-2xl font-medium tracking-[-0.03em]">{title}</h1>

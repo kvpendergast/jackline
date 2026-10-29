@@ -4,7 +4,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { err, ok, type Result } from "neverthrow";
 import { z } from "zod";
 import { toolDefinition } from "@tanstack/ai";
-import { JacklineError, SetupError } from "@jackline/shared";
+import { JacklineError, JACKLINE_AUDIT_REASON_HEADER, SetupError } from "@jackline/shared";
 import {
   injectOutboundHeaders,
   type OtelConfig,
@@ -50,6 +50,10 @@ export function isMcpMethodNotFound(cause: unknown): boolean {
 export type ConnectJacklineMcpOptions = {
   requestId?: string | undefined;
   otel: OtelConfig;
+  /** When set, only expose these gateway MCP tool names to the caller. */
+  allowedToolNames?: ReadonlySet<string>;
+  /** Propagated to gateway audit events (A2A peer attribution). */
+  auditReason?: string;
 };
 
 export async function connectJacklineMcpTools(
@@ -62,6 +66,9 @@ export async function connectJacklineMcpTools(
     requestId: options.requestId,
     headers: {
       Authorization: `Bearer ${gatewayToken}`,
+      ...(options.auditReason
+        ? { [JACKLINE_AUDIT_REASON_HEADER]: options.auditReason }
+        : {}),
     },
   });
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
@@ -81,6 +88,15 @@ export async function connectJacklineMcpTools(
         throw cause;
       }
     }
+
+    if (options.allowedToolNames && options.allowedToolNames.size > 0) {
+      listedTools = listedTools.filter((tool) =>
+        options.allowedToolNames!.has(tool.name),
+      );
+    } else if (options.allowedToolNames) {
+      listedTools = [];
+    }
+
     const tools = listedTools.map((tool) => {
       const def = toolDefinition({
         name: tool.name,

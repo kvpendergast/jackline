@@ -9,6 +9,7 @@ export const Server = {
 } as const;
 
 const routeOrder = [
+  "discoverOauth",
   "list",
   "create",
   "get",

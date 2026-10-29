@@ -1,11 +1,20 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import type { PublicAgent, PublicKnock, PublicTrustGrant } from "@jackline/shared";
+import type {
+  AgentPublicSkill,
+  PublicAgent,
+  PublicKnock,
+  PublicServer,
+  PublicTool,
+  PublicTrustGrant,
+} from "@jackline/shared";
+import { DEFAULT_PUBLIC_SKILLS } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { KindBadge } from "@/components/jackline/StatusBadge";
+import { AgentConversationPanel } from "@/components/agents/AgentConversationPanel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -42,6 +52,7 @@ function formatTtl(seconds: number): string {
 
 export function AgentDetailPage() {
   const { id = "" } = useParams();
+  const location = useLocation();
   const { tenantId } = useAuth();
   const [agent, setAgent] = useState<PublicAgent | null>(null);
   const [knocks, setKnocks] = useState<PublicKnock[]>([]);
@@ -58,22 +69,46 @@ export function AgentDetailPage() {
 
   const [approveKnockId, setApproveKnockId] = useState<string | null>(null);
   const [approveTtlSeconds, setApproveTtlSeconds] = useState("86400");
+  const [approveSkillIds, setApproveSkillIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [approveNote, setApproveNote] = useState("");
+  const [denyKnockId, setDenyKnockId] = useState<string | null>(null);
+  const [denyNote, setDenyNote] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [publicSkills, setPublicSkills] = useState<AgentPublicSkill[]>([]);
+  const [tools, setTools] = useState<PublicTool[]>([]);
+  const [servers, setServers] = useState<PublicServer[]>([]);
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
+  const [savingTools, setSavingTools] = useState(false);
 
   async function loadAgent() {
     if (!tenantId || !id) return null;
-    const [agentData, knockData, grantData] = await Promise.all([
-      jacklineApi.getAgent(tenantId, id),
-      jacklineApi.listAgentKnocks(tenantId, id),
-      jacklineApi.listTrustGrants(tenantId, id),
-    ]);
+    const [agentData, knockData, grantData, toolsData, serversData] =
+      await Promise.all([
+        jacklineApi.getAgent(tenantId, id),
+        jacklineApi.listAgentKnocks(tenantId, id),
+        jacklineApi.listTrustGrants(tenantId, id),
+        jacklineApi.listTools(tenantId),
+        jacklineApi.listServers(tenantId),
+      ]);
     setAgent(agentData);
     setKnocks(knockData.items);
     setGrants(grantData.items);
+    setTools(toolsData.items);
+    setServers(serversData.items);
     setDisplayName(agentData.displayName);
     setDescription(agentData.description ?? "");
+    setInstructions(agentData.instructions ?? "");
+    setPublicSkills(
+      agentData.publicSkills.length > 0
+        ? agentData.publicSkills.map((skill) => ({ ...skill }))
+        : DEFAULT_PUBLIC_SKILLS.map((skill) => ({ ...skill })),
+    );
     setKnocksEnabled(agentData.knocksEnabled);
     setDefaultGrantTtlSeconds(String(agentData.defaultGrantTtlSeconds));
     setApproveTtlSeconds(String(agentData.defaultGrantTtlSeconds));
+    setSelectedToolIds(new Set(agentData.toolIds));
     return agentData;
   }
 
@@ -99,6 +134,13 @@ export function AgentDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, id]);
 
+  useEffect(() => {
+    if (loading) return;
+    if (location.hash !== "#knocks") return;
+    const el = document.getElementById("knocks");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [loading, location.hash, knocks.length]);
+
   async function onSaveSettings(event: FormEvent) {
     event.preventDefault();
     if (!tenantId || !id) return;
@@ -106,13 +148,28 @@ export function AgentDetailPage() {
     setError(null);
     setInfo(null);
     try {
+      const cleanedSkills = publicSkills
+        .map((skill) => ({
+          id: skill.id.trim(),
+          name: skill.name.trim(),
+          description: skill.description.trim(),
+        }))
+        .filter((skill) => skill.id && skill.name);
+      if (cleanedSkills.length === 0) {
+        setError("Add at least one public skill with an id and name.");
+        setSaving(false);
+        return;
+      }
       const updated = await jacklineApi.updateAgent(tenantId, id, {
         displayName,
         description: description.trim() ? description.trim() : null,
+        instructions: instructions.trim() ? instructions.trim() : null,
+        publicSkills: cleanedSkills,
         knocksEnabled,
         defaultGrantTtlSeconds: Number(defaultGrantTtlSeconds),
       });
       setAgent(updated);
+      setPublicSkills(updated.publicSkills.map((skill) => ({ ...skill })));
       setInfo("Settings saved.");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to save settings");
@@ -145,19 +202,99 @@ export function AgentDetailPage() {
     }
   }
 
+  const activeTools = useMemo(
+    () =>
+      tools.filter(
+        (tool) => tool.status === "active" || selectedToolIds.has(tool.id),
+      ),
+    [tools, selectedToolIds],
+  );
+
+  const serverNameById = useMemo(
+    () => new Map(servers.map((server) => [server.id, server.name])),
+    [servers],
+  );
+
+  const toolsByServer = useMemo(() => {
+    const groups = new Map<string, PublicTool[]>();
+    for (const tool of activeTools) {
+      const key = tool.serverId;
+      const list = groups.get(key) ?? [];
+      list.push(tool);
+      groups.set(key, list);
+    }
+    return [...groups.entries()].sort((a, b) => {
+      const nameA = serverNameById.get(a[0]) ?? a[0];
+      const nameB = serverNameById.get(b[0]) ?? b[0];
+      return nameA.localeCompare(nameB);
+    });
+  }, [activeTools, serverNameById]);
+
+  const pendingKnockCount = useMemo(
+    () => knocks.filter((knock) => knock.status === "pending").length,
+    [knocks],
+  );
+
+  async function onSaveTools() {
+    if (!tenantId || !id) return;
+    setSavingTools(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const updated = await jacklineApi.setAgentTools(
+        tenantId,
+        id,
+        [...selectedToolIds],
+      );
+      setAgent(updated);
+      setSelectedToolIds(new Set(updated.toolIds));
+      setInfo("Agent tools saved. All approved peers share this tool surface.");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to save tools");
+    } finally {
+      setSavingTools(false);
+    }
+  }
+
   async function onApproveKnock() {
     if (!tenantId || !approveKnockId) return;
     setError(null);
     try {
       await jacklineApi.approveKnock(tenantId, approveKnockId, {
         grantTtlSeconds: Number(approveTtlSeconds),
+        skillIds: [...approveSkillIds],
+        ...(approveNote.trim() ? { decisionNote: approveNote.trim() } : {}),
       });
       setApproveKnockId(null);
+      setApproveNote("");
       await loadAgent();
       setInfo("Knock approved. Peer can exchange credentials via the trust API.");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to approve knock");
     }
+  }
+
+  async function onDenyKnock() {
+    if (!tenantId || !denyKnockId) return;
+    setError(null);
+    try {
+      await jacklineApi.denyKnock(tenantId, denyKnockId, {
+        ...(denyNote.trim() ? { decisionNote: denyNote.trim() } : {}),
+      });
+      setDenyKnockId(null);
+      setDenyNote("");
+      await loadAgent();
+      setInfo("Knock denied.");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to deny knock");
+    }
+  }
+
+  function openApproveDialog(knockId: string) {
+    setApproveTtlSeconds(defaultGrantTtlSeconds);
+    setApproveSkillIds(new Set(publicSkills.map((skill) => skill.id)));
+    setApproveNote("");
+    setApproveKnockId(knockId);
   }
 
   if (loading) {
@@ -270,6 +407,101 @@ export function AgentDetailPage() {
               placeholder="Optional"
             />
           </Field>
+          <Field label="Instructions (system prompt)">
+            <textarea
+              className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="How this agent should act on your behalf"
+            />
+          </Field>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium">Public skills</p>
+              <p className="text-xs text-muted-foreground">
+                Advertised on the agent card and public directory. Distinct from
+                MCP tools bound below.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {publicSkills.map((skill, index) => (
+                <div
+                  key={`skill-${index}`}
+                  className="space-y-2 rounded-md border p-3"
+                >
+                  <Field label="Skill id">
+                    <Input
+                      value={skill.id}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, id: value } : row,
+                          ),
+                        );
+                      }}
+                      placeholder="contact.leave_message"
+                      required
+                    />
+                  </Field>
+                  <Field label="Name">
+                    <Input
+                      value={skill.name}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, name: value } : row,
+                          ),
+                        );
+                      }}
+                      required
+                    />
+                  </Field>
+                  <Field label="Description">
+                    <Input
+                      value={skill.description}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicSkills((prev) =>
+                          prev.map((row, i) =>
+                            i === index ? { ...row, description: value } : row,
+                          ),
+                        );
+                      }}
+                      placeholder="Optional"
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={publicSkills.length <= 1}
+                    onClick={() =>
+                      setPublicSkills((prev) =>
+                        prev.filter((_, i) => i !== index),
+                      )
+                    }
+                  >
+                    Remove skill
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setPublicSkills((prev) => [
+                  ...prev,
+                  { id: "", name: "", description: "" },
+                ])
+              }
+            >
+              Add skill
+            </Button>
+          </div>
           <Field label="Default grant duration (after knock approval)">
             <FieldSelect
               value={defaultGrantTtlSeconds}
@@ -299,23 +531,99 @@ export function AgentDetailPage() {
         </form>
       </section>
 
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-medium">Tools</h2>
+          <p className="text-sm text-muted-foreground">
+            MCP tools this agent may use on your behalf. The same set applies to
+            every approved peer ({selectedToolIds.size} bound).
+          </p>
+        </div>
+        {activeTools.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No active tools in this tenant yet. Add and activate tools on a
+            server first.
+          </p>
+        ) : (
+          <div className="max-w-lg space-y-4 rounded-md border p-3">
+            {toolsByServer.map(([serverId, serverTools]) => (
+              <div key={serverId} className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {serverNameById.get(serverId) ?? "Server"}
+                </p>
+                {serverTools.map((tool) => {
+                  const checked = selectedToolIds.has(tool.id);
+                  return (
+                    <label
+                      key={tool.id}
+                      className="flex items-start gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedToolIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(tool.id);
+                            else next.delete(tool.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.description ? (
+                          <span className="block text-muted-foreground">
+                            {tool.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+        <Button
+          type="button"
+          disabled={savingTools}
+          onClick={() => void onSaveTools()}
+        >
+          {savingTools ? "Saving tools…" : "Save tools"}
+        </Button>
+      </section>
+
       <Separator />
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Knocks</h2>
+      {tenantId ? (
+        <AgentConversationPanel tenantId={tenantId} agentId={agent.id} />
+      ) : null}
+
+      <section id="knocks" className="scroll-mt-20 space-y-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-medium">Knocks</h2>
+          {pendingKnockCount > 0 ? (
+            <span className="text-sm text-muted-foreground">
+              {pendingKnockCount} pending
+            </span>
+          ) : null}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Peer</TableHead>
               <TableHead>Message</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Note</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {knocks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No knocks yet.
                 </TableCell>
               </TableRow>
@@ -329,24 +637,24 @@ export function AgentDetailPage() {
                     {knock.message}
                   </TableCell>
                   <TableCell>{knock.status}</TableCell>
+                  <TableCell className="max-w-[12rem] truncate text-muted-foreground">
+                    {knock.decisionNote ?? "—"}
+                  </TableCell>
                   <TableCell className="space-x-2">
                     {knock.status === "pending" && tenantId ? (
                       <>
                         <Button
                           size="sm"
-                          onClick={() => {
-                            setApproveTtlSeconds(defaultGrantTtlSeconds);
-                            setApproveKnockId(knock.id);
-                          }}
+                          onClick={() => openApproveDialog(knock.id)}
                         >
                           Approve
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={async () => {
-                            await jacklineApi.denyKnock(tenantId, knock.id);
-                            await loadAgent();
+                          onClick={() => {
+                            setDenyNote("");
+                            setDenyKnockId(knock.id);
                           }}
                         >
                           Deny
@@ -368,6 +676,7 @@ export function AgentDetailPage() {
             <TableRow>
               <TableHead>Peer</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Skills</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead />
             </TableRow>
@@ -375,7 +684,7 @@ export function AgentDetailPage() {
           <TableBody>
             {grants.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No trust grants yet.
                 </TableCell>
               </TableRow>
@@ -386,6 +695,11 @@ export function AgentDetailPage() {
                     {grant.peerDisplayName ?? grant.peerAgentCardUrl}
                   </TableCell>
                   <TableCell>{grant.status}</TableCell>
+                  <TableCell className="max-w-[14rem] truncate font-mono text-[12px]">
+                    {grant.skillPolicy.skillIds.length > 0
+                      ? grant.skillPolicy.skillIds.join(", ")
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     {new Date(grant.expiresAt).toLocaleString()}
                   </TableCell>
@@ -424,6 +738,11 @@ export function AgentDetailPage() {
             <DialogTitle>Approve knock</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Approving trusts this peer for the duration below. They use the
+              agent’s bound MCP tools. Optionally narrow which advertised skills
+              this grant covers.
+            </p>
             <Field label="Grant duration for this peer">
               <FieldSelect
                 value={approveTtlSeconds}
@@ -436,7 +755,79 @@ export function AgentDetailPage() {
                 ))}
               </FieldSelect>
             </Field>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Skills for this grant</p>
+              {publicSkills.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No public skills configured on this agent.
+                </p>
+              ) : (
+                publicSkills.map((skill) => {
+                  const checked = approveSkillIds.has(skill.id);
+                  return (
+                    <label
+                      key={skill.id}
+                      className="flex items-start gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={(e) => {
+                          setApproveSkillIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(skill.id);
+                            else next.delete(skill.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">{skill.name}</span>
+                        <span className="block font-mono text-[11px] text-muted-foreground">
+                          {skill.id}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <Field label="Decision note (optional)">
+              <Textarea
+                value={approveNote}
+                onChange={(e) => setApproveNote(e.target.value)}
+                placeholder="Why you’re approving this peer"
+                rows={3}
+              />
+            </Field>
             <Button onClick={onApproveKnock}>Approve and grant access</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={denyKnockId !== null}
+        onOpenChange={(next) => {
+          if (!next) setDenyKnockId(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deny knock</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field label="Decision note (optional)">
+              <Textarea
+                value={denyNote}
+                onChange={(e) => setDenyNote(e.target.value)}
+                placeholder="Optional note for your records"
+                rows={3}
+              />
+            </Field>
+            <Button variant="outline" onClick={onDenyKnock}>
+              Deny knock
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -153,11 +153,12 @@ export function AccessRequestsPage() {
                       ) : null}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
                     {isAdmin ? (
                       <>
                         <Button
                           size="sm"
+                          className="w-full sm:w-auto"
                           disabled={busyId === req.id}
                           onClick={() => void approveAll(req.id)}
                         >
@@ -166,6 +167,7 @@ export function AccessRequestsPage() {
                         <Button
                           size="sm"
                           variant="secondary"
+                          className="w-full sm:w-auto"
                           disabled={busyId === req.id}
                           onClick={() => {
                             setPartialFor(req.id);
@@ -183,6 +185,7 @@ export function AccessRequestsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="w-full sm:w-auto"
                           disabled={busyId === req.id}
                           onClick={() => void deny(req.id)}
                         >
@@ -194,6 +197,7 @@ export function AccessRequestsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="w-full sm:w-auto"
                         disabled={busyId === req.id}
                         onClick={() => void cancel(req.id)}
                       >

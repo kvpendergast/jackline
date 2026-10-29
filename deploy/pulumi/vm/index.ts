@@ -160,6 +160,19 @@ if (deployServiceAccount) {
   });
 }
 
+// OTEL Collector on the VM ships stdout logs / OTLP traces to Cloud Logging & Trace.
+// Project IAM for jackline-vm (logWriter / cloudtrace.agent) is a one-time operator
+// grant — the CI deploy SA typically lacks resourcemanager.projectIamAdmin. See
+// deploy/pulumi/README.md § Logs.
+new gcp.projects.Service("logging", {
+  service: "logging.googleapis.com",
+  disableOnDestroy: false,
+});
+new gcp.projects.Service("cloudtrace", {
+  service: "cloudtrace.googleapis.com",
+  disableOnDestroy: false,
+});
+
 // ---------------------------------------------------------------------------
 // Firewall: HTTP/HTTPS to tagged VMs
 // ---------------------------------------------------------------------------
@@ -228,6 +241,8 @@ const startupScript = pulumi
       API_PORT: "8080",
       GATEWAY_HOST: "0.0.0.0",
       GATEWAY_PORT: "8081",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318/v1/traces",
+      GCP_PROJECT_ID: project,
     };
     const envJson = JSON.stringify(envPayload);
 
@@ -271,7 +286,7 @@ print("wrote", path)
 PY
 
 cd ${installRoot}
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.otel.yml --env-file .env.prod up --build -d
 echo "=== Jackline bootstrap complete ==="
 `;
   });
@@ -309,7 +324,8 @@ const instance = new gcp.compute.Instance(
     bootDisk: {
       initializeParams: {
         image: image.selfLink,
-        size: 30,
+        // Jackline images + rolling scale=2 leave layers; 30G filled in practice.
+        size: 50,
         type: "pd-balanced",
       },
     },
@@ -330,10 +346,12 @@ const instance = new gcp.compute.Instance(
     },
     serviceAccount: {
       email: vmSa.email,
-      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring agents.
+      // Compose does not call GCP APIs; keep scopes minimal for logging/monitoring
+      // agents and the OpenTelemetry Collector (Cloud Logging + Cloud Trace).
       scopes: [
         "https://www.googleapis.com/auth/logging.write",
         "https://www.googleapis.com/auth/monitoring.write",
+        "https://www.googleapis.com/auth/trace.append",
       ],
     },
     allowStoppingForUpdate: true,
@@ -342,17 +360,33 @@ const instance = new gcp.compute.Instance(
       path: "vm",
     },
   },
-  { dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp] },
+  {
+    dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp],
+    // `image` above resolves the *newest* image in the ubuntu-2404-lts-amd64
+    // family on every run. Boot disk params are ForceNew, so whenever Canonical
+    // publishes a new image, `pulumi up` (run by every Deploy prod) planned
+    // `replace [diff: ~bootDisk]`. Because the instance name and static IP are
+    // fixed, that replacement is delete-first and took prod down ~20 min
+    // (Deploy prod runs 39866975615 on Oct 22 and 40106372663 on Oct 24).
+    // Ignore boot disk drift so routine deploys keep the existing VM; the OS
+    // patches in place via unattended-upgrades. To rebuild the VM on purpose
+    // (new image, disk size/type), run
+    // `pulumi up --replace <instance URN>` (see deploy/pulumi/README.md) or
+    // temporarily remove this ignoreChanges entry.
+    ignoreChanges: ["bootDisk"],
+  },
 );
 
 export const instanceName = instance.name;
 export const instanceZone = zone;
-export const vmServiceAccount = vmSa.email;
-export const publicIp = staticIp.address;
+export const vmServiceAccount = pulumi.secret(vmSa.email);
+export const publicIp = pulumi.secret(staticIp.address);
 export const staticIpName = staticIp.name;
-export const appUrl = publicBaseUrl;
-export const sshHint = pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`;
+export const appUrl = pulumi.secret(publicBaseUrl);
+export const sshHint = pulumi.secret(
+  pulumi.interpolate`gcloud compute ssh ${instance.name} --zone=${zone} --project=${project}`,
+);
 export const cloudSqlInstanceName = sqlInstance.name;
-export const cloudSqlConnectionName = cloudSqlConnName;
-export const cloudSqlPrivateIp = sqlInstance.privateIpAddress;
+export const cloudSqlConnectionName = pulumi.secret(cloudSqlConnName);
+export const cloudSqlPrivateIp = pulumi.secret(sqlInstance.privateIpAddress);
 export const databaseUrlHint = pulumi.secret(databaseUrl);

@@ -1,0 +1,25 @@
+{
+  "name": "@jackline/quotas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
+    "lint": "echo \"lint later\""
+  },
+  "dependencies": {
+    "@jackline/shared": "workspace:*",
+    "neverthrow": "^8.2.0",
+    "redis": "^5.8.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

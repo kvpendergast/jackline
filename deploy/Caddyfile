@@ -58,6 +58,40 @@
 		import api_proxy
 	}
 
+	# A2A discovery + JSON-RPC (public agent cards; peer messages).
+	handle /agents/* {
+		encode gzip
+		import api_proxy
+	}
+
+	handle /a2a/* {
+		encode gzip
+		import api_proxy
+	}
+
+	# MCP OAuth AS metadata + endpoints (API root, not under /api).
+	handle /.well-known/oauth-authorization-server* {
+		encode gzip
+		import api_proxy
+	}
+
+	# RFC 9728 protected-resource metadata is served by the gateway, not the API.
+	handle /.well-known/oauth-protected-resource* {
+		encode gzip
+		reverse_proxy gateway:8081 {
+			health_uri /health
+			health_interval 5s
+			health_timeout 2s
+			fail_duration 10s
+			unhealthy_status 5xx
+		}
+	}
+
+	handle /oauth/* {
+		encode gzip
+		import api_proxy
+	}
+
 	handle /health {
 		import api_proxy
 	}

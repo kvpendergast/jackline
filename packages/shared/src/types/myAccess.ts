@@ -29,6 +29,8 @@ export type MyAccessServer = z.infer<typeof MyAccessServerSchema>;
 
 export const StartOauthBodySchema = z.strictObject({
   serverId: z.uuid(),
+  /** Optional https URL to return to after Connect (validated server-side). */
+  returnTo: z.string().max(2048).optional(),
 });
 export type StartOauthBody = z.infer<typeof StartOauthBodySchema>;
 

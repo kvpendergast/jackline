@@ -1,12 +1,14 @@
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   agentNetworks,
+  agentToolBindings,
   agents,
   a2aTasks,
   db,
   knocks,
   networks,
   notifications,
+  tools,
   trustGrants,
   type Agent as AgentRow,
   type Knock as KnockRow,
@@ -18,6 +20,7 @@ import {
   generatePeerGrantSecret,
   hashToken,
 } from "@jackline/auth";
+import { timingSafeEqualHex } from "@jackline/crypto";
 import {
   a2aEndpointUrl,
   agentCardUrl,
@@ -32,7 +35,6 @@ import {
   PUBLIC_NETWORK_SLUG,
   publicApiBaseUrl,
   SetupError,
-  timingSafeEqualHex,
   UnauthorizedError,
   extractBearerToken,
   parsePeerGrantToken,
@@ -41,6 +43,7 @@ import {
   type AgentDirectoryResponse,
   type ApproveKnockBody,
   type CreateAgentBody,
+  type DenyKnockBody,
   type ExchangeTrustGrantBody,
   type MintedPeerGrantCredential,
   type PublicAgent,
@@ -48,6 +51,7 @@ import {
   type PublicKnock,
   type PublicTrustGrant,
   type UpdateAgentBody,
+  type AgentTranscriptResponse,
   JACKLINE_TRUST_REQUEST_INTENT,
   validateKnockMessage,
 } from "@jackline/shared";
@@ -60,6 +64,12 @@ import {
   type JsonRpcRequest,
 } from "./a2aProtocol.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
+import { buildTasksGetResult } from "./tasksGet.js";
+import {
+  runHostedPeerMessage,
+  syncAgentToolsToOwnerChatConnection,
+} from "./hostedRuntime.js";
+import { buildAgentTranscript } from "./transcript.js";
 
 function configPublicBaseUrl(): Result<string, JacklineError> {
   const cfg = getConfig();
@@ -67,7 +77,72 @@ function configPublicBaseUrl(): Result<string, JacklineError> {
   return ok(publicApiBaseUrl(cfg.value));
 }
 
-function toPublicAgent(row: AgentRow, base: string): PublicAgent {
+async function loadToolIds(agentId: string): Promise<string[]> {
+  const rows = await db
+    .select({ toolId: agentToolBindings.toolId })
+    .from(agentToolBindings)
+    .where(eq(agentToolBindings.agentId, agentId));
+  return rows.map((row) => row.toolId);
+}
+
+async function replaceAgentToolBindings(
+  tenantId: string,
+  agentId: string,
+  toolIds: string[],
+): Promise<Result<string[], JacklineError>> {
+  const uniqueToolIds = [...new Set(toolIds)];
+
+  if (uniqueToolIds.length > 0) {
+    const found = await db
+      .select({ id: tools.id })
+      .from(tools)
+      .where(
+        and(eq(tools.tenantId, tenantId), inArray(tools.id, uniqueToolIds)),
+      );
+
+    if (found.length !== uniqueToolIds.length) {
+      return err(
+        new BadRequestError(
+          "One or more toolIds do not reference tools in this tenant",
+        ),
+      );
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(agentToolBindings)
+      .where(
+        and(
+          eq(agentToolBindings.agentId, agentId),
+          eq(agentToolBindings.tenantId, tenantId),
+        ),
+      );
+
+    if (uniqueToolIds.length > 0) {
+      await tx.insert(agentToolBindings).values(
+        uniqueToolIds.map((toolId) => ({
+          agentId,
+          toolId,
+          tenantId,
+        })),
+      );
+    }
+
+    await tx
+      .update(agents)
+      .set({ updatedAt: new Date() })
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)));
+  });
+
+  return ok(uniqueToolIds);
+}
+
+function toPublicAgent(
+  row: AgentRow,
+  base: string,
+  toolIds: string[],
+): PublicAgent {
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -80,7 +155,9 @@ function toPublicAgent(row: AgentRow, base: string): PublicAgent {
     status: row.status,
     knocksEnabled: row.knocksEnabled,
     defaultGrantTtlSeconds: row.defaultGrantTtlSeconds,
+    instructions: row.instructions ?? null,
     publicSkills: row.publicSkills,
+    toolIds,
     agentCardUrl: agentCardUrl(base, row.handle),
     a2aUrl: a2aEndpointUrl(base, row.handle),
     createdAt: row.createdAt.toISOString(),
@@ -97,6 +174,7 @@ function toPublicKnock(row: KnockRow): PublicKnock {
     peerDisplayName: row.peerDisplayName ?? null,
     message: row.message,
     status: row.status,
+    decisionNote: row.decisionNote ?? null,
     trustGrantId: row.trustGrantId ?? null,
     a2aTaskId: row.a2aTaskId ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -185,9 +263,13 @@ export const agentServices = {
       .from(agents)
       .where(and(eq(agents.tenantId, tenantId), eq(agents.ownerUserId, userId)))
       .orderBy(agents.createdAt);
-    return ok({
-      items: rows.map((row) => toPublicAgent(row, baseResult.value)),
-    });
+
+    const items: PublicAgent[] = [];
+    for (const row of rows) {
+      const toolIds = await loadToolIds(row.id);
+      items.push(toPublicAgent(row, baseResult.value, toolIds));
+    }
+    return ok({ items });
   },
 
   async createAgent(
@@ -209,11 +291,24 @@ export const agentServices = {
           description: body.description ?? null,
           knocksEnabled: body.knocksEnabled ?? true,
           defaultGrantTtlSeconds: body.defaultGrantTtlSeconds ?? 86400,
+          instructions: body.instructions ?? null,
           publicSkills: body.publicSkills ?? DEFAULT_PUBLIC_SKILLS,
         })
         .returning();
       if (!row) return err(new SetupError("Failed to create agent"));
-      return ok(toPublicAgent(row, baseResult.value));
+
+      let toolIds: string[] = [];
+      if (body.toolIds && body.toolIds.length > 0) {
+        const bindResult = await replaceAgentToolBindings(
+          tenantId,
+          row.id,
+          body.toolIds,
+        );
+        if (bindResult.isErr()) return err(bindResult.error);
+        toolIds = bindResult.value;
+      }
+
+      return ok(toPublicAgent(row, baseResult.value, toolIds));
     } catch (e) {
       return err(fromDbWriteError(e, "Handle already exists"));
     }
@@ -229,7 +324,8 @@ export const agentServices = {
 
     const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
     if (ownerResult.isErr()) return err(ownerResult.error);
-    return ok(toPublicAgent(ownerResult.value, baseResult.value));
+    const toolIds = await loadToolIds(agentId);
+    return ok(toPublicAgent(ownerResult.value, baseResult.value, toolIds));
   },
 
   async updateAgent(
@@ -260,6 +356,9 @@ export const agentServices = {
           ...(body.defaultGrantTtlSeconds !== undefined
             ? { defaultGrantTtlSeconds: body.defaultGrantTtlSeconds }
             : {}),
+          ...(body.instructions !== undefined
+            ? { instructions: body.instructions }
+            : {}),
           ...(body.publicSkills !== undefined
             ? { publicSkills: body.publicSkills }
             : {}),
@@ -274,10 +373,100 @@ export const agentServices = {
         .where(eq(agents.id, agentId))
         .returning();
       if (!row) return err(new NotFoundError("Agent not found"));
-      return ok(toPublicAgent(row, baseResult.value));
+      const toolIds = await loadToolIds(agentId);
+      return ok(toPublicAgent(row, baseResult.value, toolIds));
     } catch (e) {
       return err(fromDbWriteError(e, "Failed to update agent"));
     }
+  },
+
+  async setTools(
+    log: Logger,
+    tenantId: string,
+    userId: string,
+    agentId: string,
+    toolIds: string[],
+  ): Promise<Result<PublicAgent, JacklineError>> {
+    const baseResult = configPublicBaseUrl();
+    if (baseResult.isErr()) return err(baseResult.error);
+
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+
+    const bindResult = await replaceAgentToolBindings(
+      tenantId,
+      agentId,
+      toolIds,
+    );
+    if (bindResult.isErr()) return err(bindResult.error);
+
+    const sync = await syncAgentToolsToOwnerChatConnection(
+      log,
+      tenantId,
+      ownerResult.value.ownerUserId,
+      bindResult.value,
+    );
+    if (sync.isErr()) return err(sync.error);
+
+    const [row] = await db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .limit(1);
+    if (!row) return err(new NotFoundError("Agent not found"));
+
+    return ok(toPublicAgent(row, baseResult.value, bindResult.value));
+  },
+
+  async listBoundTools(
+    agentId: string,
+  ): Promise<
+    Result<
+      Array<{
+        toolId: string;
+        name: string;
+        description: string | null;
+        serverId: string;
+        inputSchema: Record<string, unknown> | null;
+      }>,
+      JacklineError
+    >
+  > {
+    const rows = await db
+      .select({
+        toolId: tools.id,
+        name: tools.name,
+        description: tools.description,
+        serverId: tools.serverId,
+        inputSchema: tools.inputSchema,
+      })
+      .from(agentToolBindings)
+      .innerJoin(tools, eq(agentToolBindings.toolId, tools.id))
+      .where(eq(agentToolBindings.agentId, agentId));
+
+    return ok(
+      rows.map((row) => ({
+        toolId: row.toolId,
+        name: row.name,
+        description: row.description ?? null,
+        serverId: row.serverId,
+        inputSchema: row.inputSchema ?? null,
+      })),
+    );
+  },
+
+  async isToolBound(agentId: string, toolId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: agentToolBindings.id })
+      .from(agentToolBindings)
+      .where(
+        and(
+          eq(agentToolBindings.agentId, agentId),
+          eq(agentToolBindings.toolId, toolId),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
   },
 
   async publishAgent(
@@ -314,7 +503,8 @@ export const agentServices = {
           set: { listed: true, updatedAt: new Date() },
         });
 
-      return ok(toPublicAgent(row, baseResult.value));
+      const toolIds = await loadToolIds(agentId);
+      return ok(toPublicAgent(row, baseResult.value, toolIds));
     } catch (e) {
       return err(fromDbWriteError(e, "Failed to publish agent"));
     }
@@ -352,7 +542,8 @@ export const agentServices = {
           ),
         );
 
-      return ok(toPublicAgent(row, baseResult.value));
+      const toolIds = await loadToolIds(agentId);
+      return ok(toPublicAgent(row, baseResult.value, toolIds));
     } catch (e) {
       return err(fromDbWriteError(e, "Failed to pause agent"));
     }
@@ -436,10 +627,14 @@ export const agentServices = {
     const agentResult = await agentServices.getAgentByHandle(handle);
     if (agentResult.isErr()) return err(agentResult.error);
 
+    const agent = agentResult.value;
+    if (agent.status === "draft") {
+      return err(new NotFoundError("Agent not found"));
+    }
+
     const baseResult = configPublicBaseUrl();
     if (baseResult.isErr()) return err(baseResult.error);
 
-    const agent = agentResult.value;
     return ok(
       buildAgentCard({
         handle: agent.handle,
@@ -491,8 +686,19 @@ export const agentServices = {
 
     const ttl = body.grantTtlSeconds ?? agent.defaultGrantTtlSeconds;
     const expiresAt = new Date(Date.now() + ttl * 1000);
+    const allowedSkillIds = new Set(
+      agent.publicSkills.map((skill) => skill.id),
+    );
     const skillIds =
       body.skillIds ?? agent.publicSkills.map((skill) => skill.id);
+    const unknown = skillIds.filter((id) => !allowedSkillIds.has(id));
+    if (unknown.length > 0) {
+      return err(
+        new BadRequestError(
+          `skillIds not on this agent: ${unknown.join(", ")}`,
+        ),
+      );
+    }
     const exchangeToken = generateExchangeToken();
 
     try {
@@ -517,6 +723,9 @@ export const agentServices = {
           status: "approved",
           trustGrantId: grant.id,
           exchangeTokenHash: hashToken(exchangeToken),
+          ...(body.decisionNote !== undefined
+            ? { decisionNote: body.decisionNote }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(knocks.id, knockId));
@@ -547,6 +756,7 @@ export const agentServices = {
     tenantId: string,
     userId: string,
     knockId: string,
+    body: DenyKnockBody = {},
   ): Promise<Result<PublicKnock, JacklineError>> {
     const [knock] = await db
       .select()
@@ -560,10 +770,34 @@ export const agentServices = {
 
     const [row] = await db
       .update(knocks)
-      .set({ status: "denied", updatedAt: new Date() })
+      .set({
+        status: "denied",
+        ...(body.decisionNote !== undefined
+          ? { decisionNote: body.decisionNote }
+          : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(knocks.id, knockId))
       .returning();
     if (!row) return err(new NotFoundError("Knock not found"));
+
+    if (knock.a2aTaskId) {
+      await db
+        .update(a2aTasks)
+        .set({
+          state: "completed",
+          result: {
+            approved: false,
+            denied: true,
+            ...(body.decisionNote !== undefined
+              ? { decisionNote: body.decisionNote }
+              : {}),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(a2aTasks.id, knock.a2aTaskId));
+    }
+
     return ok(toPublicKnock(row));
   },
 
@@ -583,6 +817,22 @@ export const agentServices = {
       )
       .orderBy(sql`${trustGrants.createdAt} desc`);
     return ok({ items: rows.map(toPublicTrustGrant) });
+  },
+
+  async listTranscript(
+    tenantId: string,
+    userId: string,
+    agentId: string,
+    peerAgentCardUrl?: string,
+  ): Promise<Result<AgentTranscriptResponse, JacklineError>> {
+    const ownerResult = await assertAgentOwner(tenantId, userId, agentId);
+    if (ownerResult.isErr()) return err(ownerResult.error);
+    const transcript = await buildAgentTranscript({
+      agentId,
+      tenantId,
+      ...(peerAgentCardUrl ? { peerAgentCardUrl } : {}),
+    });
+    return ok(transcript);
   },
 
   async revokeTrustGrant(
@@ -714,12 +964,32 @@ export const agentServices = {
       .limit(1);
 
     if (existing) {
+      let taskId = existing.a2aTaskId;
+      if (!taskId) {
+        const [task] = await db
+          .insert(a2aTasks)
+          .values({
+            agentId: input.agent.id,
+            tenantId: input.agent.tenantId,
+            knockId: existing.id,
+            state: "input_required",
+            method: "message/send",
+            params: {
+              intent: JACKLINE_TRUST_REQUEST_INTENT,
+              peerAgentCardUrl: input.peerAgentCardUrl,
+            },
+          })
+          .returning();
+        taskId = task?.id ?? null;
+      }
+
       const [updated] = await db
         .update(knocks)
         .set({
           message: input.message,
           peerDisplayName: input.peerDisplayName ?? existing.peerDisplayName,
           knockSecretHash,
+          ...(taskId && !existing.a2aTaskId ? { a2aTaskId: taskId } : {}),
           updatedAt: new Date(),
         })
         .where(eq(knocks.id, existing.id))
@@ -727,7 +997,7 @@ export const agentServices = {
       if (!updated) return err(new SetupError("Failed to update knock"));
       return ok({
         knockId: updated.id,
-        taskId: updated.a2aTaskId ?? updated.id,
+        taskId: updated.a2aTaskId ?? taskId ?? updated.id,
         knockSecret,
       });
     }
@@ -767,7 +1037,7 @@ export const agentServices = {
       type: "agent.knock.pending",
       title: "New knock",
       body: `Knock from ${input.peerDisplayName ?? input.peerAgentCardUrl}`,
-      href: "/my-access/knocks",
+      href: `/my-agents/${input.agent.id}#knocks`,
     });
 
     return ok({
@@ -819,8 +1089,6 @@ export const agentServices = {
     authorization: string | undefined;
     body: JsonRpcRequest;
     log: Logger;
-    /** Session or OAuth access token — required for knock path until rate limits ship. */
-    hasApiCredential: boolean;
   }): Promise<
     Result<{ id: string | number | null; result: unknown }, JacklineError>
   > {
@@ -857,9 +1125,6 @@ export const agentServices = {
     }
 
     if (decision.action === "knock_only") {
-      if (!input.hasApiCredential) {
-        return err(new UnauthorizedError("Authentication required"));
-      }
       if (!knockPayloadResult || knockPayloadResult.isErr()) {
         return err(knockPayloadResult?.error ?? new BadRequestError("Invalid knock payload"));
       }
@@ -886,25 +1151,40 @@ export const agentServices = {
       });
     }
 
-    if (input.body.method === "message/send" && knockPayloadResult?.isOk()) {
+    if (input.body.method === "tasks/get") {
+      const taskId = input.body.params?.["taskId"];
+      if (typeof taskId !== "string" || taskId.length === 0) {
+        return err(new BadRequestError("taskId is required"));
+      }
+
+      const [taskRow] = await db
+        .select({
+          id: a2aTasks.id,
+          agentId: a2aTasks.agentId,
+          state: a2aTasks.state,
+          result: a2aTasks.result,
+          error: a2aTasks.error,
+        })
+        .from(a2aTasks)
+        .where(and(eq(a2aTasks.id, taskId), eq(a2aTasks.agentId, agent.id)))
+        .limit(1);
+
+      const shaped = buildTasksGetResult(agent.id, taskId, taskRow);
+      if (shaped.isErr()) return err(shaped.error);
+
       return ok({
         id: input.body.id,
-        result: {
-          state: "completed",
-          message: "Message received",
-          skill: "contact.leave_message",
-        },
+        result: shaped.value,
       });
     }
 
-    if (input.body.method === "tasks/get") {
-      const taskId = input.body.params?.["taskId"];
-      return ok({
-        id: input.body.id,
-        result: {
-          taskId,
-          state: "input_required",
-        },
+    if (input.body.method === "message/send" && decision.action === "allow") {
+      return runHostedPeerMessage({
+        agent,
+        trustGrantId: decision.trustGrantId,
+        params: input.body.params,
+        rpcId: input.body.id,
+        log: input.log,
       });
     }
 

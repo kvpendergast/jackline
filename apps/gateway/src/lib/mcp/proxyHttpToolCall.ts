@@ -3,13 +3,16 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   BadRequestError,
   JacklineError,
+  UpstreamCredentialFailureError,
   type ToolHttpMethod,
 } from "@jackline/shared";
 import type { Logger } from "pino";
 import type { GatewayConnectionContext } from "../auth/types.js";
 import {
   formatUpstreamError,
+  isInvalidUpstreamTokenError,
   resolveUpstreamAuthHeaders,
+  upstreamExpiredCredentialError,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
@@ -59,6 +62,55 @@ function remainingArgs(
     if (!used.has(key)) out[key] = value;
   }
   return out;
+}
+
+async function executeHttpUpstream(
+  log: Logger,
+  url: URL,
+  method: ToolHttpMethod,
+  headers: Record<string, string>,
+  body: string | undefined,
+  binding: { toolId: string; pathTemplate: string },
+  serverId: string,
+): Promise<Result<{ status: number; pretty: string }, JacklineError>> {
+  try {
+    const init: RequestInit = { method, headers };
+    if (body !== undefined) init.body = body;
+    const res = await fetch(url, init);
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    let pretty = text;
+    if (contentType.includes("application/json") && text) {
+      try {
+        pretty = JSON.stringify(JSON.parse(text), null, 2);
+      } catch {
+        // keep raw text
+      }
+    }
+
+    if (!res.ok) {
+      log.warn(
+        {
+          toolId: binding.toolId,
+          serverId,
+          status: res.status,
+          method,
+          path: binding.pathTemplate,
+        },
+        "proxyHttpToolCall upstream error status",
+      );
+      return err(
+        new JacklineError(
+          "INTERNAL",
+          `Upstream HTTP ${method} ${binding.pathTemplate} → ${res.status}: ${text.slice(0, 500)}`,
+        ),
+      );
+    }
+
+    return ok({ status: res.status, pretty });
+  } catch (cause) {
+    return err(formatUpstreamError(cause, "call"));
+  }
 }
 
 /**
@@ -122,62 +174,83 @@ export async function proxyHttpToolCall(
     }
   }
 
-  try {
-    const init: RequestInit = { method, headers };
-    if (body !== undefined) init.body = body;
-    const res = await fetch(url, init);
-    const text = await res.text();
-    const contentType = res.headers.get("content-type") ?? "";
-    let pretty = text;
-    if (contentType.includes("application/json") && text) {
-      try {
-        pretty = JSON.stringify(JSON.parse(text), null, 2);
-      } catch {
-        // keep raw text
-      }
-    }
+  const first = await executeHttpUpstream(
+    log,
+    url,
+    method,
+    headers,
+    body,
+    { toolId: binding.toolId, pathTemplate: expanded.value.path },
+    server.id,
+  );
 
-    if (!res.ok) {
-      log.warn(
-        {
-          toolId: binding.toolId,
-          serverId: server.id,
-          status: res.status,
-          method,
-          path: expanded.value.path,
-        },
-        "proxyHttpToolCall upstream error status",
-      );
-      return err(
-        new JacklineError(
-          "INTERNAL",
-          `Upstream HTTP ${method} ${expanded.value.path} → ${res.status}: ${text.slice(0, 500)}`,
-        ),
-      );
-    }
-
+  let result = first;
+  if (
+    first.isErr() &&
+    !(first.error instanceof UpstreamCredentialFailureError) &&
+    server.authMethod === "oauth" &&
+    isInvalidUpstreamTokenError(first.error.message)
+  ) {
     log.info(
-      {
-        toolId: binding.toolId,
-        serverId: server.id,
-        method,
-        path: expanded.value.path,
-        status: res.status,
-      },
-      "proxyHttpToolCall ok",
+      { serverId: server.id, toolId: binding.toolId },
+      "upstream HTTP 401; force-refreshing OAuth and retrying",
     );
+    const refreshed = await resolveUpstreamAuthHeaders(
+      log,
+      tenantId,
+      connection.userId,
+      server,
+      { forceRefresh: true },
+    );
+    if (refreshed.isErr()) return err(refreshed.error);
 
-    return ok({
-      content: [
-        {
-          type: "text",
-          text: pretty || `(empty ${res.status} response)`,
-        },
-      ],
-    });
-  } catch (cause) {
-    return err(formatUpstreamError(cause, "call"));
+    if (refreshed.value["Authorization"] !== headersResult.value["Authorization"]) {
+      const retryHeaders: Record<string, string> = {
+        ...headers,
+        ...refreshed.value,
+      };
+      result = await executeHttpUpstream(
+        log,
+        url,
+        method,
+        retryHeaders,
+        body,
+        { toolId: binding.toolId, pathTemplate: expanded.value.path },
+        server.id,
+      );
+    }
   }
+
+  if (result.isErr()) {
+    if (
+      !(result.error instanceof UpstreamCredentialFailureError) &&
+      server.authMethod === "oauth" &&
+      isInvalidUpstreamTokenError(result.error.message)
+    ) {
+      return err(upstreamExpiredCredentialError(server));
+    }
+    return err(result.error);
+  }
+
+  log.info(
+    {
+      toolId: binding.toolId,
+      serverId: server.id,
+      method,
+      path: expanded.value.path,
+      status: result.value.status,
+    },
+    "proxyHttpToolCall ok",
+  );
+
+  return ok({
+    content: [
+      {
+        type: "text",
+        text: result.value.pretty || `(empty ${result.value.status} response)`,
+      },
+    ],
+  });
 }
 
 export function assertHttpBinding(

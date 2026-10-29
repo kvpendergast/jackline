@@ -35,4 +35,14 @@ describe("withGcpStackTrace", () => {
     const input = { requestId: "abc" };
     assert.deepEqual(withGcpStackTrace(input), input);
   });
+  it("adds serviceContext when a service is given", () => {
+    const err = new Error("boom");
+    const formatted = withGcpStackTrace({ err }, "jackline-gateway");
+    assert.deepEqual(formatted.serviceContext, { service: "jackline-gateway" });
+  });
+
+  it("does not add serviceContext without a stack", () => {
+    const formatted = withGcpStackTrace({ requestId: "abc" }, "jackline-api");
+    assert.equal(formatted.serviceContext, undefined);
+  });
 });

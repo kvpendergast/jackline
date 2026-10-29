@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Update Jackline on a VM (CI via gcloud compute ssh / scp, or manual).
 #
+# Default mode: pull prebuilt images from GHCR, then rolling cutover.
+# Fallback:     JACKLINE_BUILD_ON_VM=1 builds images locally (slow on small VMs).
+#
 # Rolling cutover (app services) — the live container is never replaced in place:
-#   1. Build new images first. Running containers keep serving the old image.
+#   1. Pull (or build) new images. Running containers keep serving the old image.
 #   2. `compose up --scale=2 --no-recreate` starts a *second* replica from the
 #      new image. Compose will not recreate the existing replica.
 #   3. Wait until Docker health (compose/Dockerfile HEALTHCHECK) is `healthy`
@@ -20,6 +23,7 @@
 #   GITHUB_TOKEN_FILE   Optional path to a token file (read once, then shredded)
 #   GITHUB_TOKEN        Optional token in env (prefer TOKEN_FILE — avoids argv leaks)
 #   ENV_PROD_SRC        Optional path to a rendered .env.prod to install at ROOT
+#   JACKLINE_BUILD_ON_VM  Set to 1 to build images on the VM instead of pulling
 #   JACKLINE_DEPLOY_INNER  Set by systemd-run re-exec (do not set manually)
 set -euo pipefail
 
@@ -28,6 +32,7 @@ REF="${GIT_REF:-main}"
 TOKEN=""
 ASKPASS=""
 COMPOSE_FILE="deploy/compose.prod.yml"
+COMPOSE_OTEL_FILE="deploy/compose.otel.yml"
 HEALTH_TIMEOUT="${JACKLINE_HEALTH_TIMEOUT:-240}"
 
 # Re-exec under systemd so a cancelled CI SSH session does not SIGKILL docker builds.
@@ -39,26 +44,40 @@ if [[ -z "${JACKLINE_DEPLOY_INNER:-}" && -d /run/systemd/system ]] && command -v
       if (( SECONDS >= deadline )); then
         echo "error: timed out waiting for jackline-deploy.service" >&2
         systemctl status jackline-deploy.service --no-pager >&2 || true
+        journalctl -u jackline-deploy.service -n 200 --no-pager >&2 || true
         exit 1
       fi
       sleep 10
     done
   fi
   systemctl reset-failed jackline-deploy.service 2>/dev/null || true
+  # Stale leftover unit can block a same-named transient start.
+  systemctl stop jackline-deploy.service 2>/dev/null || true
   extra=()
-  for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT; do
+  for k in GIT_SHA GIT_REPO GIT_REF ENV_PROD_SRC GITHUB_TOKEN_FILE GITHUB_TOKEN JACKLINE_ROOT JACKLINE_HEALTH_TIMEOUT JACKLINE_BUILD_ON_VM; do
     if [[ -n "${!k:-}" ]]; then
       extra+=(-E "${k}=${!k}")
     fi
   done
   echo "Re-executing under systemd-run (unit=jackline-deploy)…"
-  exec systemd-run --wait --collect --unit=jackline-deploy \
+  set +e
+  systemd-run --wait --collect --unit=jackline-deploy \
     --property=Type=oneshot \
     --property=TimeoutStartSec=2h \
     --property=KillMode=mixed \
     -E JACKLINE_DEPLOY_INNER=1 \
     "${extra[@]}" \
     /bin/bash "$(readlink -f "$0")"
+  rc=$?
+  set -e
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "error: jackline-deploy.service failed (exit ${rc})" >&2
+    systemctl status jackline-deploy.service --no-pager >&2 || true
+    echo "=== jackline-deploy journal (last 200) ===" >&2
+    journalctl -u jackline-deploy.service -n 200 --no-pager >&2 || true
+    exit "${rc}"
+  fi
+  exit 0
 fi
 
 cleanup() {
@@ -147,7 +166,17 @@ ensure_docker() {
 }
 
 compose() {
-  docker compose -f "${COMPOSE_FILE}" --env-file .env.prod "$@"
+  local -a files=(-f "${COMPOSE_FILE}")
+  if [[ -f "${COMPOSE_OTEL_FILE}" ]]; then
+    files+=(-f "${COMPOSE_OTEL_FILE}")
+    # Bind-mounted config edits don't trigger a recreate on their own; the
+    # hash lands in a container label so `compose up` recreates on change.
+    if [[ -f deploy/logging/otel-collector-config.yaml ]]; then
+      JACKLINE_OTEL_CONFIG_SHA="$(sha256sum deploy/logging/otel-collector-config.yaml | cut -c1-16)"
+      export JACKLINE_OTEL_CONFIG_SHA
+    fi
+  fi
+  docker compose "${files[@]}" --env-file .env.prod "$@"
 }
 
 container_health() {
@@ -383,15 +412,52 @@ fi
 
 SITE_HOST="$(grep -E '^JACKLINE_SITE_ADDRESS=' .env.prod | head -1 | cut -d= -f2- | tr -d '\r' || true)"
 
-# Serial builds on e2-small — parallel vite/zudoku OOMs and wedges the VM.
-export COMPOSE_PARALLEL_LIMIT=1
-export BUILDKIT_MAX_PARALLELISM=1
+ghcr_login() {
+  if [[ -z "${TOKEN}" ]]; then
+    echo "warning: no GitHub token — GHCR pull may fail for private packages" >&2
+    return 0
+  fi
+  echo "${TOKEN}" | docker login ghcr.io -u x-access-token --password-stdin
+}
 
-echo "Building images serially (running containers stay up)…"
-for svc in migrate api gateway web docs; do
-  echo "Building ${svc}…"
-  compose build "${svc}"
-done
+# Rolling deploys + failed pulls accumulate images/layers; 30G boot disks fill up.
+free_disk_for_pull() {
+  echo "=== disk before prune ==="
+  df -h / /var/lib/docker 2>/dev/null || df -h /
+  docker system df 2>/dev/null || true
+  # Stopped leftovers from failed scale=2 rolls / one-shots.
+  docker container prune -f >/dev/null 2>&1 || true
+  docker network prune -f >/dev/null 2>&1 || true
+  # Unused images (running containers' images are kept).
+  docker image prune -af >/dev/null 2>&1 || true
+  docker builder prune -af >/dev/null 2>&1 || true
+  # Build cache / unused build layers (BuildKit).
+  docker buildx prune -af >/dev/null 2>&1 || true
+  echo "=== disk after prune ==="
+  df -h / /var/lib/docker 2>/dev/null || df -h /
+  docker system df 2>/dev/null || true
+  local avail_kb
+  avail_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+  if [[ -n "${avail_kb}" && "${avail_kb}" -lt 2097152 ]]; then
+    echo "warning: <2GiB free on / after prune — pull may still fail" >&2
+  fi
+}
+
+if [[ "${JACKLINE_BUILD_ON_VM:-0}" == "1" ]]; then
+  export COMPOSE_PARALLEL_LIMIT=1
+  export BUILDKIT_MAX_PARALLELISM=1
+  echo "Building images serially on VM (running containers stay up)…"
+  free_disk_for_pull
+  for svc in migrate api gateway web docs; do
+    echo "Building ${svc}…"
+    compose build "${svc}"
+  done
+else
+  echo "Pulling prebuilt GHCR images…"
+  free_disk_for_pull
+  ghcr_login
+  compose pull
+fi
 
 echo "Running migrations (one-shot; does not replace api/gateway)…"
 compose run --rm --no-deps migrate
@@ -409,11 +475,16 @@ else
   roll_service gateway
   roll_service web
   roll_service docs
+  # Collector is not in the user-facing roll path; recreate/restart in place.
+  if [[ -f "${COMPOSE_OTEL_FILE}" ]]; then
+    echo "Ensuring otel-collector is up"
+    compose up -d --no-deps --remove-orphans otel-collector
+  fi
   ensure_caddy
 fi
 
 if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
-  echo "Waiting for TLS on ${SITE_HOST}…"
+  echo "Waiting for TLS…"
   ok=0
   for _ in $(seq 1 30); do
     if echo | openssl s_client -connect "127.0.0.1:443" -servername "${SITE_HOST}" 2>/dev/null \
@@ -424,10 +495,10 @@ if [[ -n "${SITE_HOST}" && "${SITE_HOST}" != http* ]]; then
     sleep 2
   done
   if [[ "${ok}" -ne 1 ]]; then
-    echo "warning: TLS not ready for ${SITE_HOST} after ~60s — dumping Caddy logs" >&2
+    echo "warning: TLS not ready after ~60s — dumping Caddy logs" >&2
     compose logs --tail=80 caddy >&2 || true
   else
-    echo "TLS handshake OK for ${SITE_HOST}"
+    echo "TLS handshake OK"
   fi
 fi
 

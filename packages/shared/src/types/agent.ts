@@ -15,6 +15,8 @@ export const AgentPublicSkillSchema = z.strictObject({
   description: z.string(),
 });
 
+export const AGENT_INSTRUCTIONS_MAX_CHARS = 32_000;
+
 export const PublicAgentSchema = z.strictObject({
   id: z.uuid(),
   tenantId: z.uuid(),
@@ -27,7 +29,9 @@ export const PublicAgentSchema = z.strictObject({
   status: AgentStatusSchema,
   knocksEnabled: z.boolean(),
   defaultGrantTtlSeconds: z.number().int().positive(),
+  instructions: z.string().nullable(),
   publicSkills: z.array(AgentPublicSkillSchema),
+  toolIds: z.array(z.uuid()),
   agentCardUrl: z.string().url(),
   a2aUrl: z.string().url(),
   createdAt: z.iso.datetime(),
@@ -40,7 +44,9 @@ export const CreateAgentBodySchema = z.strictObject({
   description: z.string().max(2000).optional(),
   knocksEnabled: z.boolean().optional(),
   defaultGrantTtlSeconds: z.number().int().positive().max(60 * 60 * 24 * 365).optional(),
+  instructions: z.string().max(AGENT_INSTRUCTIONS_MAX_CHARS).optional(),
   publicSkills: z.array(AgentPublicSkillSchema).optional(),
+  toolIds: z.array(z.uuid()).optional(),
 });
 
 export const UpdateAgentBodySchema = z.strictObject({
@@ -48,9 +54,14 @@ export const UpdateAgentBodySchema = z.strictObject({
   description: z.string().max(2000).nullable().optional(),
   knocksEnabled: z.boolean().optional(),
   defaultGrantTtlSeconds: z.number().int().positive().max(60 * 60 * 24 * 365).optional(),
+  instructions: z.string().max(AGENT_INSTRUCTIONS_MAX_CHARS).nullable().optional(),
   publicSkills: z.array(AgentPublicSkillSchema).optional(),
   runtimeMode: AgentRuntimeModeSchema.optional(),
   upstreamAgentUrl: z.string().url().nullable().optional(),
+});
+
+export const SetAgentToolsBodySchema = z.strictObject({
+  toolIds: z.array(z.uuid()),
 });
 
 export const PublicDirectoryAgentSchema = z.strictObject({
@@ -83,5 +94,6 @@ export type AgentPublicSkill = z.infer<typeof AgentPublicSkillSchema>;
 export type PublicAgent = z.infer<typeof PublicAgentSchema>;
 export type CreateAgentBody = z.infer<typeof CreateAgentBodySchema>;
 export type UpdateAgentBody = z.infer<typeof UpdateAgentBodySchema>;
+export type SetAgentToolsBody = z.infer<typeof SetAgentToolsBodySchema>;
 export type PublicDirectoryAgent = z.infer<typeof PublicDirectoryAgentSchema>;
 export type AgentDirectoryResponse = z.infer<typeof AgentDirectoryResponseSchema>;

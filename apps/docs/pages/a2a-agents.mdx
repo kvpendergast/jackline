@@ -1,0 +1,92 @@
+---
+title: A2A agents (MVP)
+---
+
+# A2A agents (MVP)
+
+Publish an agent peers can authenticate with, then request actions that run **on your behalf** through Jackline MCP tools and policy.
+
+## Prerequisites
+
+- Jackline running (API + gateway + admin UI)
+- At least one **active** MCP tool on a server you own
+- Two tenants/users (owner and peer), or two browser sessions
+
+## Owner setup
+
+1. Open **Agents** → **New agent**. Pick a handle (public A2A path is `/a2a/<handle>`).
+2. On the agent page, set **instructions** (system prompt) and **public skills** (advertised on the agent card / directory).
+3. Under **Tools**, select the MCP tools this agent may use. Save tools.
+   - Tool bindings are **agent-level**: every approved peer shares the same surface. Skills are separate from tools.
+4. **Publish** the agent to the public directory.
+
+## Peer knock → trust credential
+
+1. Peer discovers the agent (directory or known handle) and sends an A2A `message/send` knock with intent `jackline.trust.request`. Knocks are **public** (no Jackline session); the A2A handler rate-limits them (`a2a.knock`, keyed by handle + IP when unauthenticated).
+2. Owner gets a notification linking to `/my-agents/<id>#knocks`.
+3. Owner **Approves** (sets grant TTL and optionally scopes advertised skill IDs). Approving trusts the peer; it does **not** change MCP tools. Approve/deny require owner auth.
+4. Peer polls A2A `tasks/get` for the knock task (also public — knowing `taskId` is enough), reads `exchangeToken`, then calls `POST /api/v1/trust/exchange` with the knock secret + exchange token.
+5. Peer receives a `jka_` bearer token for subsequent A2A calls. That credential is the trust boundary for real actions.
+
+## Peer action (hosted runtime)
+
+With the `jka_` token, peer sends `message/send` to `/a2a/<handle>`.
+
+**Structured tool call** (CI / demos):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{ "kind": "text", "text": "please echo" }],
+      "metadata": {
+        "intent": "jackline.tool.call",
+        "tool": {
+          "name": "myserver__echo",
+          "arguments": { "message": "on-behalf" }
+        }
+      }
+    }
+  }
+}
+```
+
+Free-text messages use the hosted LLM path when chat is configured and tools are bound; otherwise the agent returns a plain completion.
+
+Unbound tool names are rejected.
+
+Agent cards are **public** (no session) for published and paused agents at
+`/agents/<handle>/.well-known/agent-card.json`, so external peers can discover
+skills and the A2A endpoint. Draft agents return 404. The all-in-one edge proxy
+must route `/agents/*` and `/a2a/*` to the API (not the admin UI).
+
+## Owner visibility
+
+On **My Agents → agent**, the **Conversation** panel shows a live chat-style
+transcript of knocks, approve/deny decisions (with notes), peer messages, agent
+replies, and tool calls. It updates over SSE (`GET /api/v1/agents/{id}/transcript/stream`).
+
+Approve/deny knocks accept an optional `decisionNote` that is persisted and shown
+in the knocks table and transcript.
+
+Agent cards advertise `capabilities.streaming: true`. Peers that send
+`Accept: text/event-stream` on granted `message/send` receive SSE `status` /
+`result` events while the hosted turn runs.
+
+## Audit
+
+Peer-initiated tool calls appear under **Audit** with reason prefix `a2a.peer` (and an **A2A peer** tag). They run through the owner’s gateway policy and connections.
+
+## CI coverage
+
+Integration suite `agents-a2a.integration.test.ts` covers:
+
+1. Instructions + tool bindings API
+2. Public knock → owner approve → public `tasks/get` → exchange → `jka_`-authenticated `message/send`
+3. Hosted `jackline.tool.call` execution + `a2a.peer` audit event
+
+Run via the repo’s `integration` CI job (or local integration-test script with Postgres + API/gateway).

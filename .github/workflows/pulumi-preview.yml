@@ -34,17 +34,21 @@ jobs:
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
-      JACKLINE_DOMAIN: ${{ vars.JACKLINE_DOMAIN }}
+      JACKLINE_DOMAIN: ${{ secrets.JACKLINE_DOMAIN || vars.JACKLINE_DOMAIN }}
       JACKLINE_GIT_REPO: ${{ vars.JACKLINE_GIT_REPO }}
       JACKLINE_GIT_REF: ${{ vars.JACKLINE_GIT_REF || 'main' }}
       JACKLINE_MACHINE_TYPE: ${{ vars.JACKLINE_MACHINE_TYPE }}
-      JACKLINE_VM_ZONE: ${{ vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
-      JACKLINE_DOCS_DOMAIN: ${{ vars.JACKLINE_DOCS_DOMAIN }}
-      JACKLINE_CADDY_EMAIL: ${{ vars.JACKLINE_CADDY_EMAIL }}
+      JACKLINE_VM_ZONE: ${{ secrets.JACKLINE_VM_ZONE || vars.JACKLINE_VM_ZONE || 'us-central1-a' }}
+      JACKLINE_VM_NAME: ${{ secrets.JACKLINE_VM_NAME || vars.JACKLINE_VM_NAME || 'jackline' }}
+      JACKLINE_DOCS_DOMAIN: ${{ secrets.JACKLINE_DOCS_DOMAIN || vars.JACKLINE_DOCS_DOMAIN }}
+      JACKLINE_CADDY_EMAIL: ${{ secrets.JACKLINE_CADDY_EMAIL || vars.JACKLINE_CADDY_EMAIL }}
       JACKLINE_SECRET_PREFIX: ${{ vars.JACKLINE_SECRET_PREFIX || 'jackline-pulumi-' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Mask production identifiers
+        run: bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-mask-log-values.sh"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -95,10 +99,10 @@ jobs:
             exit 1
           fi
           if [ -z "${JACKLINE_DOMAIN:-}" ]; then
-            echo "GitHub variable JACKLINE_DOMAIN is required"
+            echo "JACKLINE_DOMAIN secret (or variable) is required"
             exit 1
           fi
           pulumi login "$PULUMI_BACKEND_URL"
           pulumi stack select prod --create
           bash "${GITHUB_WORKSPACE}/deploy/scripts/ci-pulumi-apply-config.sh"
-          pulumi preview
+          pulumi preview --suppress-outputs

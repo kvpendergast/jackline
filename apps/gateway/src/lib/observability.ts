@@ -23,6 +23,7 @@ export const otelConfig = otelConfigResult.value;
 export const logger: Logger = createLogger({
   logLevel: config.LOG_LEVEL,
   nodeEnv: config.NODE_ENV,
+  service: "jackline-gateway",
 });
 
 export const requestMiddleware = createHttpObservabilityMiddleware<GatewayEnv>({

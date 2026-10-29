@@ -5,6 +5,8 @@ import {
   BadRequestError,
   JacklineError,
   NotFoundError,
+  UpstreamCredentialFailureError,
+  isInvalidUpstreamTokenError,
 } from "@jackline/shared";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
@@ -13,9 +15,11 @@ import {
   assertHttpBinding,
   proxyHttpToolCall,
 } from "./proxyHttpToolCall.js";
+import { callWithAuthRetry, type UpstreamAttemptFailure } from "./authRetry.js";
 import {
   connectUpstream,
   formatUpstreamError,
+  upstreamExpiredCredentialError,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
@@ -42,23 +46,35 @@ function toolResultErrorText(result: CallToolResult): string {
   return "upstream tool returned isError without text content";
 }
 
-async function proxyMcpToolCall(
+/**
+ * One MCP tools/call attempt. Connect-phase auth failures are already
+ * refresh-retried inside {@link connectUpstream}; only a tools/call that the
+ * upstream rejects as unauthorized is flagged `authRejected` for one retry.
+ */
+async function attemptMcpToolCall(
   ctx: GatewayConnectionContext,
   tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
   server: UpstreamServerRow,
   toolName: string,
   args: Record<string, unknown>,
-): Promise<Result<CallToolResult, JacklineError>> {
+  forceRefresh: boolean,
+): Promise<Result<CallToolResult, UpstreamAttemptFailure>> {
   const connected = await connectUpstream(
     ctx.log,
     ctx.tenantId,
     ctx.connection.userId,
     server,
+    forceRefresh ? { forceRefresh: true } : undefined,
   );
   if (connected.isErr()) {
     await touchServerHealth(server.id, "unhealthy");
-    return err(connected.error);
+    return err({ error: connected.error, authRejected: false });
   }
+
+  const authRejected = (e: JacklineError) =>
+    server.authMethod === "oauth" &&
+    !(e instanceof UpstreamCredentialFailureError) &&
+    isInvalidUpstreamTokenError(e.message);
 
   try {
     const result = (await connected.value.client.callTool({
@@ -73,9 +89,11 @@ async function proxyMcpToolCall(
         { toolId: tool.toolId, serverId: server.id, detail },
         "proxyToolCall upstream isError",
       );
-      return err(
-        new JacklineError("INTERNAL", `Upstream tool returned error: ${detail}`),
+      const e = new JacklineError(
+        "INTERNAL",
+        `Upstream tool returned error: ${detail}`,
       );
+      return err({ error: e, authRejected: authRejected(e) });
     }
 
     await touchServerHealth(server.id, "healthy");
@@ -96,10 +114,29 @@ async function proxyMcpToolCall(
       { err: cause, toolId: tool.toolId, serverId: server.id },
       "proxyToolCall failed",
     );
-    return err(jacklineErr);
+    return err({ error: jacklineErr, authRejected: authRejected(jacklineErr) });
   } finally {
     await connected.value.close();
   }
+}
+
+async function proxyMcpToolCall(
+  ctx: GatewayConnectionContext,
+  tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
+  server: UpstreamServerRow,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<Result<CallToolResult, JacklineError>> {
+  return callWithAuthRetry({
+    attempt: (forceRefresh) =>
+      attemptMcpToolCall(ctx, tool, server, toolName, args, forceRefresh),
+    expiredError: () => upstreamExpiredCredentialError(server),
+    onRetry: () =>
+      ctx.log.info(
+        { serverId: server.id, toolId: tool.toolId },
+        "upstream MCP tool auth failed; force-refreshing OAuth and retrying call",
+      ),
+  });
 }
 
 /**

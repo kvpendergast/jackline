@@ -120,6 +120,48 @@
       "when": 1788314241760,
       "tag": "0016_secret_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788613027520,
+      "tag": "0017_mcp_oauth_cimd_dcr",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788799784716,
+      "tag": "0018_keen_ben_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788805000000,
+      "tag": "0019_agent_activity_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792242270440,
+      "tag": "0020_mcp_oauth_dynamic_registration",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792328801205,
+      "tag": "0021_oauth_state_return_to",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793241851189,
+      "tag": "0022_oauth_apps",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 import { err, ok, type Result } from "neverthrow";
 
 import { SetupError } from "../errors/index.js";
+import { formatEnvParseError } from "./formatEnvError.js";
+import { resolvePostgresUrl } from "./postgresUrl.js";
 import { EnvSchema, type Env } from "./schema.js";
 
 const ENV_KEYS = [
@@ -28,6 +30,15 @@ const ENV_KEYS = [
   "JACKLINE_OIDC_CLIENT_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "EMAIL_CONNECTOR",
+  "RESEND_API_KEY",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_SECURE",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "EMAIL_FROM",
+  "REDIS_URL",
 ] as const;
 
 let config: Env | undefined;
@@ -38,9 +49,13 @@ export function loadConfig(
   const picked = Object.fromEntries(
     ENV_KEYS.map((key) => [key, source[key]]),
   );
+  if (!picked["DATABASE_URL"]?.trim()) {
+    const built = resolvePostgresUrl(source);
+    if (built) picked["DATABASE_URL"] = built;
+  }
   const parsed = EnvSchema.safeParse(picked);
   if (!parsed.success) {
-    return err(new SetupError(parsed.error.message));
+    return err(new SetupError(formatEnvParseError(parsed.error)));
   }
 
   config = parsed.data;

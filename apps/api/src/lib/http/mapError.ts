@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { ErrorCode, JacklineError } from "@jackline/shared";
+import { ErrorCode, JacklineError, RateLimitedError } from "@jackline/shared";
 import { recordSpanException, setHttpSpanStatus } from "@jackline/observability";
 import { ZodError } from "zod";
 import { errEnvelope, formatZodIssues } from "./envelope.js";
@@ -13,12 +13,16 @@ export function toHttpStatus(error: JacklineError): ContentfulStatusCode {
       return 401;
     case ErrorCode.EMAIL_NOT_VERIFIED:
       return 403;
+    case ErrorCode.EMAIL_NOT_CONFIGURED:
+      return 503;
     case ErrorCode.FORBIDDEN:
       return 403;
     case ErrorCode.NOT_FOUND:
       return 404;
     case ErrorCode.BAD_REQUEST:
       return 400;
+    case ErrorCode.RATE_LIMITED:
+      return 429;
     case ErrorCode.TENANT_LIMIT_REACHED:
       return 409;
     case ErrorCode.NOT_IMPLEMENTED:
@@ -41,12 +45,18 @@ export function jacklineOnError(err: Error, c: Context<JacklineEnv>) {
       recordSpanException(err);
     }
     setHttpSpanStatus(status);
+    if (err instanceof RateLimitedError) {
+      c.header("Retry-After", String(err.retryAfterSeconds));
+    }
     log[level](
       {
         requestId,
         errorCode: err.code,
         status,
         ...(status >= 500 ? { err } : {}),
+        ...(err instanceof RateLimitedError
+          ? { retryAfterSeconds: err.retryAfterSeconds }
+          : {}),
       },
       err.message,
     );

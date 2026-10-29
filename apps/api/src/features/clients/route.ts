@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
   ClientKindSchema,
+  ClientRegistrationTypeSchema,
   cursorPageSchema,
   MembershipRoleSchema,
   MintedClientCredentialsSchema,
@@ -36,6 +37,7 @@ const CreateClientBodySchema = z
     name: z.string().min(1),
     kind: ClientKindSchema,
     ownerUserId: z.string().min(1).nullable().optional(),
+    registrationType: ClientRegistrationTypeSchema.optional(),
   })
   .openapi("CreateClientBody");
 

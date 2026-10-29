@@ -10,14 +10,16 @@ import {
   JacklineError,
   NotFoundError,
   NotImplementedError,
-  resolveOAuthAccessToken,
+  resolveStoredOAuthAccessToken,
   upstreamSecretKind,
+  type OAuthSecretLock,
   type PublicTool,
   type SyncToolsResult,
   type ToolHttpMethod,
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
 import { importToolsFromOpenApi } from "./importOpenApi.js";
+import { loadOAuthClientOverrideForServer } from "../oauthApps/credentials.js";
 
 function toPublicTool(row: Tool): PublicTool {
   return {
@@ -45,15 +47,92 @@ function asObjectSchema(
   return schema as Record<string, unknown>;
 }
 
+function decryptPlaintext(
+  row: typeof secrets.$inferSelect,
+): Result<string, JacklineError> {
+  const boxResult = getSecretBox();
+  if (boxResult.isErr()) return err(boxResult.error);
+  const decrypted = boxResult.value.decrypt(
+    { ciphertext: row.ciphertext, nonce: row.nonce, keyVersion: row.keyVersion },
+    secretAad({
+      tenantId: row.tenantId,
+      kind: row.kind,
+      serverId: row.serverId,
+      userId: row.userId,
+      connectionId: row.connectionId,
+    }),
+  );
+  if (decrypted.isErr()) return err(decrypted.error);
+  return ok(new TextDecoder().decode(decrypted.value));
+}
+
+/**
+ * Same row lock as the gateway: serialize refreshes of one rotating refresh
+ * token and persist the rotated pair inside the lock.
+ */
+function lockSecretRow(row: typeof secrets.$inferSelect): OAuthSecretLock {
+  return (fn) =>
+    db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(secrets)
+        .where(eq(secrets.id, row.id))
+        .for("update")
+        .limit(1);
+      if (!locked) throw new Error("secret row no longer exists");
+      const current = decryptPlaintext(locked);
+      if (current.isErr()) throw current.error;
+      return fn(current.value, async (plaintext) => {
+        const boxResult = getSecretBox();
+        if (boxResult.isErr()) throw boxResult.error;
+        const encrypted = boxResult.value.encrypt(
+          new TextEncoder().encode(plaintext),
+          secretAad({
+            tenantId: locked.tenantId,
+            kind: locked.kind,
+            serverId: locked.serverId,
+            userId: locked.userId,
+            connectionId: locked.connectionId,
+          }),
+        );
+        if (encrypted.isErr()) throw encrypted.error;
+        await tx
+          .update(secrets)
+          .set({
+            ciphertext: encrypted.value.ciphertext,
+            nonce: encrypted.value.nonce,
+            keyVersion: encrypted.value.keyVersion,
+            updatedAt: new Date(),
+          })
+          .where(eq(secrets.id, locked.id));
+      });
+    });
+}
+
 async function resolveUpstreamBearer(
   authMethod: "api_key" | "oauth" | "mtls",
   plaintext: string,
+  secretRow: typeof secrets.$inferSelect,
 ): Promise<Result<string, JacklineError>> {
   if (authMethod === "api_key") {
     return ok(plaintext);
   }
   if (authMethod === "oauth") {
-    const token = await resolveOAuthAccessToken(plaintext);
+    const token = await resolveStoredOAuthAccessToken({
+      key: secretRow.id,
+      plaintext,
+      withLock: lockSecretRow(secretRow),
+      // Shared OAuth app: refresh with the app's current (possibly rotated) secret.
+      ...(secretRow.serverId
+        ? {
+            clientOverride: () =>
+              loadOAuthClientOverrideForServer(
+                secretRow.tenantId,
+                secretRow.serverId!,
+              ),
+          }
+        : {}),
+    });
     if (token.isErr()) return err(token.error);
     return ok(token.value.accessToken);
   }
@@ -62,7 +141,9 @@ async function resolveUpstreamBearer(
 
 async function decryptSecretRow(
   secretRow: typeof secrets.$inferSelect,
-): Promise<Result<{ plaintext: string }, JacklineError>> {
+): Promise<
+  Result<{ plaintext: string; row: typeof secrets.$inferSelect }, JacklineError>
+> {
   const boxResult = getSecretBox();
   if (boxResult.isErr()) return err(boxResult.error);
 
@@ -84,7 +165,10 @@ async function decryptSecretRow(
   );
   if (decrypted.isErr()) return err(decrypted.error);
 
-  return ok({ plaintext: new TextDecoder().decode(decrypted.value) });
+  return ok({
+    plaintext: new TextDecoder().decode(decrypted.value),
+    row: secretRow,
+  });
 }
 
 /**
@@ -96,7 +180,9 @@ async function loadSyncSecret(
   serverId: string,
   userId: string,
   authMethod: "api_key" | "oauth" | "mtls",
-): Promise<Result<{ plaintext: string }, JacklineError>> {
+): Promise<
+  Result<{ plaintext: string; row: typeof secrets.$inferSelect }, JacklineError>
+> {
   if (authMethod === "mtls") {
     return err(new NotImplementedError("Upstream mTLS auth is not supported yet"));
   }
@@ -244,6 +330,7 @@ async function syncMcpTools(
   const bearer = await resolveUpstreamBearer(
     server.authMethod,
     secret.value.plaintext,
+    secret.value.row,
   );
   if (bearer.isErr()) return err(bearer.error);
 

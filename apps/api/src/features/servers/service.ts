@@ -3,6 +3,7 @@ import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { db, secrets, servers, type Server } from "@jackline/db";
 import {
+  discoverMcpOAuthMetadata,
   JacklineError,
   NotFoundError,
   OAUTH_CLIENT_SECRET_KIND,
@@ -15,6 +16,7 @@ import {
   type ServerSource,
   type ServerStatus,
 } from "@jackline/shared";
+import { safeFetch } from "../../lib/http/safeFetch.js";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import {
   decodeCreatedAtIdCursor,
@@ -23,6 +25,7 @@ import {
   type PaginationQuery,
 } from "../../lib/http/pagination.js";
 
+import { assertOAuthAppInTenant } from "../oauthApps/credentials.js";
 import { syncToolsFromUpstream } from "./syncTools.js";
 
 export type CreateServerInput = {
@@ -37,7 +40,10 @@ export type CreateServerInput = {
   oauthAuthorizeUrl?: string | null | undefined;
   oauthTokenUrl?: string | null | undefined;
   oauthScopes?: string | null | undefined;
+  oauthRegistrationUrl?: string | null | undefined;
+  oauthResource?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  oauthAppId?: string | null | undefined;
   requiresApproval?: boolean | undefined;
 };
 
@@ -54,7 +60,10 @@ export type UpdateServerInput = {
   oauthAuthorizeUrl?: string | null | undefined;
   oauthTokenUrl?: string | null | undefined;
   oauthScopes?: string | null | undefined;
+  oauthRegistrationUrl?: string | null | undefined;
+  oauthResource?: string | null | undefined;
   oauthClientId?: string | null | undefined;
+  oauthAppId?: string | null | undefined;
   requiresApproval?: boolean | undefined;
 };
 
@@ -99,8 +108,11 @@ function toPublicServer(
     oauthAuthorizeUrl: row.oauthAuthorizeUrl,
     oauthTokenUrl: row.oauthTokenUrl,
     oauthScopes: row.oauthScopes,
+    oauthRegistrationUrl: row.oauthRegistrationUrl,
+    oauthResource: row.oauthResource,
     oauthClientId: row.oauthClientId,
     hasOauthClientSecret,
+    oauthAppId: row.oauthAppId,
     requiresApproval: row.requiresApproval,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
@@ -108,11 +120,46 @@ function toPublicServer(
   };
 }
 
+export type DiscoverOauthResult = {
+  resource: string | null;
+  authorizeUrl: string;
+  tokenUrl: string;
+  registrationUrl: string | null;
+  scopes: string | null;
+  issuer: string | null;
+};
+
+async function discoverOauth(
+  log: Logger,
+  baseUrl: string,
+): Promise<Result<DiscoverOauthResult, JacklineError>> {
+  let found;
+  try {
+    found = await discoverMcpOAuthMetadata(baseUrl, { fetch: safeFetch });
+  } catch (cause) {
+    if (cause instanceof JacklineError) return err(cause);
+    throw cause;
+  }
+  if (found.isErr()) return err(found.error);
+  const d = found.value;
+  log.info({ baseUrl, issuer: d.issuer }, "Server.services.discoverOauth");
+  return ok({
+    resource: d.resource ?? null,
+    authorizeUrl: d.authorizationEndpoint,
+    tokenUrl: d.tokenEndpoint,
+    registrationUrl: d.registrationEndpoint ?? null,
+    scopes: d.scopesSupported?.length ? d.scopesSupported.join(" ") : null,
+    issuer: d.issuer ?? null,
+  });
+}
+
 async function create(
   log: Logger,
   tenantId: string,
   input: CreateServerInput,
 ): Promise<Result<PublicServer, JacklineError>> {
+  const appCheck = await assertOAuthAppInTenant(tenantId, input.oauthAppId);
+  if (appCheck.isErr()) return err(appCheck.error);
   try {
     const [row] = await db
       .insert(servers)
@@ -128,7 +175,10 @@ async function create(
         oauthAuthorizeUrl: input.oauthAuthorizeUrl ?? null,
         oauthTokenUrl: input.oauthTokenUrl ?? null,
         oauthScopes: input.oauthScopes ?? null,
+        oauthRegistrationUrl: input.oauthRegistrationUrl ?? null,
+        oauthResource: input.oauthResource ?? null,
         oauthClientId: input.oauthClientId ?? null,
+        oauthAppId: input.oauthAppId ?? null,
         tenantId,
       })
       .returning();
@@ -253,8 +303,19 @@ async function update(
     patch.oauthTokenUrl = input.oauthTokenUrl;
   }
   if (input.oauthScopes !== undefined) patch.oauthScopes = input.oauthScopes;
+  if (input.oauthRegistrationUrl !== undefined) {
+    patch.oauthRegistrationUrl = input.oauthRegistrationUrl;
+  }
+  if (input.oauthResource !== undefined) {
+    patch.oauthResource = input.oauthResource;
+  }
   if (input.oauthClientId !== undefined) {
     patch.oauthClientId = input.oauthClientId;
+  }
+  if (input.oauthAppId !== undefined) {
+    const appCheck = await assertOAuthAppInTenant(tenantId, input.oauthAppId);
+    if (appCheck.isErr()) return err(appCheck.error);
+    patch.oauthAppId = input.oauthAppId;
   }
   if (input.requiresApproval !== undefined) {
     patch.requiresApproval = input.requiresApproval;
@@ -300,6 +361,7 @@ async function remove(
 }
 
 export const serverServices = {
+  discoverOauth,
   list,
   create,
   get,

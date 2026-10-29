@@ -1,13 +1,17 @@
 export { loadConfig, getConfig, publicApiBaseUrl, publicMcpUrl, internalMcpUrl, webTrustedOrigins } from "./env/load.js";
+export { formatEnvParseError } from "./env/formatEnvError.js";
+export { buildPostgresUrl, resolvePostgresUrl, type PostgresUrlParts } from "./env/postgresUrl.js";
 export { EnvSchema, type Env } from "./env/schema.js";
 export {
   ErrorCode,
   JacklineError,
   UnauthorizedError,
   EmailNotVerifiedError,
+  EmailNotConfiguredError,
   ForbiddenError,
   NotFoundError,
   BadRequestError,
+  RateLimitedError,
   TenantLimitReachedError,
   NotImplementedError,
   EncryptionError,
@@ -30,6 +34,13 @@ export {
   type ResolvedUpstreamBearer,
   parseUpstreamOAuthSecret,
   resolveOAuthAccessToken,
+  resolveStoredOAuthAccessToken,
+  type OAuthSecretLock,
+  OAUTH_REFRESH_SKEW_MS,
+  OAuthTokenEndpointError,
+  OAuthRefreshTransientError,
+  classifyOAuthRefreshFailure,
+  type OAuthRefreshFailureClass,
   encodeOAuthSecretValue,
   upstreamSecretKind,
   OAUTH_CLIENT_SECRET_KIND,
@@ -39,8 +50,26 @@ export {
   createOAuthState,
   buildOAuthAuthorizeUrl,
   exchangeAuthorizationCode,
+  registerDynamicOAuthClient,
+  discoverMcpOAuthMetadata,
   type PkcePair,
+  type DiscoveredMcpOAuth,
+  type DiscoverFetch,
+  parseResourceMetadataFromWwwAuthenticate,
+  parseScopeFromWwwAuthenticate,
+  wellKnownWithPathInsertion,
+  authorizationServerMetadataUrls,
 } from "./upstream/oauth.js";
+export {
+  resolveServerOAuthClient,
+  applyOAuthClientOverride,
+  oauthAppSecretAad,
+  OAUTH_APP_SECRET_AAD_KIND,
+  type OAuthClientOverride,
+  type OAuthAppClientRef,
+  type ServerOAuthClientFields,
+  type ResolvedServerOAuthClient,
+} from "./upstream/oauthApps.js";
 export {
   formatMcpToolName,
   sanitizeMcpNameSegment,
@@ -49,13 +78,24 @@ export {
   CONNECTOR_PRESETS,
   CONNECTOR_CATEGORIES,
   getConnectorPreset,
+  connectorLogoKey,
   connectorUsesPublicOAuthClient,
+  connectorOAuthRegistrationUrl,
   ConnectorPresetSchema,
+  ConnectorCategorySchema,
   type ConnectorPreset,
+  type ConnectorCategory,
 } from "./connectors/catalog.js";
+export {
+  safeLoginReturnTo,
+  loginPathWithReturnTo,
+} from "./myAccess/safeReturnTo.js";
 export {
   myAccessReconnectUrl,
   formatUpstreamCredentialFailure,
+  isPersonalUpstreamCredentialFailure,
+  isInvalidUpstreamTokenError,
+  UpstreamCredentialFailureError,
+  upstreamCredentialFailure,
   type UpstreamCredentialFailureKind,
 } from "./myAccess/reconnectUrl.js";
-export { timingSafeEqualHex } from "./crypto/timingSafe.js";

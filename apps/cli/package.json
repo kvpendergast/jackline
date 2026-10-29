@@ -57,12 +57,12 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.10",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
-    "hono": "^4.12.30",
+    "hono": "^4.13.13",
     "neverthrow": "^8.2.0",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   }
 }

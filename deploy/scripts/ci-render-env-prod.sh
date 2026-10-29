@@ -18,6 +18,9 @@ set -euo pipefail
 : "${GCP_PROJECT_ID:?GCP_PROJECT_ID is required}"
 : "${JACKLINE_DOMAIN:?JACKLINE_DOMAIN is required}"
 
+GHCR_OWNER="$(echo "${JACKLINE_GHCR_OWNER:-kvpendergast}" | tr '[:upper:]' '[:lower:]')"
+IMAGE_TAG="${JACKLINE_IMAGE_TAG:-latest}"
+
 PREFIX="${JACKLINE_SECRET_PREFIX:-jackline-pulumi-}"
 OUT="${1:-}"
 
@@ -31,8 +34,11 @@ MASTER_KEY="$(read_secret jacklineMasterKey)"
 AUTH_SECRET="$(read_secret betterAuthSecret)"
 PG_PASS="$(read_secret postgresPassword)"
 TENANCY_SM="$(read_secret tenancy)"
-GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId)"
-GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret)"
+# Trim CR/LF/space — gcloud secret payloads often include a trailing newline,
+# and whitespace in client secrets causes Google token exchange to fail with
+# invalid_code on the OAuth callback.
+GOOGLE_CLIENT_ID_SM="$(read_secret googleClientId | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+GOOGLE_CLIENT_SECRET_SM="$(read_secret googleClientSecret | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 RESEND_API_KEY_SM="$(read_secret resendApiKey)"
 EMAIL_CONNECTOR_SM="$(read_secret emailConnector)"
 SMTP_HOST_SM="$(read_secret smtpHost)"
@@ -74,10 +80,11 @@ fi
 EMAIL_ENV_BLOCK=""
 if [[ -n "${RESEND_API_KEY_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
   CONNECTOR="${EMAIL_CONNECTOR_SM:-resend}"
-  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"$'\nRESEND_API_KEY='"${RESEND_API_KEY_SM}"
+  # Quote EMAIL_FROM so values like `Jackline <noreply@domain>` survive .env parsing.
+  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nEMAIL_FROM="'"${EMAIL_FROM_SM}"$'"\nRESEND_API_KEY='"${RESEND_API_KEY_SM}"
 elif [[ -n "${SMTP_HOST_SM}" && -n "${EMAIL_FROM_SM}" ]]; then
   CONNECTOR="${EMAIL_CONNECTOR_SM:-smtp}"
-  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nSMTP_HOST='"${SMTP_HOST_SM}"$'\nEMAIL_FROM='"${EMAIL_FROM_SM}"
+  EMAIL_ENV_BLOCK=$'EMAIL_CONNECTOR='"${CONNECTOR}"$'\nSMTP_HOST='"${SMTP_HOST_SM}"$'\nEMAIL_FROM="'"${EMAIL_FROM_SM}"$'"'
   if [[ -n "${SMTP_PORT_SM}" ]]; then
     EMAIL_ENV_BLOCK+=$'\nSMTP_PORT='"${SMTP_PORT_SM}"
   fi
@@ -113,6 +120,14 @@ API_HOST=0.0.0.0
 API_PORT=8080
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8081
+# Local OTEL Collector (compose.otel.yml) — traces; logs ship via filelog.
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/traces
+GCP_PROJECT_ID=${GCP_PROJECT_ID}
+JACKLINE_API_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-api:${IMAGE_TAG}
+JACKLINE_GATEWAY_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-gateway:${IMAGE_TAG}
+JACKLINE_WEB_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-web:${IMAGE_TAG}
+JACKLINE_DOCS_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-docs:${IMAGE_TAG}
+JACKLINE_MIGRATE_IMAGE=ghcr.io/${GHCR_OWNER}/jackline-migrate:${IMAGE_TAG}
 ${GOOGLE_ENV_BLOCK}
 ${EMAIL_ENV_BLOCK}
 EOF

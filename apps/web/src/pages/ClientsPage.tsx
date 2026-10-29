@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import { jacklineApi } from "@/lib/jackline-api";
-import { JACKLINE_CHAT_SYSTEM_KEY, type ClientKind, type PublicClient } from "@jackline/shared";
+import { JACKLINE_CHAT_SYSTEM_KEY, type ClientKind, type ClientRegistrationType, type PublicClient } from "@jackline/shared";
 
 export function ClientsPage() {
   const { tenantId } = useAuth();
@@ -109,6 +109,9 @@ export function ClientsPage() {
                 Kind
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                Registration
+              </TableHead>
+              <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                 Owner
               </TableHead>
               <TableHead className="font-mono text-[10px] uppercase tracking-wider">
@@ -125,7 +128,7 @@ export function ClientsPage() {
           <TableBody>
             {!loading && items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground">
                   No clients yet.
                 </TableCell>
               </TableRow>
@@ -145,6 +148,9 @@ export function ClientsPage() {
                 </TableCell>
                 <TableCell>
                   <KindBadge kind={row.kind} />
+                </TableCell>
+                <TableCell>
+                  <KindBadge kind={row.registrationType} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {row.ownerUserId ? row.ownerUserId.slice(0, 8) + "…" : "Org"}
@@ -230,6 +236,8 @@ function CreateClientForm({
   const { tenantId } = useAuth();
   const [name, setName] = useState("");
   const [kind, setKind] = useState<ClientKind>("interactive");
+  const [registrationType, setRegistrationType] =
+    useState<ClientRegistrationType>("static");
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -237,7 +245,11 @@ function CreateClientForm({
     if (!tenantId) return;
     setBusy(true);
     try {
-      await jacklineApi.createClient(tenantId, { name, kind });
+      await jacklineApi.createClient(tenantId, {
+        name,
+        kind,
+        ...(kind === "interactive" ? { registrationType } : {}),
+      });
       await onCreated();
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Create failed");
@@ -266,6 +278,21 @@ function CreateClientForm({
           <option value="service">service (OAuth2 API)</option>
         </FieldSelect>
       </Field>
+      {kind === "interactive" ? (
+        <Field label="Registration type">
+          <FieldSelect
+            value={registrationType}
+            onChange={(e) =>
+              setRegistrationType(e.target.value as ClientRegistrationType)
+            }
+          >
+            <option value="static">static (mint gateway token)</option>
+            <option value="pre_registered">pre_registered</option>
+            <option value="cimd">cimd (client metadata URL)</option>
+            <option value="dcr">dcr (dynamic — deprecated)</option>
+          </FieldSelect>
+        </Field>
+      ) : null}
       <Button type="submit" className="w-full" disabled={busy}>
         {busy ? "Creating…" : "Create"}
       </Button>

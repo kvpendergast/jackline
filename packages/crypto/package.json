@@ -11,8 +11,11 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\"",
+    "test": "tsx --test src/timingSafe.test.ts",
     "lint": "echo \"lint later\""
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
   },
   "dependencies": {
     "neverthrow": "^8.2.0",

@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, secrets, servers } from "@jackline/db";
+import { db, oauthApps, secrets, servers } from "@jackline/db";
 import {
   BadRequestError,
   JacklineError,
@@ -10,12 +10,15 @@ import {
   SetupError,
   upstreamSecretKind,
   connectorUsesPublicOAuthClient,
+  connectorOAuthRegistrationUrl,
+  resolveServerOAuthClient,
   type MyAccessServer,
   type PublicSecret,
   type UpstreamCredentialStatus,
 } from "@jackline/shared";
 import { fromDbWriteError } from "../../lib/db/fromDbWriteError.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import { toOAuthAppClientRef } from "../oauthApps/credentials.js";
 
 function readinessFor(input: {
   credentialMode: "shared" | "subject_required" | "either";
@@ -64,6 +67,24 @@ async function listMyServers(
       ),
     );
 
+  const appIds = [
+    ...new Set(
+      serverRows
+        .map((s) => s.oauthAppId)
+        .filter((id): id is string => id != null),
+    ),
+  ];
+  const appRows =
+    appIds.length > 0
+      ? await db
+          .select()
+          .from(oauthApps)
+          .where(
+            and(eq(oauthApps.tenantId, tenantId), inArray(oauthApps.id, appIds)),
+          )
+      : [];
+  const appsById = new Map(appRows.map((a) => [a.id, toOAuthAppClientRef(a)]));
+
   const items: MyAccessServer[] = serverRows.map((server) => {
     const kind = upstreamSecretKind(server.authMethod);
     const subjectConnected = secretRows.some(
@@ -79,19 +100,33 @@ async function listMyServers(
         s.kind === kind,
     );
     const canConnect = server.credentialMode !== "shared";
-    const publicOAuthClient = connectorUsesPublicOAuthClient(server.connectorKey);
+    const registrationUrl =
+      server.oauthRegistrationUrl?.trim() ||
+      connectorOAuthRegistrationUrl(server.connectorKey);
+    const publicOAuthClient =
+      connectorUsesPublicOAuthClient(server.connectorKey) ||
+      !!server.oauthRegistrationUrl?.trim();
     const hasOauthAppSecret = secretRows.some(
       (s) =>
         s.serverId === server.id &&
         s.userId === null &&
         s.kind === OAUTH_CLIENT_SECRET_KIND,
     );
+    const linkedApp = server.oauthAppId
+      ? appsById.get(server.oauthAppId)
+      : undefined;
+    const resolvedClient = resolveServerOAuthClient(server, linkedApp);
     const oauthConnectAvailable =
-      server.authMethod === "oauth" &&
-      !!server.oauthAuthorizeUrl &&
-      !!server.oauthTokenUrl &&
-      !!server.oauthClientId &&
-      (publicOAuthClient || hasOauthAppSecret);
+      resolvedClient.source === "app"
+        ? // Shared app: client id + (optional) secret come from the app.
+          server.authMethod === "oauth" &&
+          !!resolvedClient.authorizeUrl &&
+          !!resolvedClient.tokenUrl
+        : server.authMethod === "oauth" &&
+          !!server.oauthAuthorizeUrl &&
+          !!server.oauthTokenUrl &&
+          (!!server.oauthClientId || !!registrationUrl) &&
+          (publicOAuthClient || hasOauthAppSecret);
 
     return {
       serverId: server.id,

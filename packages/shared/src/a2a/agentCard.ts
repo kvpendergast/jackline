@@ -32,7 +32,7 @@ export function buildAgentCard(input: AgentCardInput): Record<string, unknown> {
     preferredTransport: "JSONRPC",
     version: "1.0.0",
     capabilities: {
-      streaming: false,
+      streaming: true,
       extendedAgentCard: true,
     },
     skills: input.publicSkills.map((skill) => ({
@@ -72,6 +72,7 @@ export function buildAgentCard(input: AgentCardInput): Record<string, unknown> {
 export type A2aAuthDecision =
   | { action: "allow"; trustGrantId: string }
   | { action: "knock_only" }
+  | { action: "task_poll" }
   | { action: "deny"; reason: string };
 
 export type A2aAuthInput = {
@@ -85,7 +86,8 @@ export type A2aAuthInput = {
 
 /**
  * Cheap auth-before-work decision for A2A ingress.
- * Knocks require a Jackline API credential at the handler until rate limits ship.
+ * Knocks and knock-task polls are public (rate-limited at the handler).
+ * Owner approve/deny and real actions still require owner auth or a jka_ grant.
  */
 export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
   if (input.agentStatus === "paused") {
@@ -104,6 +106,11 @@ export function decideA2aAuth(input: A2aAuthInput): A2aAuthDecision {
       return { action: "deny", reason: "Knocks are disabled for this agent" };
     }
     return { action: "knock_only" };
+  }
+
+  // Capability URL: knowing taskId is enough to poll for exchangeToken before jka_ exists.
+  if (input.method === "tasks/get") {
+    return { action: "task_poll" };
   }
 
   return { action: "deny", reason: "Authentication required" };

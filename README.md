@@ -8,7 +8,7 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 
 ## Status
 
-**Phase 1 — foundation (in progress)**
+**Phase 1 — foundation (self-host usable)**
 
 | Area | Status |
 | --- | --- |
@@ -18,22 +18,34 @@ Clients (Cursor, Claude Code, internal agents) connect to Jackline as an MCP ser
 | Better Auth (email/password + sessions) | Done |
 | Control-plane API (`@jackline/api`) — health, signup, `/me`, product CRUD through secrets, OpenAPI | Done |
 | Tenancy gate (`single` / `multi`) | Done |
+| Signup lock after first org | Done — public Better Auth email signup closed; org create still allowed in `multi` |
 | Request context + structured logging | Done |
 | Admin UI (`@jackline/web`) | Steel Lattice; Dashboard, Settings, Chat drawer, Servers quick-add catalog, connections, access requests, audit |
 | In-product Chat | TanStack AI on the API; tools via existing `/mcp` gateway; Settings → Chat (full_admin) |
-| Connector presets | Linear, Notion, Atlassian, Gmail/Drive/Calendar/Docs, GitHub, Sentry, Robinhood Trading/Banking |
+| Connector presets | Linear, Notion, Atlassian, Google Workspace, Google Cloud (full remote MCP list), Google APIs, GitHub, Sentry, Robinhood Trading/Banking, Instacart |
 | MCP gateway (`@jackline/gateway`) | Streamable HTTP `/mcp`, policy filter, proxy, audit; upstream Zod schemas |
 | Tool sync | `POST /servers/:id/sync-tools` stores description + inputSchema |
-| Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh) |
+| Upstream auth | `api_key` + `oauth` (access token, client credentials, refresh); mTLS deferred |
 | Identity | OIDC SSO (Better Auth genericOAuth), SCIM Users, invites, team-scoped `delegated_admin` |
 | Custom API / OpenAPI | `kind: api` HTTP proxy + OpenAPI JSON import via `docsUrl` |
-| Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON |
-| Compose stand-up | `deploy/docker-compose.yml` (dev) + `deploy/compose.prod.yml` (prod; optional gateway-split / byo-edge overlays) |
+| Audit trail | Gateway writes allow/deny/upstream_error with optional request/response JSON; A2A peer calls tagged `a2a.peer` |
+| A2A agents | MVP — publish agent, knock/trust `jka_`, hosted tool execution, audit; see [docs](apps/docs/pages/a2a-agents.mdx) |
+| Compose stand-up | Done — generic Docker + Postgres overlay; prod images on GHCR (`jackline-*`) with overridable `JACKLINE_*_IMAGE` |
 | Public Admin API | OAuth2 `client_credentials` on `/api/v1/oauth/token`; Bearer on `/api/v1/*` |
 | Docs site | Zudoku (`apps/docs`) — API reference auto-generated from OpenAPI |
 | Member access | Self-serve clients/connections, mint `jkl_…`, tool toggles, server/tool `requiresApproval`, access requests + in-app notifications |
+| Integration tests (`@jackline/integration-tests`) | Done — CI job boots API + gateway + Postgres; covers health, auth, MCP list/call, policy deny, quarantine, OAuth, audit |
+| Observability (`@jackline/observability`) | Partial — optional OTLP traces; logs always on stdout JSON |
+| Rate limits (`@jackline/quotas`) | Done — memory or Redis; env overrides via `JACKLINE_RL_*` |
 
-Next: OTEL, rate limits, mTLS.
+Next: Prometheus metrics.
+
+## Community
+
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- License: [MIT](LICENSE)
 
 ## Stack
 
@@ -63,20 +75,14 @@ openssl rand -base64 32   # JACKLINE_MASTER_KEY (base64)
 openssl rand -base64 32   # BETTER_AUTH_SECRET
 ```
 
-Set `DATABASE_URL` to your Postgres instance, for example:
+Configure Postgres in `.env` (see `.env.example` for variable names):
 
 ```bash
-# local Postgres on default port
-DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5432/jackline
+# Required: set a local dev password (not committed)
+POSTGRES_PASSWORD=your-dev-password
 
-# or Docker (example: publish container 5432 → host 5433)
-docker run -d --name jackline-pg \
-  -e POSTGRES_USER=jackline \
-  -e POSTGRES_PASSWORD=jackline \
-  -e POSTGRES_DB=jackline \
-  -p 5433:5432 postgres:16
-
-DATABASE_URL=postgresql://jackline:jackline@127.0.0.1:5433/jackline
+# Optional: leave DATABASE_URL empty — it is built from POSTGRES_* at startup.
+# For Docker Compose on host port 5433, set POSTGRES_PORT=5433 when running natively.
 ```
 
 Also set:
@@ -102,23 +108,31 @@ Register redirect URI in Google Cloud Console:
 
 Per-tenant SSO (Settings → SSO) can set **Require SSO**, **Allowed email domains**, and **Auto-create users** to enforce tenant OIDC over platform Google.
 
-Also: `deploy/docker-compose.yml` for a **dev** single-host stand-up (Postgres + migrate + api + gateway + web + docs).
+Also: `deploy/docker-compose.yml` is the **generic Docker happy path** (Postgres + migrate + api + gateway + web + docs).
 
 ```bash
-cp .env.example .env   # set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
+cp .env.example .env   # set POSTGRES_PASSWORD, JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET
+pnpm env:check            # optional — fail fast on missing env
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-### Production Compose (recommended self-host)
+### Production Compose (generic Docker)
 
-Multi-stage images (`deploy/Dockerfile`) + optional Caddy edge (`deploy/compose.prod.yml`).
-Default topology: **UI + API + MCP on one origin** (simplest cookies/CORS). Caddy is convenience, not required.
+Multi-stage images on **GHCR** (`ghcr.io/kvpendergast/jackline-*`) + Caddy (`deploy/compose.prod.yml`).  
+**Bundled Postgres** (default self-host): add `compose.postgres.yml`.  
+**BYO / Cloud SQL:** omit the overlay and set `DATABASE_URL`.
 
 ```bash
 cp deploy/.env.prod.example .env.prod
-# set JACKLINE_MASTER_KEY and BETTER_AUTH_SECRET
-docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
+# set JACKLINE_MASTER_KEY, BETTER_AUTH_SECRET, POSTGRES_PASSWORD
+
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod pull
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  --env-file .env.prod up -d
 ```
+
+`up --build` still works if you prefer building from source. Override `JACKLINE_*_IMAGE` to pin a tag or use a private mirror (see `apps/docs/pages/self-hosting.mdx`).
 
 | URL | Service |
 | --- | --- |
@@ -129,18 +143,21 @@ docker compose -f deploy/compose.prod.yml --env-file .env.prod up --build -d
 
 **HTTPS:** set `JACKLINE_SITE_ADDRESS` / `JACKLINE_DOCS_SITE_ADDRESS` to bare hostnames (no `http://`), align `WEB_ORIGIN` / `BETTER_AUTH_URL` / `JACKLINE_PUBLIC_*` to `https://…`, and ensure ports 80/443 are reachable.
 
-**Other topologies** (see `apps/docs/pages/self-hosting.mdx`):
+**Recipes** (see `apps/docs/pages/self-hosting.mdx`):
 
 ```bash
+# BYO Postgres — omit compose.postgres.yml, set DATABASE_URL in .env.prod
+
 # Gateway on its own published port; Caddy = control plane only
-docker compose -f deploy/compose.prod.yml -f deploy/compose.gateway-split.yml \
-  --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.gateway-split.yml --env-file .env.prod up -d
 
 # No Caddy — publish api/gateway/web/docs for your own reverse proxy
-docker compose -f deploy/compose.prod.yml -f deploy/compose.byo-edge.yml \
-  --env-file .env.prod up --build -d
+docker compose -f deploy/compose.prod.yml -f deploy/compose.postgres.yml \
+  -f deploy/compose.byo-edge.yml --env-file .env.prod up -d
 ```
 
+GCP VM / Cloud SQL: `deploy/pulumi/README.md`.
 Build a single target:
 
 ```bash
@@ -175,7 +192,16 @@ A full admin sets provider, model, and API key in **Settings → Chat** (stored 
 
 When the API and gateway are on different hosts (Compose/K8s), set `JACKLINE_INTERNAL_MCP_URL` to the gateway’s MCP URL on the private network (for example `http://gateway:8081/mcp`). Local processes default to `http://127.0.0.1:${GATEWAY_PORT}/mcp`.
 
-## Smoke test
+## Tests
+
+```bash
+pnpm test                 # unit tests (no Postgres)
+pnpm test:integration     # boots API + gateway against Postgres (CI job: integration)
+```
+
+Set `DATABASE_URL` or `POSTGRES_*` (see `.env.example`). Optionally point at an already-running stack with `INTEGRATION_API_URL` + `INTEGRATION_GATEWAY_URL`.
+
+## Smoke test (manual curl)
 
 ### Create organization (first org in `single` mode)
 
@@ -193,6 +219,8 @@ curl -sS -c /tmp/jackline-cookies.txt -X POST http://127.0.0.1:8080/api/v1/signu
 Expect `201` with `user`, `tenant`, `membership`, and session cookies.
 
 In **`JACKLINE_TENANCY=single`**, a second signup returns `409` `TENANT_LIMIT_REACHED`.
+
+After the first organization exists, Better Auth’s public email signup (`POST /api/auth/sign-up/email`) is **disabled** so strangers cannot create orphan user accounts. Additional humans should use invites (sign in + accept invite) or admin-created service users. Check availability with `GET /api/v1/signup/status`.
 
 ### Sign in (if an org already exists)
 
@@ -482,9 +510,9 @@ The API logs structured JSON to stdout (pretty-printed in development). Set `LOG
 | `X-Request-Id` | Honored if sent; otherwise generated. Echoed on every response. |
 | `traceparent` | Optional W3C header; `traceId` is extracted into logs for later gateway joining. |
 
-Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
+Stable log fields operators can ship to Loki/ELK/CloudWatch and alert on: `service` (`jackline-api` / `jackline-gateway`), `requestId`, `traceId`, `trace_id`, `span_id`, `tenantId`, `userId`, `authMethod`, `route`, `method`, `status`, `durationMs`, `errorCode`.
 
-Error logs include a Honeycomb-style `err` object (`type`, `message`, `stack`) and a top-level `stack_trace` field for Google Cloud Logging / Error Reporting. In Logs Explorer: `jsonPayload.stack_trace:*` or `jsonPayload.err.stack:*`.
+Error logs include a Honeycomb-style `err` object (`type`, `message`, `stack`) and a top-level `stack_trace` field for Google Cloud Logging / Error Reporting. In Logs Explorer: `jsonPayload.stack_trace:*` or `jsonPayload.err.stack:*`. Errors also carry `serviceContext.service` so Error Reporting groups them per service. On the GCP VM recipe the OpenTelemetry Collector (`deploy/logging/otel-collector-config.yaml`) maps Pino's numeric `level` to Cloud Logging severity, copies `msg` to `message` for the Logs Explorer summary line, and tags entries with the `gce_instance` resource so Error Reporting picks them up.
 
 Request-complete lines are emitted for every call. Secrets, cookies, and `Authorization` values are never logged.
 
@@ -497,6 +525,8 @@ No built-in pager. Typical setup:
 3. Example Loki/LogQL-style filter: `{app="jackline-api"} \| json \| status >= 500`
 
 Prometheus metrics and OTEL trace export are optional follow-ons. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP; stdout JSON logs remain the default and include OTEL-friendly fields (`trace_id`, `span_id`, `requestId`, `traceId`, etc.) for correlation with or without export.
+
+On the **GCP VM** recipe, [`deploy/compose.otel.yml`](deploy/compose.otel.yml) runs OpenTelemetry Collector Contrib to ship Docker stdout into Cloud Logging (and receive OTLP traces). See [`deploy/pulumi/README.md`](deploy/pulumi/README.md#logs-cloud-logging). Self-hosters can omit that overlay or point the collector at Loki/OTLP/etc.
 
 | Variable | Role |
 | --- | --- |
@@ -524,12 +554,16 @@ apps/
   web/       # Vite/React admin UI (Steel Lattice + shadcn)
   gateway/   # MCP gateway (Streamable HTTP)
   cli/       # personal Jackline CLI (@buildstuff/jackline)
+  docs/      # Zudoku docs + OpenAPI reference
 packages/
-  shared/    # env, errors, tenancy, public DTOs, connector catalog
-  db/        # Drizzle schema + migrations
-  auth/      # Better Auth instance
-  crypto/    # AES-GCM envelope encryption
-  policy/    # policy evaluation
+  shared/            # env, errors, tenancy, public DTOs, connector catalog
+  db/                # Drizzle schema + migrations
+  auth/              # Better Auth instance
+  crypto/            # AES-GCM envelope encryption
+  policy/            # policy evaluation
+  observability/     # optional OTLP traces + HTTP spans
+  email/             # console / SMTP / Resend connectors
+  integration-tests/ # black-box API + gateway suite (CI)
 ```
 
 ## License

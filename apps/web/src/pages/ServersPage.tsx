@@ -1,22 +1,24 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ExternalLink, Pencil, Plus, RefreshCw } from "lucide-react";
+import { ExternalLink, Pencil, RefreshCw } from "lucide-react";
 import {
-  CONNECTOR_CATEGORIES,
   CONNECTOR_PRESETS,
   encodeOAuthSecretValue,
   getConnectorPreset,
   upstreamSecretKind,
   type ConnectorPreset,
+  type PublicOAuthApp,
   type PublicServer,
   type ServerAuthMethod,
   type ServerCredentialMode,
   type ServerKind,
 } from "@jackline/shared";
 import { useAuth } from "@/components/auth-provider";
+import { ConnectorCatalog } from "@/components/jackline/ConnectorCatalog";
 import { ConnectorLogo } from "@/components/jackline/ConnectorLogo";
 import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { KindBadge } from "@/components/jackline/StatusBadge";
+import { OAuthAppsSection } from "@/components/jackline/OAuthAppsSection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +47,7 @@ export function ServersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createPreset, setCreatePreset] = useState<ConnectorPreset | null>(null);
   const [editing, setEditing] = useState<PublicServer | null>(null);
+  const [oauthApps, setOauthApps] = useState<PublicOAuthApp[]>([]);
 
   const addedConnectorKeys = new Set(
     items
@@ -64,8 +67,16 @@ export function ServersPage() {
 
   async function load() {
     if (!tenantId) return;
-    const page = await jacklineApi.listServers(tenantId);
+    const [page, apps] = await Promise.all([
+      jacklineApi.listServers(tenantId),
+      jacklineApi
+        .listOAuthApps(tenantId)
+        .then((r) => r.items)
+        // Non-admins / older APIs: the selector is simply empty.
+        .catch(() => [] as PublicOAuthApp[]),
+    ]);
     setItems(page.items);
+    setOauthApps(apps);
   }
 
   useEffect(() => {
@@ -129,76 +140,11 @@ export function ServersPage() {
       {error ? <p className="text-sm text-deny">{error}</p> : null}
       {info ? <p className="text-sm text-allow">{info}</p> : null}
 
-      <section className="border border-border bg-card">
-        <div className="border-b border-border px-4 py-3">
-          <p className="section-label">Quick add</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            One-click catalog connectors. You still supply credentials after
-            create.
-          </p>
-        </div>
-
-        {CONNECTOR_CATEGORIES.map((category) => {
-          const presets = CONNECTOR_PRESETS.filter(
-            (p) => p.category === category.id,
-          );
-          if (presets.length === 0) return null;
-
-          return (
-            <div
-              key={category.id}
-              className="border-b border-border px-4 py-4 last:border-b-0"
-            >
-              <p className="section-label mb-3">{category.label}</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {presets.map((preset) => {
-                  const added = addedConnectorKeys.has(preset.key);
-                  return (
-                    <button
-                      key={preset.key}
-                      type="button"
-                      disabled={added}
-                      onClick={() => openCreate(preset)}
-                      className="border border-border bg-card p-4 text-left transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="flex size-8 shrink-0 items-center justify-center border border-border bg-background">
-                            <ConnectorLogo
-                              connectorKey={preset.key}
-                              name={preset.name}
-                            />
-                          </span>
-                          <span className="font-medium">{preset.name}</span>
-                        </div>
-                        {added ? (
-                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Added
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {preset.description}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <KindBadge kind={preset.kind} />
-                        <KindBadge kind={preset.authMethod} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        <div className="border-t border-border px-4 py-3">
-          <Button variant="outline" onClick={() => openCreate(null)}>
-            <Plus className="size-4" />
-            Custom server
-          </Button>
-        </div>
-      </section>
+      <ConnectorCatalog
+        addedConnectorKeys={addedConnectorKeys}
+        onSelect={(preset) => openCreate(preset)}
+        onCustom={() => openCreate(null)}
+      />
 
       <section className="border border-border bg-card">
         <Table>
@@ -340,6 +286,22 @@ export function ServersPage() {
         </Table>
       </section>
 
+      {tenantId ? (
+        <OAuthAppsSection
+          tenantId={tenantId}
+          apps={oauthApps}
+          onChanged={load}
+          onError={(m) => {
+            setInfo(null);
+            setError(m);
+          }}
+          onInfo={(m) => {
+            setError(null);
+            setInfo(m);
+          }}
+        />
+      ) : null}
+
       <Dialog
         open={createOpen}
         onOpenChange={(next) => {
@@ -359,6 +321,7 @@ export function ServersPage() {
             key={createPreset?.key ?? "custom"}
             mode="create"
             preset={createPreset}
+            oauthApps={oauthApps}
             onDone={async () => {
               closeCreate();
               await load();
@@ -382,6 +345,8 @@ export function ServersPage() {
             <ServerForm
               mode="edit"
               server={editing}
+              oauthApps={oauthApps}
+              onAppsChanged={load}
               onDone={async () => {
                 setEditing(null);
                 await load();
@@ -396,6 +361,8 @@ export function ServersPage() {
 }
 
 type OAuthMode = "access_token" | "client_credentials" | "refreshable";
+
+const NEW_OAUTH_APP = "__new__";
 
 function resolveFormPreset(
   server: PublicServer | undefined,
@@ -416,18 +383,32 @@ function ServerForm({
   mode,
   server,
   preset,
+  oauthApps = [],
+  onAppsChanged,
   onDone,
   onError,
 }: {
   mode: "create" | "edit";
   server?: PublicServer;
   preset?: ConnectorPreset | null;
+  oauthApps?: PublicOAuthApp[];
+  onAppsChanged?: () => Promise<void>;
   onDone: () => Promise<void>;
   onError: (message: string) => void;
 }) {
   const { tenantId } = useAuth();
   const catalogPreset = resolveFormPreset(server, preset);
-  const publicOAuthClient = catalogPreset?.oauthPublicClient === true;
+  const [oauthRegistrationUrlInput, setOauthRegistrationUrlInput] = useState(
+    server?.oauthRegistrationUrl ?? catalogPreset?.oauthRegistrationUrl ?? "",
+  );
+  const [oauthResource, setOauthResource] = useState(
+    server?.oauthResource ?? catalogPreset?.oauthResource ?? "",
+  );
+  const oauthRegistrationUrl = oauthRegistrationUrlInput.trim() || null;
+  const publicOAuthClient =
+    catalogPreset?.oauthPublicClient === true || oauthRegistrationUrl != null;
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverNote, setDiscoverNote] = useState<string | null>(null);
   const [name, setName] = useState(server?.name ?? catalogPreset?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(
     server?.baseUrl ?? catalogPreset?.baseUrl ?? "https://",
@@ -487,6 +468,37 @@ function ServerForm({
   const [existingSecretId, setExistingSecretId] = useState<string | null>(null);
   const [hasExistingSecret, setHasExistingSecret] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Shared OAuth app selection: "" = this server's own client fields,
+  // NEW_OAUTH_APP = create a shared app from the fields below, else an app id.
+  const [oauthAppChoice, setOauthAppChoice] = useState<string>(
+    server?.oauthAppId ?? "",
+  );
+  const [newOauthAppName, setNewOauthAppName] = useState("");
+  const [saveAsAppName, setSaveAsAppName] = useState("");
+  const [savingAsApp, setSavingAsApp] = useState(false);
+  const selectedOauthApp =
+    oauthAppChoice && oauthAppChoice !== NEW_OAUTH_APP
+      ? (oauthApps.find((a) => a.id === oauthAppChoice) ?? null)
+      : null;
+  const usesSharedApp = oauthAppChoice !== "";
+
+  async function saveCredentialsAsSharedApp() {
+    if (!tenantId || !server || !saveAsAppName.trim()) return;
+    setSavingAsApp(true);
+    try {
+      const app = await jacklineApi.createOAuthAppFromServer(tenantId, {
+        serverId: server.id,
+        name: saveAsAppName.trim(),
+      });
+      setSaveAsAppName("");
+      setOauthAppChoice(app.id);
+      await onAppsChanged?.();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Save as shared app failed");
+    } finally {
+      setSavingAsApp(false);
+    }
+  }
 
   useEffect(() => {
     if (mode !== "edit" || !tenantId || !server) return;
@@ -526,6 +538,34 @@ function ServerForm({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tenantId, server, authMethod]);
+
+  async function discoverOauth() {
+    if (!tenantId) return;
+    setDiscovering(true);
+    setDiscoverNote(null);
+    try {
+      const found = await jacklineApi.discoverServerOauth(
+        tenantId,
+        baseUrl.trim(),
+      );
+      setOauthAuthorizeUrl(found.authorizeUrl);
+      setOauthTokenUrl(found.tokenUrl);
+      setOauthScopes(found.scopes ?? "");
+      setOauthRegistrationUrlInput(found.registrationUrl ?? "");
+      setOauthResource(found.resource ?? "");
+      setDiscoverNote(
+        found.registrationUrl
+          ? "Discovered. This server supports dynamic client registration — leave Client ID empty and click Connect after saving."
+          : "Discovered endpoints. No dynamic registration advertised — enter a Client ID (and secret if required).",
+      );
+    } catch (err) {
+      setDiscoverNote(
+        err instanceof ApiError ? err.message : "Discovery failed",
+      );
+    } finally {
+      setDiscovering(false);
+    }
+  }
 
   async function resolveSecretPlaintext(): Promise<string | null> {
     if (authMethod === "mtls") return null;
@@ -636,8 +676,20 @@ function ServerForm({
         }
       }
 
+      if (authMethod === "oauth" && oauthAppChoice === NEW_OAUTH_APP) {
+        if (!newOauthAppName.trim() || !oauthClientId.trim()) {
+          onError("A shared OAuth app needs a name and a client id.");
+          return;
+        }
+        if (!oauthAppSecret.trim() && !publicOAuthClient) {
+          onError("OAuth client secret is required for a confidential client.");
+          return;
+        }
+      }
+
       if (
         authMethod === "oauth" &&
+        !usesSharedApp &&
         mode === "create" &&
         oauthClientId.trim() &&
         !oauthAppSecret.trim() &&
@@ -647,19 +699,48 @@ function ServerForm({
         return;
       }
 
+      // Create the shared app first so the server can link to it.
+      let oauthAppId: string | null =
+        authMethod === "oauth" && selectedOauthApp ? selectedOauthApp.id : null;
+      if (authMethod === "oauth" && oauthAppChoice === NEW_OAUTH_APP) {
+        const app = await jacklineApi.createOAuthApp(tenantId, {
+          name: newOauthAppName.trim(),
+          clientId: oauthClientId.trim(),
+          ...(oauthAppSecret.trim() && !publicOAuthClient
+            ? { clientSecret: oauthAppSecret.trim() }
+            : {}),
+          authorizeUrl: oauthAuthorizeUrl.trim() || null,
+          tokenUrl: oauthTokenUrl.trim() || null,
+          registrationUrl: null,
+        });
+        oauthAppId = app.id;
+        setOauthAppChoice(app.id);
+        await onAppsChanged?.();
+      }
+      const linkedToApp = oauthAppId != null;
+
       const oauthFields =
         authMethod === "oauth"
           ? {
               oauthAuthorizeUrl: oauthAuthorizeUrl.trim() || null,
               oauthTokenUrl: oauthTokenUrl.trim() || null,
               oauthScopes: oauthScopes.trim() || null,
-              oauthClientId: oauthClientId.trim() || null,
+              oauthRegistrationUrl: oauthRegistrationUrl,
+              oauthResource: oauthResource.trim() || null,
+              // Linked servers keep their own client id untouched (fallback).
+              ...(linkedToApp
+                ? {}
+                : { oauthClientId: oauthClientId.trim() || null }),
+              oauthAppId,
             }
           : {
               oauthAuthorizeUrl: null,
               oauthTokenUrl: null,
               oauthScopes: null,
+              oauthRegistrationUrl: null,
+              oauthResource: null,
               oauthClientId: null,
+              oauthAppId: null,
             };
 
       let serverId = server?.id;
@@ -696,7 +777,7 @@ function ServerForm({
       if (serverId && plaintext) {
         await upsertServerSecret(serverId, plaintext);
       }
-      if (serverId && authMethod === "oauth") {
+      if (serverId && authMethod === "oauth" && !linkedToApp) {
         await upsertOauthAppSecret(serverId);
       }
 
@@ -806,8 +887,18 @@ function ServerForm({
           >
             <option value="api_key">api_key</option>
             <option value="oauth">oauth</option>
-            <option value="mtls">mtls</option>
+            {authMethod === "mtls" ? (
+              <option value="mtls" disabled>
+                mtls (unavailable)
+              </option>
+            ) : null}
           </FieldSelect>
+          {authMethod === "mtls" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              mTLS is not available yet. Switch to api_key or oauth to
+              keep using this server.
+            </p>
+          ) : null}
         </Field>
       </div>
       <Field label="Credential ownership">
@@ -849,12 +940,29 @@ function ServerForm({
           <div>
             <p className="text-sm font-medium">OAuth app (Connect)</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Register a Jackline callback on the provider
-              ({`{API_URL}/api/v1/oauth/callback`}). Members use Connect in My
-              Access when client id
-              {publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}
+              {oauthRegistrationUrl
+                ? "Dynamic client registration is enabled. Leave Client ID empty — Connect registers a public PKCE client automatically (CLI uses loopback; hosted My Access uses Jackline’s callback when the provider allowlists it)."
+                : `Register a Jackline callback on the provider ({API_URL}/api/v1/oauth/callback). Members use Connect in My Access when client id${publicOAuthClient ? " is set (public client — no secret)." : " + secret are set."}`}
             </p>
           </div>
+          {!catalogPreset ? (
+            <div className="space-y-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={discovering || !/^https:\/\/.+/.test(baseUrl.trim())}
+                onClick={() => void discoverOauth()}
+              >
+                {discovering ? "Discovering…" : "Discover from MCP URL"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Uses the Base URL above to fill the OAuth fields (RFC 9728 /
+                8414) and detect dynamic client registration.
+                {discoverNote ? ` ${discoverNote}` : ""}
+              </p>
+            </div>
+          ) : null}
           <Field label="Authorize URL" htmlFor="oauth-app-authorize">
             <Input
               id="oauth-app-authorize"
@@ -881,19 +989,119 @@ function ServerForm({
               placeholder="read,write"
             />
           </Field>
-          <Field label="Client ID" htmlFor="oauth-app-client-id">
+          <Field label="Registration URL (dynamic client registration)" htmlFor="oauth-app-registration">
+            <Input
+              id="oauth-app-registration"
+              type="url"
+              value={oauthRegistrationUrlInput}
+              onChange={(e) => setOauthRegistrationUrlInput(e.target.value)}
+              placeholder="https://auth.example.com/register (optional)"
+            />
+          </Field>
+          <Field label="Resource (RFC 8707)" htmlFor="oauth-app-resource">
+            <Input
+              id="oauth-app-resource"
+              type="url"
+              value={oauthResource}
+              onChange={(e) => setOauthResource(e.target.value)}
+              placeholder="https://mcp.example.com/mcp (optional)"
+            />
+          </Field>
+          <Field label="Use saved OAuth app" htmlFor="oauth-app-choice">
+            <FieldSelect
+              id="oauth-app-choice"
+              value={oauthAppChoice}
+              onChange={(e) => setOauthAppChoice(e.target.value)}
+            >
+              <option value="">None — this server&apos;s own client</option>
+              {oauthApps.map((app) => (
+                <option key={app.id} value={app.id}>
+                  {app.name} ({app.clientId.slice(0, 24)}
+                  {app.clientId.length > 24 ? "…" : ""})
+                </option>
+              ))}
+              <option value={NEW_OAUTH_APP}>Create new shared app…</option>
+            </FieldSelect>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {selectedOauthApp
+                ? `Uses “${selectedOauthApp.name}” client id${selectedOauthApp.hasClientSecret ? " + stored secret" : " (public client)"}${selectedOauthApp.authorizeUrl || selectedOauthApp.tokenUrl ? " and its authorize/token URLs" : ""}. Scopes stay per server.`
+                : oauthAppChoice === NEW_OAUTH_APP
+                  ? "The client id and secret below are saved as a shared app (with the authorize/token URLs above) so other servers can reuse them."
+                  : "Pick a shared app to reuse one OAuth client across servers (e.g. Gmail + Google Calendar)."}
+            </p>
+          </Field>
+          {oauthAppChoice === NEW_OAUTH_APP ? (
+            <Field label="Shared app name" htmlFor="oauth-app-new-name">
+              <Input
+                id="oauth-app-new-name"
+                value={newOauthAppName}
+                onChange={(e) => setNewOauthAppName(e.target.value)}
+                placeholder="Google Workspace"
+                required
+              />
+            </Field>
+          ) : null}
+          {mode === "edit" &&
+          server &&
+          !usesSharedApp &&
+          server.oauthClientId &&
+          (server.hasOauthClientSecret || publicOAuthClient) ? (
+            <div className="space-y-1">
+              <Field
+                label="Save these credentials as a shared app"
+                htmlFor="oauth-app-save-as"
+              >
+                <div className="flex gap-2">
+                  <Input
+                    id="oauth-app-save-as"
+                    value={saveAsAppName}
+                    onChange={(e) => setSaveAsAppName(e.target.value)}
+                    placeholder="Shared app name"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingAsApp || !saveAsAppName.trim()}
+                    onClick={() => void saveCredentialsAsSharedApp()}
+                  >
+                    {savingAsApp ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                Copies this server&apos;s saved client id and secret into a
+                shared app and links this server to it.
+              </p>
+            </div>
+          ) : null}
+          {selectedOauthApp ? null : (
+          <>
+          <Field
+            label={
+              oauthRegistrationUrl
+                ? "Client ID (optional — auto-registered on Connect)"
+                : "Client ID"
+            }
+            htmlFor="oauth-app-client-id"
+          >
             <Input
               id="oauth-app-client-id"
               value={oauthClientId}
               onChange={(e) => setOauthClientId(e.target.value)}
               autoComplete="off"
+              placeholder={
+                oauthRegistrationUrl
+                  ? "Leave empty to register dynamically"
+                  : undefined
+              }
             />
           </Field>
           <Field
             label={
               publicOAuthClient
                 ? "Client secret (not used)"
-                : hasOauthAppSecret
+                : hasOauthAppSecret && oauthAppChoice !== NEW_OAUTH_APP
                   ? "Client secret (optional)"
                   : "Client secret"
             }
@@ -908,19 +1116,22 @@ function ServerForm({
               placeholder={
                 publicOAuthClient
                   ? "Public OAuth client — leave empty"
-                  : hasOauthAppSecret
+                  : hasOauthAppSecret && oauthAppChoice !== NEW_OAUTH_APP
                     ? "•••••••• (unchanged)"
                     : undefined
               }
               disabled={publicOAuthClient}
               required={
                 !publicOAuthClient &&
-                mode === "create" &&
-                !!oauthClientId.trim() &&
-                !hasOauthAppSecret
+                (oauthAppChoice === NEW_OAUTH_APP ||
+                  (mode === "create" &&
+                    !!oauthClientId.trim() &&
+                    !hasOauthAppSecret))
               }
             />
           </Field>
+          </>
+          )}
         </div>
       ) : null}
 
@@ -1072,11 +1283,12 @@ function ServerForm({
             </>
           )}
         </div>
-      ) : (
+      ) : authMethod === "mtls" ? (
         <p className="text-xs text-muted-foreground">
-          mTLS upstream auth is not supported yet.
+          mTLS credential storage is not available yet. Switch auth to
+          api_key or oauth above.
         </p>
-      )}
+      ) : null}
 
       <Button type="submit" className="w-full" disabled={busy}>
         {busy

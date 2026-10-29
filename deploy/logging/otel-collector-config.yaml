@@ -1,0 +1,117 @@
+# OpenTelemetry Collector (contrib) — GCP VM / Compose recipe.
+#
+# - filelog: Docker json-file stdout/stderr → Cloud Logging
+# - otlp: app traces (api/gateway) → Cloud Trace
+#
+# Self-host: swap `googlecloud` exporters for otlp/loki/jaeger/etc., or omit
+# deploy/compose.otel.yml entirely and keep JSON logs on stdout only.
+#
+# Image: otel/opentelemetry-collector-contrib (googlecloud + filelog operators).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  filelog/docker:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    start_at: end
+    include_file_path: true
+    operators:
+      # Docker json-file line: {"log":"...","stream":"stdout","time":"..."}
+      - type: json_parser
+        id: parse-docker
+        output: parse-app
+      - type: json_parser
+        id: parse-app
+        parse_from: attributes.log
+        parse_to: body
+        on_error: send_quiet
+        output: route-body
+      # App lines (pino JSON) parse into a map body; anything else (Caddy text,
+      # stack dumps from crashes) keeps the raw line as a plain string body.
+      - type: router
+        id: route-body
+        routes:
+          - expr: 'type(body) == "map"'
+            output: severity
+        default: text-body
+      # Pino numeric level (10..60) -> OTel severity -> Cloud Logging severity,
+      # so Logs Explorer severity filters and Error Reporting see ERROR/CRITICAL.
+      - type: severity_parser
+        id: severity
+        parse_from: body.level
+        if: 'body.level != nil'
+        on_error: send_quiet
+        mapping:
+          trace: 10
+          debug: 20
+          info: 30
+          warn: 40
+          error: 50
+          fatal: 60
+        output: message
+      # Pino writes `msg`; Cloud Logging uses jsonPayload.message as the
+      # summary line (and Error Reporting reads it as a fallback).
+      - type: copy
+        id: message
+        from: body.msg
+        to: body.message
+        if: 'body.msg != nil and body.message == nil'
+        on_error: send_quiet
+        output: cleanup
+      - type: move
+        id: text-body
+        from: attributes.log
+        to: body
+        on_error: send_quiet
+        output: stream
+      - type: remove
+        id: cleanup
+        field: attributes.log
+        on_error: send_quiet
+        output: stream
+      - type: move
+        id: stream
+        from: attributes.stream
+        to: resource["io.stream"]
+        on_error: send_quiet
+
+processors:
+  # GCE instance metadata -> monitored resource gce_instance. Without it the
+  # exporter falls back to generic_node, which Error Reporting ignores.
+  resourcedetection/gcp:
+    detectors: [gcp]
+    timeout: 5s
+    override: false
+  batch:
+    send_batch_size: 200
+    timeout: 5s
+  resource/jackline:
+    attributes:
+      - key: service.namespace
+        value: jackline
+        action: upsert
+
+exporters:
+  googlecloud:
+    log:
+      default_log_name: jackline
+    # Project / credentials: GCE metadata + jackline-vm SA (ADC).
+
+service:
+  # Collector self-logs use the default (stderr). App JSON on Docker stdout is
+  # scraped by filelog/docker and exported to Cloud Logging as log name jackline.
+  pipelines:
+    logs:
+      receivers: [filelog/docker]
+      processors: [resourcedetection/gcp, resource/jackline, batch]
+      exporters: [googlecloud]
+    traces:
+      receivers: [otlp]
+      processors: [resource/jackline, batch]
+      exporters: [googlecloud]

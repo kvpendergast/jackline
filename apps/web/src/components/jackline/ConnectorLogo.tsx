@@ -1,7 +1,8 @@
+import { connectorLogoKey } from "@jackline/shared";
 import { cn } from "@/lib/utils";
 
 /**
- * Catalog connector brand mark from `/public/connectors/{key}.svg`
+ * Catalog connector brand mark from `/public/connectors/{logoKey}.svg`
  * (Simple Icons SVGs, vendored locally for self-hosted use).
  */
 export function ConnectorLogo({
@@ -13,9 +14,10 @@ export function ConnectorLogo({
   name?: string;
   className?: string;
 }) {
+  const logoKey = connectorLogoKey(connectorKey) ?? connectorKey;
   return (
     <img
-      src={`/connectors/${connectorKey}.svg`}
+      src={`/connectors/${logoKey}.svg`}
       alt=""
       title={name}
       width={20}

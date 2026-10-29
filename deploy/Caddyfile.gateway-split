@@ -22,6 +22,28 @@
 		reverse_proxy api:8080
 	}
 
+	# A2A discovery + JSON-RPC (public agent cards; peer messages).
+	handle /agents/* {
+		encode gzip
+		reverse_proxy api:8080
+	}
+
+	handle /a2a/* {
+		encode gzip
+		reverse_proxy api:8080
+	}
+
+	# MCP OAuth AS metadata + endpoints (API root, not under /api).
+	handle /.well-known/oauth-authorization-server* {
+		encode gzip
+		reverse_proxy api:8080
+	}
+
+	handle /oauth/* {
+		encode gzip
+		reverse_proxy api:8080
+	}
+
 	handle /health {
 		reverse_proxy api:8080
 	}

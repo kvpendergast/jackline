@@ -1,5 +1,13 @@
 import type { ReactNode } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
+import { loginPathWithReturnTo } from "@jackline/shared";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { AppShell } from "@/components/layout/AppShell";
 import { AccessRequestsPage } from "@/pages/AccessRequestsPage";
@@ -24,6 +32,7 @@ import { UsersPage } from "@/pages/UsersPage";
 
 function ProtectedLayout() {
   const { loading, user, tenantId } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -34,7 +43,7 @@ function ProtectedLayout() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPathWithReturnTo(location)} replace />;
   }
 
   if (!user.emailVerified) {
@@ -83,6 +92,14 @@ function FullAdminOnly({ children }: { children: ReactNode }) {
   return children;
 }
 
+function OAuthErrorRedirect() {
+  const [searchParams] = useSearchParams();
+  const target = searchParams.toString()
+    ? `/login?${searchParams.toString()}`
+    : "/login";
+  return <Navigate to={target} replace />;
+}
+
 export function App() {
   return (
     <AuthProvider>
@@ -91,6 +108,8 @@ export function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/complete" element={<AuthCompletePage />} />
+        {/* Better Auth default errorURL is /error; preserve ?error= when bouncing to login. */}
+        <Route path="/error" element={<OAuthErrorRedirect />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/my-access" element={<MyAccessPage />} />

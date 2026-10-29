@@ -3,6 +3,7 @@ import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { auth } from "@jackline/auth";
 import {
+  clients,
   db,
   oauthStates,
   secrets,
@@ -20,18 +21,54 @@ import {
   getConnectorPreset,
   JacklineError,
   NotFoundError,
+  connectorOAuthRegistrationUrl,
   connectorUsesPublicOAuthClient,
   OAUTH_CLIENT_SECRET_KIND,
   oauthCallbackUrl,
   publicApiBaseUrl,
+  registerDynamicOAuthClient,
   SetupError,
   UnauthorizedError,
   upstreamSecretKind,
   type StartOauthResult,
 } from "@jackline/shared";
+import { safeFetch } from "../../lib/http/safeFetch.js";
+import { originsFromRedirectUris, validateReturnTo } from "./returnTo.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import {
+  resolveServerOAuthClientForRow,
+  type ServerOAuthClientResolution,
+} from "../oauthApps/credentials.js";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
+
+/** Per-server override first, then the catalog preset. */
+function effectiveRegistrationUrl(
+  server: typeof servers.$inferSelect,
+): string | null {
+  return (
+    server.oauthRegistrationUrl?.trim() ||
+    connectorOAuthRegistrationUrl(server.connectorKey)
+  );
+}
+
+function effectiveResource(
+  server: typeof servers.$inferSelect,
+): string | undefined {
+  const preset =
+    server.connectorKey != null
+      ? getConnectorPreset(server.connectorKey)
+      : undefined;
+  return server.oauthResource?.trim() || preset?.oauthResource || undefined;
+}
+
+/** Public PKCE client: catalog flag, or any server with a registration URL. */
+function isPublicClient(server: typeof servers.$inferSelect): boolean {
+  return (
+    connectorUsesPublicOAuthClient(server.connectorKey) ||
+    Boolean(server.oauthRegistrationUrl?.trim())
+  );
+}
 
 async function loadOauthClientSecret(
   tenantId: string,
@@ -83,14 +120,79 @@ async function loadOauthClientSecret(
   return ok(new TextDecoder().decode(decrypted.value));
 }
 
+async function ensureOauthClientId(
+  log: Logger,
+  server: typeof servers.$inferSelect,
+  redirectUri: string,
+  client: ServerOAuthClientResolution,
+): Promise<Result<string, JacklineError>> {
+  // Linked shared app: its client id always wins (no dynamic registration).
+  if (client.resolved.source === "app") {
+    return ok(client.resolved.clientId);
+  }
+  if (server.oauthClientId?.trim()) {
+    return ok(server.oauthClientId.trim());
+  }
+
+  const registrationUrl = effectiveRegistrationUrl(server);
+  if (!registrationUrl) {
+    return err(
+      new BadRequestError(
+        "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
+      ),
+    );
+  }
+
+  const registered = await registerDynamicOAuthClient({
+    registrationUrl,
+    clientName: `Jackline (${server.name})`,
+    redirectUris: [redirectUri],
+    applicationType: "web",
+    scopes: server.oauthScopes,
+    tokenEndpointAuthMethod: "none",
+    // Custom URLs are admin-supplied → SSRF-guard; catalog URLs are trusted.
+    ...(server.oauthRegistrationUrl?.trim() ? { fetch: safeFetch } : {}),
+  });
+  if (registered.isErr()) return err(registered.error);
+
+  const [updated] = await db
+    .update(servers)
+    .set({
+      oauthClientId: registered.value.clientId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(servers.id, server.id), eq(servers.tenantId, server.tenantId)),
+    )
+    .returning({ oauthClientId: servers.oauthClientId });
+
+  if (!updated?.oauthClientId) {
+    return err(new SetupError("Failed to persist dynamically registered client id"));
+  }
+
+  log.info(
+    {
+      tenantId: server.tenantId,
+      serverId: server.id,
+      registrationUrl,
+    },
+    "Oauth.services.dynamicRegister",
+  );
+
+  return ok(updated.oauthClientId);
+}
+
 async function startConnect(
   log: Logger,
   tenantId: string,
   userId: string,
   serverId: string,
+  returnToRaw?: string,
 ): Promise<Result<StartOauthResult, JacklineError>> {
   const config = getConfig();
   if (config.isErr()) return err(config.error);
+
+  const returnTo = await resolveReturnTo(returnToRaw, config.value.WEB_ORIGIN);
 
   const [server] = await db
     .select()
@@ -116,22 +218,35 @@ async function startConnect(
     );
   }
 
-  if (
-    !server.oauthAuthorizeUrl ||
-    !server.oauthTokenUrl ||
-    !server.oauthClientId
-  ) {
+  const clientResult = await resolveServerOAuthClientForRow(server);
+  if (clientResult.isErr()) return err(clientResult.error);
+  const client = clientResult.value;
+  const oauthAuthorizeUrl = client.resolved.authorizeUrl;
+
+  if (!oauthAuthorizeUrl || !client.resolved.tokenUrl) {
     return err(
       new BadRequestError(
-        "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
+        "OAuth Connect is not configured. Ask an admin to set authorize URL and token URL on the server.",
       ),
     );
   }
 
-  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
-  if (!publicClient) {
-    const clientSecret = await loadOauthClientSecret(tenantId, serverId);
-    if (clientSecret.isErr()) return err(clientSecret.error);
+  if (client.resolved.source === "server") {
+    // Unchanged per-server behavior.
+    const publicClient = isPublicClient(server);
+    const registrationUrl = effectiveRegistrationUrl(server);
+    if (!server.oauthClientId && !registrationUrl) {
+      return err(
+        new BadRequestError(
+          "OAuth Connect is not configured. Ask an admin to set authorize URL, token URL, and client id on the server.",
+        ),
+      );
+    }
+
+    if (!publicClient) {
+      const clientSecret = await loadOauthClientSecret(tenantId, serverId);
+      if (clientSecret.isErr()) return err(clientSecret.error);
+    }
   }
 
   await db
@@ -142,12 +257,22 @@ async function startConnect(
   const pkce = await createPkcePair();
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
 
+  const clientIdResult = await ensureOauthClientId(
+    log,
+    server,
+    redirectUri,
+    client,
+  );
+  if (clientIdResult.isErr()) return err(clientIdResult.error);
+  const clientId = clientIdResult.value;
+
   await db.insert(oauthStates).values({
     state,
     codeVerifier: pkce.codeVerifier,
     tenantId,
     userId,
     serverId,
+    returnTo,
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   });
 
@@ -159,13 +284,14 @@ async function startConnect(
   const authorizeExtra: Record<string, string> = {
     ...(catalogPreset?.oauthAuthorizeExtraParams ?? {}),
   };
-  if (catalogPreset?.oauthResource) {
-    authorizeExtra["resource"] = catalogPreset.oauthResource;
+  const resource = effectiveResource(server);
+  if (resource) {
+    authorizeExtra["resource"] = resource;
   }
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
-    authorizeUrl: server.oauthAuthorizeUrl,
-    clientId: server.oauthClientId,
+    authorizeUrl: oauthAuthorizeUrl,
+    clientId,
     redirectUri,
     state,
     codeChallenge: pkce.codeChallenge,
@@ -173,8 +299,35 @@ async function startConnect(
     extraParams: Object.keys(authorizeExtra).length > 0 ? authorizeExtra : null,
   });
 
-  log.info({ tenantId, userId, serverId }, "Oauth.services.startConnect");
+  log.info(
+    { tenantId, userId, serverId, oauthAppId: client.resolved.appId },
+    "Oauth.services.startConnect",
+  );
   return ok({ authorizeUrl, redirectUri });
+}
+
+/**
+ * Allowed return origins: the web app, origins of registered OAuth client
+ * redirect URIs (https), and optional OAUTH_RETURN_ALLOWED_ORIGINS (comma list).
+ * Invalid values are dropped silently (default behavior: stay on Jackline).
+ */
+async function resolveReturnTo(
+  raw: string | undefined,
+  webOrigin: string,
+): Promise<string | null> {
+  if (!raw) return null;
+  const rows = await db
+    .select({ redirectUris: clients.redirectUris })
+    .from(clients);
+  const extra = (process.env["OAUTH_RETURN_ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowed = [
+    ...originsFromRedirectUris([webOrigin, ...extra]),
+    ...originsFromRedirectUris(rows.flatMap((r) => r.redirectUris ?? [])),
+  ];
+  return validateReturnTo(raw, allowed);
 }
 
 async function handleCallback(
@@ -217,13 +370,23 @@ async function handleCallback(
     )
     .limit(1);
 
-  if (!server || !server.oauthTokenUrl || !server.oauthClientId) {
+  if (!server) {
     return err(new NotFoundError("Server OAuth configuration missing"));
   }
 
-  const publicClient = connectorUsesPublicOAuthClient(server.connectorKey);
+  const clientResult = await resolveServerOAuthClientForRow(server);
+  if (clientResult.isErr()) return err(clientResult.error);
+  const client = clientResult.value;
+  const oauthTokenUrl = client.resolved.tokenUrl;
+  const oauthClientId = client.resolved.clientId;
+  if (!oauthTokenUrl || !oauthClientId) {
+    return err(new NotFoundError("Server OAuth configuration missing"));
+  }
+
   let clientSecretValue = "";
-  if (!publicClient) {
+  if (client.resolved.source === "app") {
+    clientSecretValue = client.appClientSecret ?? "";
+  } else if (!isPublicClient(server)) {
     const clientSecret = await loadOauthClientSecret(
       pending.tenantId,
       pending.serverId,
@@ -232,22 +395,17 @@ async function handleCallback(
     clientSecretValue = clientSecret.value;
   }
 
-  const catalogPreset =
-    server.connectorKey != null
-      ? getConnectorPreset(server.connectorKey)
-      : undefined;
+  const resource = effectiveResource(server);
 
   const redirectUri = oauthCallbackUrl(publicApiBaseUrl(config.value));
   const tokens = await exchangeAuthorizationCode({
-    tokenUrl: server.oauthTokenUrl,
+    tokenUrl: oauthTokenUrl,
     code: input.code,
     redirectUri,
-    clientId: server.oauthClientId,
+    clientId: oauthClientId,
     ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
     codeVerifier: pending.codeVerifier,
-    ...(catalogPreset?.oauthResource
-      ? { resource: catalogPreset.oauthResource }
-      : {}),
+    ...(resource ? { resource } : {}),
   });
   if (tokens.isErr()) return err(tokens.error);
 
@@ -257,14 +415,21 @@ async function handleCallback(
           mode: "refreshable" as const,
           accessToken: tokens.value.accessToken,
           refreshToken: tokens.value.refreshToken,
-          tokenUrl: server.oauthTokenUrl,
-          clientId: server.oauthClientId,
+          tokenUrl: oauthTokenUrl,
+          clientId: oauthClientId,
           ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
           ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
+          ...(resource ? { resource } : {}),
+          ...(tokens.value.expiresAt
+            ? { expiresAt: tokens.value.expiresAt }
+            : {}),
         }
       : {
           mode: "access_token" as const,
           accessToken: tokens.value.accessToken,
+          ...(tokens.value.expiresAt
+            ? { expiresAt: tokens.value.expiresAt }
+            : {}),
         },
   );
   if (encoded.isErr()) return err(encoded.error);
@@ -345,6 +510,11 @@ async function handleCallback(
   );
 
   const redirectTo = `${webOrigin}/my-access?server=${encodeURIComponent(pending.serverId)}&connected=1`;
+  // Re-validate: the allowlist may have changed since Connect started.
+  if (pending.returnTo) {
+    const safe = await resolveReturnTo(pending.returnTo, config.value.WEB_ORIGIN);
+    if (safe) return ok({ redirectTo: safe });
+  }
   return ok({ redirectTo });
 }
 

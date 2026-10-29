@@ -7,6 +7,8 @@ export type GatewayConnectionContext = {
   connection: Connection;
   tenantId: string;
   secretId: string;
+  /** Optional caller-supplied reason stored on audit events (e.g. A2A peer). */
+  auditReason: string | null;
   log: Logger;
 };
 

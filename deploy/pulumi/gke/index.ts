@@ -405,6 +405,6 @@ new k8s.networking.v1.Ingress(
   { ...opts, dependsOn: [cert] },
 );
 
-export const loadBalancerIp = ip.address;
-export const appUrl = publicBaseUrl;
+export const loadBalancerIp = pulumi.secret(ip.address);
+export const appUrl = pulumi.secret(publicBaseUrl);
 export const clusterName = cluster.name;

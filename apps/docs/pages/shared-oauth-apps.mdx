@@ -1,0 +1,58 @@
+---
+title: Shared OAuth apps
+---
+
+A **shared OAuth app** is one OAuth client (client id + client secret, plus optional authorize / token / registration URLs) saved once per tenant and reused by several upstream servers.
+
+Typical case: one Google Cloud OAuth client used by both the Gmail and the Google Calendar MCP servers. Google shows the client secret only once, so saving it as a shared app means you never have to paste it again.
+
+## How it works
+
+- Each server has an optional `oauthAppId`.
+- **Linked servers** use the app's client id and secret for the authorize redirect, the code exchange and token refresh — in the Admin API, My Access *Connect*, tool sync, and the gateway. The app's authorize/token URLs win when set; otherwise the server's own URLs are used.
+- **Scopes, resource and base URL stay per server**, so Gmail and Calendar can request different scopes with the same client.
+- **Unlinked servers** behave exactly as before: they use their own `oauthClientId` and per-server `oauth_client` secret (or dynamic client registration).
+- A linked server keeps its own client id/secret fields untouched; unlinking it falls back to them.
+
+## Managing apps in the web UI
+
+**Servers → edit a server → OAuth app (Connect) → Use saved OAuth app**
+
+- Pick an existing app, or **Create new shared app…** to save the client id + secret you type (and the authorize/token URLs above) as a shared app and link this server to it.
+- On a server that already has its own client id and secret, **Save these credentials as a shared app** copies them into a new shared app (server-side, without re-typing the secret) and links the server.
+
+The **Shared OAuth apps** table on the Servers page lets admins rename an app, rotate its secret, or delete it.
+
+## Secret handling
+
+- The client secret is **write-only**. It is encrypted at rest with the same envelope encryption as per-server OAuth client secrets (bound to the tenant and app id) and is **never returned by any API** — responses only include `hasClientSecret`.
+- There is no "reveal" for shared app secrets. If you lose it, rotate it with a new secret from your provider.
+- Apps without a secret are treated as **public (PKCE-only) clients**.
+
+## Rotation
+
+`PATCH /api/v1/oauth-apps/{id}` with `{ "clientSecret": "…" }` rotates the secret for **every linked server**:
+
+- New connections use the new secret immediately.
+- Existing member and shared tokens **stay valid**. At the next refresh, Jackline uses the app's current secret (only when the token was issued for the same client id) and stores it with the refreshed token.
+
+Changing an app's `clientId` does not re-issue existing tokens; members connected under the old client keep working with their stored credentials until they reconnect.
+
+## Admin API
+
+All routes are tenant-scoped. Writes require a full admin.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/oauth-apps` | List apps (with `linkedServerCount`) |
+| `POST` | `/api/v1/oauth-apps` | Create `{ name, clientId, clientSecret?, authorizeUrl?, tokenUrl?, registrationUrl? }` |
+| `POST` | `/api/v1/oauth-apps/from-server` | Create from an existing server's saved client `{ serverId, name }` and link it |
+| `GET` | `/api/v1/oauth-apps/{id}` | Read one app |
+| `PATCH` | `/api/v1/oauth-apps/{id}` | Rename / update URLs / rotate (`clientSecret`) / `clearClientSecret: true` |
+| `DELETE` | `/api/v1/oauth-apps/{id}` | Delete. Refused (400) while servers are linked unless `?detach=true`, which unlinks them first |
+
+Link a server with `PATCH /api/v1/servers/{id}` and `{ "oauthAppId": "<app id>" }` (or `null` to unlink).
+
+## Deleting an app
+
+Deleting with `?detach=true` unlinks the servers; they fall back to their own client fields. If a server had no own client id, members will need an admin to configure one (or link another app) before reconnecting. Existing tokens keep their embedded credentials until their next failed refresh.

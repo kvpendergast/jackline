@@ -27,7 +27,33 @@ pulumi config set --secret betterAuthSecret "$(openssl rand -base64 32)"
 pulumi up
 ```
 
-Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) with Caddy TLS. Postgres runs on **Cloud SQL** (`jackline-db`, private IP only); the VM connects over the default VPC. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
+Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain`) at the **`publicIp`** stack output **before** (or immediately after) the first HTTPS deploy so Caddy can finish Let’s Encrypt. Pulumi creates a **regional** static external IP (`jackline-vm-ip` by default in `gcp:region`) and attaches it to the VM — do **not** reuse a global GKE address like `jackline-ip`. First boot installs Docker, clones the repo, and runs [`compose.prod.yml`](../compose.prod.yml) + [`compose.otel.yml`](../compose.otel.yml) with Caddy TLS. Postgres runs on **Cloud SQL** (`jackline-db`, private IP only); the VM connects over the default VPC. If the browser shows `ERR_SSL_PROTOCOL_ERROR` after a DNS cutover, re-run **Deploy prod** — remote-deploy reloads Caddy, and **recreates** it only when TLS is not serving a certificate (so ACME retries).
+
+### Logs (Cloud Logging)
+
+Apps always emit structured JSON to **stdout**. On the VM path, [OpenTelemetry Collector Contrib](../compose.otel.yml) tails Docker `json-file` logs and exports them to **Cloud Logging** (and receives OTLP traces on `:4318` for Cloud Trace).
+
+**One-time IAM** (CI cannot bind these — grant once as a project owner):
+
+```bash
+PROJECT="$(gcloud config get-value project)"
+VM_SA="jackline-vm@${PROJECT}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${VM_SA}" --role="roles/logging.logWriter"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${VM_SA}" --role="roles/cloudtrace.agent"
+```
+
+**Logs Explorer** (project that owns the VM):
+
+```text
+resource.type="gce_instance"
+jsonPayload.service="jackline-api"
+```
+
+Gateway: `jsonPayload.service="jackline-gateway"`. Broader: `jsonPayload.msg!=""` or log name `projects/YOUR_PROJECT/logs/jackline`.
+
+Self-host / non-GCP: omit `-f deploy/compose.otel.yml`, or edit [`logging/otel-collector-config.yaml`](../logging/otel-collector-config.yaml) exporters (Loki, OTLP, Jaeger, …). Jackline does not depend on a cloud logging SDK.
 
 **Later app updates** (and CI) use [`../scripts/remote-deploy.sh`](../scripts/remote-deploy.sh) — startup scripts do **not** re-run on every deploy. Do **not** run `docker compose up --build -d` on a live VM: that replaces containers in place. remote-deploy builds new images first, starts a second replica (`--scale 2 --no-recreate`), waits until Docker health is green, and only then stops the old replica. If the new replica fails health, it is removed and the old one keeps serving. The script re-execs under `systemd-run` so a cancelled CI SSH session does not SIGKILL the build.
 
@@ -35,6 +61,14 @@ Point DNS A/AAAA for your domain (and `docs.<domain>` unless you set `docsDomain
 # after pulumi up
 gcloud compute ssh jackline --zone=ZONE --command='sudo GIT_SHA=main bash -s' \
   < ../scripts/remote-deploy.sh
+```
+
+**VM rebuilds are explicit.** The instance ignores boot disk changes (`ignoreChanges: ["bootDisk"]` in [`vm/index.ts`](vm/index.ts)), so a newly published Ubuntu image (or a changed disk size/type) no longer makes `pulumi up` delete and recreate the VM on every deploy. The existing VM keeps its current image and patches in place. To rebuild it on purpose, pick a quiet window (replacement is delete-first: fixed name + static IP, roughly 20 minutes of downtime while the new VM bootstraps) and run:
+
+```bash
+cd vm
+pulumi stack --show-urns | grep 'gcp:compute/instance:Instance'
+pulumi up --replace '<that URN>'
 ```
 
 ## GKE (advanced)
@@ -95,6 +129,8 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
    **Settings → Environments → production**.
 
+   **Public repo:** GitHub prints Environment *variables* in every step’s `env:` block. Keep hostnames and ACME email as **secrets** so Actions masks them. Workflows still accept the old variable names as a fallback.
+
 | Secret / variable | Purpose |
 | --- | --- |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/…/locations/global/workloadIdentityPools/…/providers/…` |
@@ -102,10 +138,12 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
 | `GCP_PROJECT_ID` | GCP project id |
 | `PULUMI_STATE_BUCKET` | e.g. `gs://your-pulumi-state` |
 | `PULUMI_CONFIG_PASSPHRASE` | Only if the stack uses passphrase encryption |
-| `JACKLINE_DOMAIN` (variable) | App hostname |
+| `JACKLINE_DOMAIN` (**secret**) | App hostname (variable fallback still works, but leaks in logs) |
+| `JACKLINE_DOCS_DOMAIN` (**secret**, optional) | Docs hostname |
+| `JACKLINE_CADDY_EMAIL` (**secret**, optional) | Let’s Encrypt contact |
 | `JACKLINE_GIT_REPO` (variable) | Git URL the VM clones (required for `vm`) |
 | `JACKLINE_DEPLOY_PATH` (variable) | `vm` (default) or `gke` |
-| `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (variables) | Defaults `us-central1-a` / `jackline` |
+| `JACKLINE_VM_ZONE` / `JACKLINE_VM_NAME` (**secrets**) | Zone / instance name (variable fallback still works, but leaks in logs) |
 | `JACKLINE_SECRET_PREFIX` (variable) | Default `jackline-pulumi-` |
 
 Forks do not inherit your `production` Environment secrets, so their runs cannot deploy to your GCP.

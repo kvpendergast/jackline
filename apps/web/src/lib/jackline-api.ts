@@ -1,12 +1,14 @@
 import { api, apiPage } from "@/lib/api";
 import type {
   ClientKind,
+  ClientRegistrationType,
   MeData,
   MintedGatewayCredential,
   MyAccessServer,
   PublicAuditEvent,
   PublicClient,
   PublicConnection,
+  PublicOAuthApp,
   PublicConnectionDetail,
   PublicGatewayCredential,
   PublicRole,
@@ -40,6 +42,8 @@ export type SignupResult = {
 export const jacklineApi = {
   signup: (body: SignupInput) =>
     api<SignupResult>("/api/v1/signup", { method: "POST", body }),
+
+  signupStatus: () => api<{ open: boolean }>("/api/v1/signup/status"),
 
   signupSocial: (body: { organizationName: string }) =>
     api<SignupResult>("/api/v1/signup/social", { method: "POST", body }),
@@ -76,7 +80,10 @@ export const jacklineApi = {
       oauthAuthorizeUrl?: string | null;
       oauthTokenUrl?: string | null;
       oauthScopes?: string | null;
+      oauthRegistrationUrl?: string | null;
+      oauthResource?: string | null;
       oauthClientId?: string | null;
+      oauthAppId?: string | null;
     },
   ) => api<PublicServer>("/api/v1/servers", { tenantId, method: "POST", body }),
 
@@ -96,7 +103,10 @@ export const jacklineApi = {
       oauthAuthorizeUrl?: string | null;
       oauthTokenUrl?: string | null;
       oauthScopes?: string | null;
+      oauthRegistrationUrl?: string | null;
+      oauthResource?: string | null;
       oauthClientId?: string | null;
+      oauthAppId?: string | null;
       requiresApproval?: boolean;
     },
   ) =>
@@ -104,6 +114,72 @@ export const jacklineApi = {
       tenantId,
       method: "PATCH",
       body,
+    }),
+
+  // Shared OAuth apps (client secret is write-only; never returned).
+  listOAuthApps: (tenantId: string) =>
+    api<{ items: PublicOAuthApp[] }>("/api/v1/oauth-apps", { tenantId }),
+
+  createOAuthApp: (
+    tenantId: string,
+    body: {
+      name: string;
+      clientId: string;
+      clientSecret?: string;
+      authorizeUrl?: string | null;
+      tokenUrl?: string | null;
+      registrationUrl?: string | null;
+    },
+  ) =>
+    api<PublicOAuthApp>("/api/v1/oauth-apps", { tenantId, method: "POST", body }),
+
+  createOAuthAppFromServer: (
+    tenantId: string,
+    body: { serverId: string; name: string },
+  ) =>
+    api<PublicOAuthApp>("/api/v1/oauth-apps/from-server", {
+      tenantId,
+      method: "POST",
+      body,
+    }),
+
+  updateOAuthApp: (
+    tenantId: string,
+    id: string,
+    body: {
+      name?: string;
+      clientId?: string;
+      clientSecret?: string;
+      authorizeUrl?: string | null;
+      tokenUrl?: string | null;
+      registrationUrl?: string | null;
+    },
+  ) =>
+    api<PublicOAuthApp>(`/api/v1/oauth-apps/${id}`, {
+      tenantId,
+      method: "PATCH",
+      body,
+    }),
+
+  deleteOAuthApp: (tenantId: string, id: string, options?: { detach?: boolean }) =>
+    api<PublicOAuthApp>(`/api/v1/oauth-apps/${id}`, {
+      tenantId,
+      method: "DELETE",
+      ...(options?.detach ? { searchParams: { detach: "true" } } : {}),
+    }),
+
+  discoverServerOauth: (tenantId: string, baseUrl: string) =>
+    api<{
+      resource: string | null;
+      authorizeUrl: string;
+      tokenUrl: string;
+      registrationUrl: string | null;
+      scopes: string | null;
+      issuer: string | null;
+    }>("/api/v1/servers/discover-oauth", {
+      tenantId,
+      method: "POST",
+      body: { baseUrl },
     }),
 
   syncServerTools: (tenantId: string, id: string) =>
@@ -196,6 +272,7 @@ export const jacklineApi = {
       name: string;
       kind: ClientKind;
       ownerUserId?: string | null;
+      registrationType?: ClientRegistrationType;
     },
   ) => api<PublicClient>("/api/v1/clients", { tenantId, method: "POST", body }),
 
@@ -503,11 +580,15 @@ export const jacklineApi = {
   listMyAccessServers: (tenantId: string) =>
     api<{ items: MyAccessServer[] }>("/api/v1/me/servers", { tenantId }),
 
-  startOauthConnect: (tenantId: string, serverId: string) =>
+  startOauthConnect: (
+    tenantId: string,
+    serverId: string,
+    returnTo?: string | null,
+  ) =>
     api<{ authorizeUrl: string; redirectUri: string }>("/api/v1/oauth/start", {
       tenantId,
       method: "POST",
-      body: { serverId },
+      body: { serverId, ...(returnTo ? { returnTo } : {}) },
     }),
 
   upsertMyAccessCredential: (
@@ -547,6 +628,11 @@ export const jacklineApi = {
     api<import("@jackline/shared").PublicPlatformEmailSettings>(
       "/api/v1/platform/email",
       { tenantId },
+    ),
+
+  getEmailDeliveryStatus: () =>
+    api<import("@jackline/shared").PublicEmailDeliveryStatus>(
+      "/api/v1/platform/email/status",
     ),
 
   updatePlatformEmailSettings: (
@@ -599,6 +685,16 @@ export const jacklineApi = {
       body,
     }),
 
+  setAgentTools: (tenantId: string, agentId: string, toolIds: string[]) =>
+    api<import("@jackline/shared").PublicAgent>(
+      `/api/v1/agents/${agentId}/tools`,
+      {
+        tenantId,
+        method: "PUT",
+        body: { toolIds },
+      },
+    ),
+
   publishAgent: (tenantId: string, agentId: string) =>
     api<import("@jackline/shared").PublicAgent>(
       `/api/v1/agents/${agentId}/publish`,
@@ -627,10 +723,14 @@ export const jacklineApi = {
       { tenantId, method: "POST", body: body ?? {} },
     ),
 
-  denyKnock: (tenantId: string, knockId: string) =>
+  denyKnock: (
+    tenantId: string,
+    knockId: string,
+    body?: import("@jackline/shared").DenyKnockBody,
+  ) =>
     api<import("@jackline/shared").PublicKnock>(
       `/api/v1/knocks/${knockId}/deny`,
-      { tenantId, method: "POST", body: {} },
+      { tenantId, method: "POST", body: body ?? {} },
     ),
 
   listTrustGrants: (tenantId: string, agentId: string) =>
@@ -638,6 +738,108 @@ export const jacklineApi = {
       `/api/v1/agents/${agentId}/trust-grants`,
       { tenantId },
     ),
+
+  getAgentTranscript: (
+    tenantId: string,
+    agentId: string,
+    peerAgentCardUrl?: string,
+  ) =>
+    api<import("@jackline/shared").AgentTranscriptResponse>(
+      `/api/v1/agents/${agentId}/transcript`,
+      {
+        tenantId,
+        searchParams: peerAgentCardUrl
+          ? { peerAgentCardUrl }
+          : undefined,
+      },
+    ),
+
+  streamAgentTranscript: async (
+    tenantId: string,
+    agentId: string,
+    handlers: {
+      onSnapshot: (
+        data: import("@jackline/shared").AgentTranscriptResponse,
+      ) => void;
+      onEntry: (
+        entry: import("@jackline/shared").AgentTranscriptEntry,
+      ) => void;
+      onThreads: (
+        threads: import("@jackline/shared").AgentConversationThread[],
+      ) => void;
+      onError: (message: string) => void;
+    },
+    options?: { signal?: AbortSignal; peerAgentCardUrl?: string },
+  ) => {
+    const url = new URL(
+      `/api/v1/agents/${agentId}/transcript/stream`,
+      window.location.origin,
+    );
+    if (options?.peerAgentCardUrl) {
+      url.searchParams.set("peerAgentCardUrl", options.peerAgentCardUrl);
+    }
+    const res = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Accept: "text/event-stream",
+        "X-Jackline-Tenant-Id": tenantId,
+      },
+      signal: options?.signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`Transcript stream failed (${res.status})`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+      for (const chunk of chunks) {
+        const lines = chunk.split("\n");
+        let event = "message";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          if (line.startsWith("data:")) data += line.slice(5).trim();
+        }
+        if (!data) continue;
+        try {
+          const parsed = JSON.parse(data) as unknown;
+          if (event === "snapshot") {
+            handlers.onSnapshot(
+              parsed as import("@jackline/shared").AgentTranscriptResponse,
+            );
+          } else if (event === "entry") {
+            handlers.onEntry(
+              parsed as import("@jackline/shared").AgentTranscriptEntry,
+            );
+          } else if (event === "threads") {
+            const threads = (parsed as { threads?: unknown }).threads;
+            if (Array.isArray(threads)) {
+              handlers.onThreads(
+                threads as import("@jackline/shared").AgentConversationThread[],
+              );
+            }
+          } else if (event === "error") {
+            const message =
+              parsed &&
+              typeof parsed === "object" &&
+              typeof (parsed as { message?: unknown }).message === "string"
+                ? (parsed as { message: string }).message
+                : "Stream error";
+            handlers.onError(message);
+          }
+        } catch {
+          // ignore malformed frames
+        }
+      }
+    }
+  },
 
   revokeTrustGrant: (tenantId: string, grantId: string) =>
     api<import("@jackline/shared").PublicTrustGrant>(

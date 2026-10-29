@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-/** Constant-time hex string comparison (e.g. SHA-256 hashes). */
+/** Constant-time hex string comparison (e.g. SHA-256 hashes). Server-only. */
 export function timingSafeEqualHex(a: string, b: string): boolean {
   const left = Buffer.from(a, "hex");
   const right = Buffer.from(b, "hex");

@@ -3,6 +3,7 @@ import type { ZudokuConfig } from "zudoku";
 const config: ZudokuConfig = {
   site: {
     title: "Jackline Docs",
+    showPoweredBy: false,
     logo: {
       src: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
       alt: "Jackline",
@@ -20,8 +21,13 @@ const config: ZudokuConfig = {
       label: "Guides",
       items: [
         "/introduction",
-        "/authentication",
         "/self-hosting",
+        "/connect-cursor",
+        "/harness-reauth",
+        "/authentication",
+        "/mcp-oauth",
+        "/shared-oauth-apps",
+        "/a2a-agents",
       ],
     },
     {

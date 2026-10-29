@@ -6,6 +6,9 @@
 #   docker build -f deploy/Dockerfile --target web -t jackline-web .
 #   docker build -f deploy/Dockerfile --target docs -t jackline-docs .
 #   docker build -f deploy/Dockerfile --target migrate -t jackline-migrate .
+#
+# Published to GHCR by .github/workflows/publish-images.yml:
+#   ghcr.io/kvpendergast/jackline-{api,gateway,web,docs,migrate}
 
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
@@ -26,7 +29,7 @@ FROM deps AS api
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
 EXPOSE 8080
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
   CMD curl -fsS "http://127.0.0.1:${API_PORT:-8080}/health" || exit 1
 CMD ["pnpm", "--filter", "@jackline/api", "start"]
 
@@ -35,7 +38,7 @@ FROM deps AS gateway
 ENV NODE_ENV=production
 ENV GATEWAY_HOST=0.0.0.0
 EXPOSE 8081
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
   CMD curl -fsS "http://127.0.0.1:${GATEWAY_PORT:-8081}/health" || exit 1
 CMD ["pnpm", "--filter", "@jackline/gateway", "start"]
 

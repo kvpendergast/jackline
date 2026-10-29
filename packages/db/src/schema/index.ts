@@ -1,6 +1,7 @@
 export * from "./tenants.js";
 export * from "./auth.js";
 export * from "./memberships.js";
+export * from "./oauthApps.js";
 export * from "./servers.js";
 export * from "./tools.js";
 export * from "./roles.js";
@@ -11,6 +12,7 @@ export * from "./auditEvents.js";
 export * from "./identity.js";
 export * from "./oauthStates.js";
 export * from "./oauthAccessTokens.js";
+export * from "./oauthAuthorizationCodes.js";
 export * from "./accessRequests.js";
 export * from "./notifications.js";
 export * from "./chatSettings.js";

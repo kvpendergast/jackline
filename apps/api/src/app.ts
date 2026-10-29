@@ -20,6 +20,13 @@ import { oauthCallbackHandler } from "./features/oauth/handler.js";
 import { oauthTokenHandler } from "./features/clients/tokenHandler.js";
 import { oauthTokenRoute } from "./features/clients/tokenRoute.js";
 import {
+  asMetadataHandler,
+  authorizeConsentHandler,
+  authorizeGetHandler,
+  dcrRegisterHandler,
+  mcpTokenHandler,
+} from "./features/mcpOauth/index.js";
+import {
   publicV1Features,
   rootFeatures,
   tenantV1Features,
@@ -28,6 +35,10 @@ import {
   agentCardHandler,
   a2aIngressHandler,
 } from "./features/agents/a2aHandler.js";
+import {
+  ipQuotaMiddleware,
+  tenantQuotaMiddleware,
+} from "./lib/request/quotaMiddleware.js";
 
 const configResult = getConfig();
 if (configResult.isErr()) throw configResult.error;
@@ -60,6 +71,8 @@ for (const feature of rootFeatures) {
   }
 }
 
+app.use("/api/auth/*", ipQuotaMiddleware("api.auth"));
+
 app.on(["POST", "GET"], "/api/auth/*", async (c) => {
   const response = await auth.handler(c.req.raw);
   const authPath = new URL(c.req.url).pathname.replace(/^.*\/api\/auth/, "");
@@ -67,6 +80,7 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
   let providerId: string | null = null;
   const oauth2Match = authPath.match(/^\/oauth2\/callback\/([^/]+)/);
   const socialMatch = authPath.match(/^\/callback\/([^/]+)/);
+  const isOAuthCallback = Boolean(oauth2Match?.[1] || socialMatch?.[1]);
   if (oauth2Match?.[1]) {
     providerId = oauth2Match[1];
   } else if (socialMatch?.[1]) {
@@ -79,7 +93,34 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     providerId = CREDENTIAL_PROVIDER_ID;
   }
 
-  if (!providerId || !response.ok) {
+  if (isOAuthCallback && response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (location) {
+      try {
+        const target = new URL(location, c.req.url);
+        const error = target.searchParams.get("error");
+        if (error) {
+          c.get("requestContext").log.warn(
+            {
+              providerId,
+              error,
+              errorDescription: target.searchParams.get("error_description"),
+            },
+            "oauth callback redirected with error",
+          );
+        }
+      } catch {
+        // ignore malformed Location
+      }
+    }
+  }
+
+  // OAuth callbacks succeed with 302 + Set-Cookie; Response.ok is false for 3xx.
+  const providerCookieOk =
+    response.ok ||
+    (isOAuthCallback && response.status >= 300 && response.status < 400);
+
+  if (!providerId || !providerCookieOk) {
     return response;
   }
 
@@ -91,7 +132,9 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
   const headers = new Headers(response.headers);
   headers.append(
     "Set-Cookie",
-    loginProviderCookieHeader(providerId, cfg.value.BETTER_AUTH_SECRET),
+    loginProviderCookieHeader(providerId, cfg.value.BETTER_AUTH_SECRET, {
+      secure: cfg.value.BETTER_AUTH_URL.startsWith("https://"),
+    }),
   );
   return new Response(response.body, {
     status: response.status,
@@ -102,6 +145,16 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
 
 app.route("/scim/v2", scimApp);
 
+/**
+ * MCP OAuth authorization server (CIMD + DCR).
+ * Outside /api/v1 and tenant middleware — public discovery + browser authorize.
+ */
+app.get("/.well-known/oauth-authorization-server", asMetadataHandler);
+app.post("/oauth/register", ipQuotaMiddleware("api.auth"), dcrRegisterHandler);
+app.get("/oauth/authorize", authorizeGetHandler);
+app.post("/oauth/authorize/consent", authorizeConsentHandler);
+app.post("/oauth/token", ipQuotaMiddleware("api.auth"), mcpTokenHandler);
+
 const v1 = createJacklineApp();
 
 /** Browser OAuth redirect — must stay outside tenant middleware. */
@@ -111,9 +164,17 @@ v1.get("/oauth/callback", oauthCallbackHandler);
  * OAuth2 client_credentials token endpoint — public (client secret auth).
  * Registered with plain post so form-urlencoded + Basic auth are not run
  * through the JSON OpenAPI validation hook; path is registered for /docs.
+ * Admin API only — MCP tokens use POST /oauth/token on the app root.
  */
-v1.post("/oauth/token", oauthTokenHandler);
+v1.post("/oauth/token", ipQuotaMiddleware("api.auth"), oauthTokenHandler);
 v1.openAPIRegistry.registerPath(oauthTokenRoute);
+
+v1.use("/signup", ipQuotaMiddleware("api.auth"));
+v1.use("/signup/*", ipQuotaMiddleware("api.auth"));
+
+v1.use("/trust/exchange", ipQuotaMiddleware("a2a.knock"));
+v1.use("/networks/public/directory", ipQuotaMiddleware("a2a.directory"));
+v1.use("/agent-registry", ipQuotaMiddleware("a2a.directory"));
 
 for (const feature of publicV1Features) {
   for (const { route, handler } of feature.routes) {
@@ -123,6 +184,7 @@ for (const feature of publicV1Features) {
 
 const tenantV1 = createJacklineApp();
 tenantV1.use("*", tenantContextMiddleware);
+tenantV1.use("*", tenantQuotaMiddleware());
 for (const feature of tenantV1Features) {
   for (const { route, handler } of feature.routes) {
     tenantV1.openapi(route, handler);

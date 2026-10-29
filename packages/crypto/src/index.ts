@@ -4,3 +4,4 @@ export {
   type EncryptedPayload,
   type SecretBox,
 } from "./secretBox.js";
+export { timingSafeEqualHex } from "./timingSafe.js";

@@ -1,22 +1,28 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { UrlElicitationRequiredError } from "@modelcontextprotocol/sdk/types.js";
 import { db, secrets, servers, type Secret as SecretRow } from "@jackline/db";
 import {
   BadRequestError,
-  ForbiddenError,
-  formatUpstreamCredentialFailure,
+  classifyOAuthRefreshFailure,
   getConfig,
+  isInvalidUpstreamTokenError,
   JacklineError,
   NotFoundError,
   NotImplementedError,
-  resolveOAuthAccessToken,
+  resolveStoredOAuthAccessToken,
+  upstreamCredentialFailure,
   upstreamSecretKind,
+  type OAuthSecretLock,
+  type UpstreamCredentialFailureError,
 } from "@jackline/shared";
 import { getSecretBox, secretAad } from "../secretBox.js";
+import { loadOAuthClientOverrideForServer } from "./oauthAppOverride.js";
 
 export type UpstreamServerRow = {
   id: string;
@@ -33,31 +39,65 @@ function webOrigin(): string {
   return config.isOk() ? config.value.WEB_ORIGIN : "http://127.0.0.1:5173";
 }
 
+export { isInvalidUpstreamTokenError };
+
 function personalCredentialError(
   server: Pick<UpstreamServerRow, "id" | "name">,
   kind: "missing_personal" | "expired_personal",
-): ForbiddenError {
-  return new ForbiddenError(
-    formatUpstreamCredentialFailure({
-      webOrigin: webOrigin(),
-      serverId: server.id,
-      serverName: server.name,
-      kind,
-    }),
-  );
+): UpstreamCredentialFailureError {
+  return upstreamCredentialFailure({
+    webOrigin: webOrigin(),
+    serverId: server.id,
+    serverName: server.name,
+    kind,
+  });
 }
 
 function sharedCredentialError(
   server: Pick<UpstreamServerRow, "id" | "name">,
   kind: "missing_shared" | "expired_shared",
-): ForbiddenError {
-  return new ForbiddenError(
-    formatUpstreamCredentialFailure({
-      webOrigin: webOrigin(),
-      serverId: server.id,
-      serverName: server.name,
-      kind,
-    }),
+): UpstreamCredentialFailureError {
+  return upstreamCredentialFailure({
+    webOrigin: webOrigin(),
+    serverId: server.id,
+    serverName: server.name,
+    kind,
+  });
+}
+
+/**
+ * Map a post-refresh upstream auth failure to personal vs shared reconnect.
+ * Prefer personal elicitation unless the server is shared-only.
+ */
+export function upstreamExpiredCredentialError(
+  server: Pick<UpstreamServerRow, "id" | "name" | "credentialMode">,
+): UpstreamCredentialFailureError {
+  if (server.credentialMode === "shared") {
+    return sharedCredentialError(server, "expired_shared");
+  }
+  return personalCredentialError(server, "expired_personal");
+}
+
+/**
+ * Raise MCP URL elicitation so Cursor / other harnesses can open My Access.
+ * Falls back to a plain Forbidden-style message when reconnect URL is missing.
+ */
+export function throwUpstreamUrlElicitation(
+  error: UpstreamCredentialFailureError,
+): never {
+  if (!error.requiresUrlElicitation || !error.reconnectUrl) {
+    throw error;
+  }
+  throw new UrlElicitationRequiredError(
+    [
+      {
+        mode: "url",
+        elicitationId: randomUUID(),
+        url: error.reconnectUrl,
+        message: error.message,
+      },
+    ],
+    error.message,
   );
 }
 
@@ -167,18 +207,113 @@ function decryptSecret(row: SecretRow): Result<string, JacklineError> {
   return ok(new TextDecoder().decode(decrypted.value));
 }
 
+/**
+ * Lock the secret row (`SELECT … FOR UPDATE`) for the duration of a refresh so
+ * the API (tool sync) and every gateway request serialize on one rotating
+ * refresh token, and the rotated pair is written in the same transaction.
+ */
+export function lockSecretRow(row: SecretRow): OAuthSecretLock {
+  return (fn) =>
+    db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(secrets)
+        .where(eq(secrets.id, row.id))
+        .for("update")
+        .limit(1);
+      if (!locked) throw new Error("secret row no longer exists");
+
+      const current = decryptSecret(locked);
+      if (current.isErr()) throw current.error;
+
+      return fn(current.value, async (plaintext) => {
+        const boxResult = getSecretBox();
+        if (boxResult.isErr()) throw boxResult.error;
+        const encrypted = boxResult.value.encrypt(
+          new TextEncoder().encode(plaintext),
+          secretAad({
+            tenantId: locked.tenantId,
+            kind: locked.kind,
+            serverId: locked.serverId,
+            userId: locked.userId,
+            connectionId: locked.connectionId,
+          }),
+        );
+        if (encrypted.isErr()) throw encrypted.error;
+        await tx
+          .update(secrets)
+          .set({
+            ciphertext: encrypted.value.ciphertext,
+            nonce: encrypted.value.nonce,
+            keyVersion: encrypted.value.keyVersion,
+            updatedAt: new Date(),
+          })
+          .where(eq(secrets.id, locked.id));
+      });
+    });
+}
+
+/** Refresh failed for a reason a reconnect will not fix (network, 5xx, config). */
+export class UpstreamOAuthRefreshError extends JacklineError {
+  readonly refreshFailure: "transient" | "config";
+
+  constructor(
+    server: Pick<UpstreamServerRow, "name">,
+    failure: "transient" | "config",
+    detail: string,
+  ) {
+    super(
+      "INTERNAL",
+      failure === "transient"
+        ? `${server.name} OAuth token refresh failed temporarily (${detail}). Retry shortly; no reconnect needed.`
+        : `${server.name} OAuth token refresh was rejected (${detail}). Check the server's OAuth client settings.`,
+    );
+    this.name = "UpstreamOAuthRefreshError";
+    this.refreshFailure = failure;
+  }
+}
+
 async function bearerFromPlaintext(
+  log: Logger,
   server: UpstreamServerRow,
   secretRow: SecretRow,
   plaintext: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<Result<string, JacklineError>> {
   if (server.authMethod === "api_key") {
     return ok(plaintext);
   }
 
   if (server.authMethod === "oauth") {
-    const token = await resolveOAuthAccessToken(plaintext);
+    const token = await resolveStoredOAuthAccessToken({
+      key: secretRow.id,
+      plaintext,
+      withLock: lockSecretRow(secretRow),
+      ...(options?.forceRefresh ? { forceRefresh: true } : {}),
+      // Shared OAuth app: refresh with the app's current (possibly rotated) secret.
+      clientOverride: () =>
+        loadOAuthClientOverrideForServer(log, secretRow.tenantId, server.id),
+    });
     if (token.isErr()) {
+      const failure = classifyOAuthRefreshFailure(token.error);
+      const e = token.error as { status?: unknown; oauthError?: unknown };
+      log.warn(
+        {
+          serverId: server.id,
+          secretId: secretRow.id,
+          personal: secretRow.userId != null,
+          failure,
+          status: e.status ?? null,
+          oauthError: e.oauthError ?? null,
+          detail: token.error.message,
+        },
+        "upstream OAuth token refresh failed",
+      );
+      if (failure !== "reauth") {
+        return err(
+          new UpstreamOAuthRefreshError(server, failure, token.error.message),
+        );
+      }
       const personal = secretRow.userId != null;
       return err(
         personal
@@ -204,6 +339,7 @@ export async function resolveUpstreamAuthHeaders(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
+  options?: { forceRefresh?: boolean },
 ): Promise<Result<Record<string, string>, JacklineError>> {
   if (server.status !== "active") {
     return err(new BadRequestError(`Server is ${server.status}`));
@@ -216,9 +352,11 @@ export async function resolveUpstreamAuthHeaders(
   if (plaintext.isErr()) return err(plaintext.error);
 
   const bearer = await bearerFromPlaintext(
+    log,
     server,
     secretRow.value,
     plaintext.value,
+    options,
   );
   if (bearer.isErr()) return err(bearer.error);
 
@@ -252,26 +390,10 @@ export type ConnectedUpstream = {
   close: () => Promise<void>;
 };
 
-/**
- * Open a short-lived MCP client to an upstream MCP server.
- */
-export async function connectUpstream(
-  log: Logger,
-  tenantId: string,
-  userId: string,
+async function openUpstream(
   server: UpstreamServerRow,
+  headers: Record<string, string>,
 ): Promise<Result<ConnectedUpstream, JacklineError>> {
-  if (server.kind !== "mcp") {
-    return err(
-      new NotImplementedError(
-        `Server kind "${server.kind}" is not an MCP upstream`,
-      ),
-    );
-  }
-
-  const headers = await resolveUpstreamAuthHeaders(log, tenantId, userId, server);
-  if (headers.isErr()) return err(headers.error);
-
   let baseUrl: URL;
   try {
     baseUrl = new URL(server.baseUrl);
@@ -280,7 +402,7 @@ export async function connectUpstream(
   }
 
   const transport = new StreamableHTTPClientTransport(baseUrl, {
-    requestInit: { headers: headers.value },
+    requestInit: { headers },
   });
   const client = new Client({ name: "jackline-gateway", version: "0.0.0" });
 
@@ -300,6 +422,74 @@ export async function connectUpstream(
       await transport.close().catch(() => undefined);
     },
   });
+}
+
+/**
+ * Open a short-lived MCP client to an upstream MCP server.
+ * On invalid_token / unauthorized (and no forced refresh yet), force-refresh
+ * OAuth once and retry.
+ */
+export async function connectUpstream(
+  log: Logger,
+  tenantId: string,
+  userId: string,
+  server: UpstreamServerRow,
+  options?: { forceRefresh?: boolean },
+): Promise<Result<ConnectedUpstream, JacklineError>> {
+  if (server.kind !== "mcp") {
+    return err(
+      new NotImplementedError(
+        `Server kind "${server.kind}" is not an MCP upstream`,
+      ),
+    );
+  }
+
+  const headers = await resolveUpstreamAuthHeaders(
+    log,
+    tenantId,
+    userId,
+    server,
+    options?.forceRefresh ? { forceRefresh: true } : undefined,
+  );
+  if (headers.isErr()) return err(headers.error);
+
+  const first = await openUpstream(server, headers.value);
+  if (first.isOk()) return first;
+
+  if (
+    options?.forceRefresh ||
+    server.authMethod !== "oauth" ||
+    !isInvalidUpstreamTokenError(first.error.message)
+  ) {
+    return first;
+  }
+
+  log.info(
+    { serverId: server.id },
+    "upstream MCP auth failed; force-refreshing OAuth and retrying connect",
+  );
+
+  const refreshed = await resolveUpstreamAuthHeaders(
+    log,
+    tenantId,
+    userId,
+    server,
+    { forceRefresh: true },
+  );
+  if (refreshed.isErr()) return err(refreshed.error);
+
+  if (
+    refreshed.value["Authorization"] === headers.value["Authorization"]
+  ) {
+    return err(upstreamExpiredCredentialError(server));
+  }
+
+  const second = await openUpstream(server, refreshed.value);
+  if (second.isErr() && isInvalidUpstreamTokenError(second.error.message)) {
+    // Upstream rejects a freshly minted token: the grant itself is unusable.
+    return err(upstreamExpiredCredentialError(server));
+  }
+  return second;
 }
 
 export async function loadUpstreamServer(

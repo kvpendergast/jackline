@@ -21,10 +21,15 @@ export function readErrorStack(err: unknown): string | undefined {
 /**
  * Promote nested Pino `err.stack` to top-level `stack_trace` for Google Cloud
  * Logging / Error Reporting while keeping Honeycomb-style `err` intact.
+ *
+ * When `service` is given, also sets `serviceContext.service` so Error
+ * Reporting groups errors per service (jackline-api, jackline-gateway, ...)
+ * instead of by log name.
  */
 export function withGcpStackTrace<T extends Record<string, unknown>>(
   object: T,
-): T & { stack_trace?: string } {
+  service?: string,
+): T & { stack_trace?: string; serviceContext?: { service: string } } {
   const stack = readErrorStack(object["err"]);
   if (!stack) {
     return object;
@@ -33,5 +38,8 @@ export function withGcpStackTrace<T extends Record<string, unknown>>(
   return {
     ...object,
     stack_trace: stack,
+    ...(service && object["serviceContext"] === undefined
+      ? { serviceContext: { service } }
+      : {}),
   };
 }

@@ -7,12 +7,15 @@ const tenantRouteOrder = [
   "create",
   "get",
   "update",
+  "setTools",
   "publish",
   "pause",
   "listKnocks",
   "approveKnock",
   "denyKnock",
   "listTrustGrants",
+  "listTranscript",
+  "streamTranscript",
   "revokeTrustGrant",
 ] as const;
 

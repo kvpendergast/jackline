@@ -29,6 +29,16 @@ export {
   ServerCredentialModeSchema,
 } from './server.js';
 export {
+  type PublicOAuthApp,
+  PublicOAuthAppSchema,
+  type CreateOAuthAppBody,
+  CreateOAuthAppBodySchema,
+  type UpdateOAuthAppBody,
+  UpdateOAuthAppBodySchema,
+  type CreateOAuthAppFromServerBody,
+  CreateOAuthAppFromServerBodySchema,
+} from './oauthApp.js';
+export {
   type MyAccessServer,
   MyAccessServerSchema,
   type MyAccessCredentialStatus,
@@ -68,6 +78,8 @@ export {
   PublicClientSchema,
   type ClientKind,
   ClientKindSchema,
+  type ClientRegistrationType,
+  ClientRegistrationTypeSchema,
   type MintedClientCredentials,
   MintedClientCredentialsSchema,
   type RotateClientCredentialsBody,
@@ -80,6 +92,32 @@ export {
   OAUTH_TOKEN_PATH,
   oauthTokenUrl,
 } from './client.js';
+export {
+  JACKLINE_MCP_ACCESS_TOKEN_PREFIX,
+  JACKLINE_MCP_ACCESS_TOKEN_TTL_SECONDS,
+  JACKLINE_MCP_AUTH_CODE_TTL_SECONDS,
+  MCP_OAUTH_AUTHORIZE_PATH,
+  MCP_OAUTH_AUTHORIZE_CONSENT_PATH,
+  MCP_OAUTH_TOKEN_PATH,
+  MCP_OAUTH_REGISTER_PATH,
+  MCP_OAUTH_AS_METADATA_PATH,
+  MCP_OAUTH_PROTECTED_RESOURCE_PATH,
+  mcpOauthIssuerUrl,
+  mcpOauthAuthorizeUrl,
+  mcpOauthTokenUrl,
+  mcpOauthRegisterUrl,
+  mcpOauthAsMetadataUrl,
+  mcpOauthProtectedResourceMetadataUrl,
+} from './mcpOauth.js';
+export {
+  isCimdClientId,
+  CimdMetadataSchema,
+  type CimdMetadata,
+  validateCimdMetadata,
+  DcrRegistrationBodySchema,
+  type DcrRegistrationBody,
+  validateDcrRegistrationBody,
+} from './mcpOauthValidation.js';
 export {
   type PublicConnection,
   PublicConnectionSchema,
@@ -164,10 +202,12 @@ export {
   getEmailConnectorPreset,
   PLATFORM_EMAIL_API_KEY_AAD,
   PublicPlatformEmailSettingsSchema,
+  PublicEmailDeliveryStatusSchema,
   UpdatePlatformEmailSettingsBodySchema,
   type EmailConnectorKey,
   type EmailConnectorPreset,
   type PublicPlatformEmailSettings,
+  type PublicEmailDeliveryStatus,
   type UpdatePlatformEmailSettingsBody,
 } from './platformEmail.js';
 export {
@@ -177,8 +217,23 @@ export {
   CreateKnockResultSchema,
   KNOCK_MESSAGE_MAX_BYTES,
   JACKLINE_TRUST_REQUEST_INTENT,
+  JACKLINE_TOOL_CALL_INTENT,
+  JACKLINE_AUDIT_REASON_HEADER,
+  A2A_PEER_AUDIT_REASON_PREFIX,
+  formatA2aPeerAuditReason,
+  isA2aPeerAuditReason,
   validateKnockMessage,
 } from './knock.js';
+export {
+  AgentTranscriptKindSchema,
+  AgentTranscriptEntrySchema,
+  AgentConversationThreadSchema,
+  AgentTranscriptResponseSchema,
+  type AgentTranscriptKind,
+  type AgentTranscriptEntry,
+  type AgentConversationThread,
+  type AgentTranscriptResponse,
+} from './agentActivity.js';
 export {
   type TrustGrantStatus,
   TrustGrantStatusSchema,
@@ -192,6 +247,7 @@ export {
   ApproveKnockBodySchema,
   type ApproveKnockBody,
   DenyKnockBodySchema,
+  type DenyKnockBody,
   effectiveTrustGrantStatus,
   isTrustGrantUsable,
 } from './trustGrant.js';
@@ -207,12 +263,15 @@ export {
   type CreateAgentBody,
   UpdateAgentBodySchema,
   type UpdateAgentBody,
+  SetAgentToolsBodySchema,
+  type SetAgentToolsBody,
   type PublicDirectoryAgent,
   PublicDirectoryAgentSchema,
   AgentDirectoryResponseSchema,
   type AgentDirectoryResponse,
   AgentHandleSchema,
   AGENT_HANDLE_REGEX,
+  AGENT_INSTRUCTIONS_MAX_CHARS,
   PUBLIC_NETWORK_SLUG,
   DEFAULT_PUBLIC_SKILLS,
 } from './agent.js';

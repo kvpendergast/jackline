@@ -61,6 +61,73 @@ jobs:
       - name: Test
         run: pnpm test
 
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web UI
+        run: pnpm --filter @jackline/web build
+
+      - name: Smoke preview server
+        run: pnpm --filter @jackline/web smoke:preview
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: jackline
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jackline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Integration tests
+        run: pnpm test:integration
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: jackline
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+
   betterleaks:
     name: betterleaks
     runs-on: ubuntu-latest
@@ -68,8 +135,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       # Official Betterleaks binary (Gitleaks successor). No license secret
       # required for private repos.
@@ -87,7 +152,8 @@ jobs:
       # while still failing on GitHub PATs, cloud keys, etc.
       - name: Scan for secrets
         run: >
-          betterleaks git .
+          betterleaks detect .
+          --no-git
           --config .betterleaks.toml
           --verbose
           --redact
