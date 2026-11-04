@@ -1,3 +1,4 @@
+import { LastUsed } from "@/components/jackline/LastUsed";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
@@ -225,6 +226,9 @@ export function ConnectionsPage() {
                           {subject?.email ?? row.userId.slice(0, 8)}
                         </div>
                         <div>
+                          Last used <LastUsed at={row.lastUsedAt} />
+                        </div>
+                        <div>
                           Updated {new Date(row.updatedAt).toLocaleString()}
                         </div>
                       </>
@@ -256,6 +260,9 @@ export function ConnectionsPage() {
                     Status
                   </TableHead>
                   <TableHead className="font-mono text-[10px] uppercase tracking-wider">
+                    Last used
+                  </TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-wider">
                     Updated
                   </TableHead>
                 </TableRow>
@@ -263,7 +270,7 @@ export function ConnectionsPage() {
               <TableBody>
                 {!loading && filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground">
+                    <TableCell colSpan={6} className="text-muted-foreground">
                       No connections yet. Create a client, ensure the subject is a tenant member, then POST /connections.
                     </TableCell>
                   </TableRow>
@@ -297,6 +304,9 @@ export function ConnectionsPage() {
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <LastUsed at={row.lastUsedAt} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(row.updatedAt).toLocaleString()}

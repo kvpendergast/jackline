@@ -2955,6 +2955,28 @@
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "lastUsedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastAllowedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -2964,7 +2986,9 @@
                     "userId",
                     "tenantId",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "lastUsedAt",
+                    "lastAllowedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -3060,6 +3084,28 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "lastUsedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastAllowedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -3071,7 +3117,9 @@
               "createdAt",
               "updatedAt",
               "roleIds",
-              "toolOverrides"
+              "toolOverrides",
+              "lastUsedAt",
+              "lastAllowedAt"
             ],
             "additionalProperties": false
           }
@@ -3394,6 +3442,28 @@
               "updatedAt": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "lastUsedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastAllowedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -3403,7 +3473,9 @@
               "userId",
               "tenantId",
               "createdAt",
-              "updatedAt"
+              "updatedAt",
+              "lastUsedAt",
+              "lastAllowedAt"
             ],
             "additionalProperties": false
           }

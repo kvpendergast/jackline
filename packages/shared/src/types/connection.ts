@@ -21,6 +21,14 @@ export const PublicConnectionSchema = z.strictObject({
   tenantId: z.uuid(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  /**
+   * Most recent gateway tool call (any outcome, including denied) recorded in
+   * audit_events for this connection. Null when never used or when events
+   * have aged out of audit retention.
+   */
+  lastUsedAt: z.iso.datetime().nullable(),
+  /** Most recent gateway tool call that was allowed (outcome != deny). */
+  lastAllowedAt: z.iso.datetime().nullable(),
 });
 
 export const PublicConnectionDetailSchema = PublicConnectionSchema.extend({
