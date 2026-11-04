@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, max, ne, or, sql } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import {
+  auditEvents,
   clients,
   connectionRoles,
   connections,
@@ -71,8 +72,56 @@ export type SetToolOverrideInput = {
   type: ConnectionToolOverrideType;
 };
 
-function toPublicConnection(row: ConnectionRow): PublicConnection {
+export type ConnectionUsage = {
+  lastUsedAt: Date | null;
+  lastAllowedAt: Date | null;
+};
+
+const NO_USAGE: ConnectionUsage = { lastUsedAt: null, lastAllowedAt: null };
+
+/**
+ * Last-used timestamps per connection, derived from audit_events in a single
+ * grouped query (served by audit_events_connection_created_idx).
+ */
+export async function loadConnectionUsage(
+  tenantId: string,
+  connectionIds: string[],
+): Promise<Map<string, ConnectionUsage>> {
+  const out = new Map<string, ConnectionUsage>();
+  if (connectionIds.length === 0) return out;
+  const rows = await db
+    .select({
+      connectionId: auditEvents.connectionId,
+      lastUsedAt: max(auditEvents.createdAt),
+      lastAllowedAt: sql<Date | null>`max(${auditEvents.createdAt}) filter (where ${ne(auditEvents.outcome, "deny")})`.mapWith(
+        auditEvents.createdAt,
+      ),
+    })
+    .from(auditEvents)
+    .where(
+      and(
+        inArray(auditEvents.connectionId, connectionIds),
+        eq(auditEvents.tenantId, tenantId),
+      ),
+    )
+    .groupBy(auditEvents.connectionId);
+  for (const r of rows) {
+    if (!r.connectionId) continue;
+    out.set(r.connectionId, {
+      lastUsedAt: r.lastUsedAt ? new Date(r.lastUsedAt) : null,
+      lastAllowedAt: r.lastAllowedAt ? new Date(r.lastAllowedAt) : null,
+    });
+  }
+  return out;
+}
+
+function toPublicConnection(
+  row: ConnectionRow,
+  usage: ConnectionUsage = NO_USAGE,
+): PublicConnection {
   return {
+    lastUsedAt: usage.lastUsedAt?.toISOString() ?? null,
+    lastAllowedAt: usage.lastAllowedAt?.toISOString() ?? null,
     id: row.id,
     status: row.status,
     clientId: row.clientId,
@@ -122,11 +171,16 @@ async function toDetail(
   tenantId: string,
   row: ConnectionRow,
 ): Promise<PublicConnectionDetail> {
-  const [roleIds, toolOverrides] = await Promise.all([
+  const [roleIds, toolOverrides, usage] = await Promise.all([
     loadRoleIds(tenantId, row.id),
     loadToolOverrides(tenantId, row.id),
+    loadConnectionUsage(tenantId, [row.id]),
   ]);
-  return { ...toPublicConnection(row), roleIds, toolOverrides };
+  return {
+    ...toPublicConnection(row, usage.get(row.id)),
+    roleIds,
+    toolOverrides,
+  };
 }
 
 async function getConnectionRow(
@@ -374,8 +428,13 @@ async function list(
     "Connection.services.list",
   );
 
+  const usage = await loadConnectionUsage(
+    tenantId,
+    page.items.map((row) => row.id),
+  );
+
   return ok({
-    items: page.items.map(toPublicConnection),
+    items: page.items.map((row) => toPublicConnection(row, usage.get(row.id))),
     nextCursor: page.nextCursor,
   });
 }
