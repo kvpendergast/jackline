@@ -2,10 +2,10 @@
   "name": "jackline-gke",
   "main": "index.ts",
   "dependencies": {
-    "@pulumi/docker": "^5.2.0",
+    "@pulumi/docker": "^5.2.2",
     "@pulumi/gcp": "^8.0.0",
-    "@pulumi/kubernetes": "^4.34.2",
-    "@pulumi/pulumi": "^3.273.0"
+    "@pulumi/kubernetes": "^4.34.3",
+    "@pulumi/pulumi": "^3.274.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
