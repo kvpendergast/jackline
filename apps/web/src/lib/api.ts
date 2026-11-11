@@ -1,4 +1,5 @@
 import type { CursorPage } from "@jackline/shared";
+import { collectCursorPages } from "@/lib/collectCursorPages";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -110,4 +111,17 @@ export async function apiPage<T>(
   options: ApiOptions = {},
 ): Promise<CursorPage<T>> {
   return api<CursorPage<T>>(path, options);
+}
+
+/** Fetch every cursor page and return the combined item list. */
+export async function apiPageAll<T>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T[]> {
+  return collectCursorPages((cursor) =>
+    apiPage<T>(path, {
+      ...options,
+      searchParams: { ...options.searchParams, cursor },
+    }),
+  );
 }

@@ -1,4 +1,4 @@
-import { api, apiPage } from "@/lib/api";
+import { api, apiPage, apiPageAll } from "@/lib/api";
 import type {
   ClientKind,
   ClientRegistrationType,
@@ -62,6 +62,12 @@ export const jacklineApi = {
 
   listServers: (tenantId: string) =>
     apiPage<PublicServer>("/api/v1/servers", {
+      tenantId,
+      searchParams: { limit: "100" },
+    }),
+
+  listAllServers: (tenantId: string) =>
+    apiPageAll<PublicServer>("/api/v1/servers", {
       tenantId,
       searchParams: { limit: "100" },
     }),
@@ -196,6 +202,12 @@ export const jacklineApi = {
 
   listTools: (tenantId: string, serverId?: string) =>
     apiPage<PublicTool>("/api/v1/tools", {
+      tenantId,
+      searchParams: { limit: "100", serverId },
+    }),
+
+  listAllTools: (tenantId: string, serverId?: string) =>
+    apiPageAll<PublicTool>("/api/v1/tools", {
       tenantId,
       searchParams: { limit: "100", serverId },
     }),

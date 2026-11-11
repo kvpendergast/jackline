@@ -82,15 +82,15 @@ export function ToolsPage() {
 
   async function load() {
     if (!tenantId) return;
-    const [toolPage, serverPage] = await Promise.all([
-      jacklineApi.listTools(
+    const [tools, allServers] = await Promise.all([
+      jacklineApi.listAllTools(
         tenantId,
         serverFilter === "all" ? undefined : serverFilter,
       ),
-      jacklineApi.listServers(tenantId),
+      jacklineApi.listAllServers(tenantId),
     ]);
-    setItems(toolPage.items);
-    setServers(serverPage.items);
+    setItems(tools);
+    setServers(allServers);
   }
 
   useEffect(() => {
@@ -195,7 +195,7 @@ export function ToolsPage() {
                 <DialogTitle>Create tool</DialogTitle>
               </DialogHeader>
               <CreateToolForm
-                servers={servers}
+                servers={sortedServers}
                 onCreated={async () => {
                   setOpen(false);
                   await load();

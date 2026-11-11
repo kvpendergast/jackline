@@ -84,19 +84,19 @@ export function AgentDetailPage() {
 
   async function loadAgent() {
     if (!tenantId || !id) return null;
-    const [agentData, knockData, grantData, toolsData, serversData] =
+    const [agentData, knockData, grantData, allTools, allServers] =
       await Promise.all([
         jacklineApi.getAgent(tenantId, id),
         jacklineApi.listAgentKnocks(tenantId, id),
         jacklineApi.listTrustGrants(tenantId, id),
-        jacklineApi.listTools(tenantId),
-        jacklineApi.listServers(tenantId),
+        jacklineApi.listAllTools(tenantId),
+        jacklineApi.listAllServers(tenantId),
       ]);
     setAgent(agentData);
     setKnocks(knockData.items);
     setGrants(grantData.items);
-    setTools(toolsData.items);
-    setServers(serversData.items);
+    setTools(allTools);
+    setServers(allServers);
     setDisplayName(agentData.displayName);
     setDescription(agentData.description ?? "");
     setInstructions(agentData.instructions ?? "");
