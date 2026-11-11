@@ -38,6 +38,18 @@ const catalog = [
     name: "tools",
     load: () => import("./tools.js").then((m) => m.default),
   },
+  {
+    name: "login",
+    load: () => import("./login.js").then((m) => m.default),
+  },
+  {
+    name: "logout",
+    load: () => import("./logout.js").then((m) => m.default),
+  },
+  {
+    name: "whoami",
+    load: () => import("./whoami.js").then((m) => m.default),
+  },
 ] as const;
 
 export const main = defineCommand({

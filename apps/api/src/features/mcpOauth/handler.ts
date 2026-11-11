@@ -62,6 +62,7 @@ function consentHtml(input: {
   scope: string;
   tenant: string | undefined;
   responseType: string;
+  audience: "mcp" | "api";
 }): string {
   const fields: Array<[string, string]> = [
     ["response_type", input.responseType],
@@ -100,11 +101,20 @@ function consentHtml(input: {
 </head>
 <body>
   <main>
-    <h1>Allow MCP access?</h1>
+    ${
+      input.audience === "api"
+        ? `<h1>Allow Jackline API access?</h1>
+    <p>
+      <strong>${escapeHtml(input.clientName)}</strong> wants to use the Jackline
+      API as you, with your current role in this workspace. Only continue if
+      you just ran <code>jackline login</code> on your own computer.
+    </p>`
+        : `<h1>Allow MCP access?</h1>
     <p>
       <strong>${escapeHtml(input.clientName)}</strong> wants to connect to your
       Jackline MCP gateway as you.
-    </p>
+    </p>`
+    }
     <p>Resource: <code>${escapeHtml(input.resource)}</code></p>
     <form method="post" action="${escapeHtml(MCP_OAUTH_AUTHORIZE_CONSENT_PATH)}">
       ${hidden}
@@ -211,7 +221,7 @@ export async function authorizeGetHandler(c: Context<JacklineEnv>) {
     return c.redirect(loginUrl, 302);
   }
 
-  const { client, redirectUri, resource, scopes, codeChallenge } =
+  const { client, redirectUri, resource, audience, scopes, codeChallenge } =
     validated.value;
 
   return c.html(
@@ -226,6 +236,7 @@ export async function authorizeGetHandler(c: Context<JacklineEnv>) {
       scope: scopes,
       tenant: parsed.tenant,
       responseType: parsed.response_type,
+      audience,
     }),
   );
 }
@@ -276,7 +287,7 @@ export async function authorizeConsentHandler(c: Context<JacklineEnv>) {
     throw error;
   }
 
-  const { client, redirectUri, resource, scopes, codeChallenge } =
+  const { client, redirectUri, resource, audience, scopes, codeChallenge } =
     validated.value;
 
   const codeResult = await mcpOauthServices.createAuthorizationCode(log, {
@@ -286,6 +297,7 @@ export async function authorizeConsentHandler(c: Context<JacklineEnv>) {
     codeChallenge,
     codeChallengeMethod: parsed.code_challenge_method,
     resource,
+    audience,
     scopes,
   });
 
@@ -400,6 +412,40 @@ export async function mcpTokenHandler(c: Context<JacklineEnv>) {
     },
     400,
   );
+}
+
+/** POST /oauth/revoke — RFC 7009 token revocation (public clients). */
+export async function revokeHandler(c: Context<JacklineEnv>) {
+  const log = c.get("requestContext").log;
+  const body = await parseTokenBody(c);
+  const token = body["token"];
+  const clientId = body["client_id"];
+  if (!token || !clientId) {
+    return c.json(
+      {
+        error: "invalid_request",
+        error_description: "token and client_id are required",
+      },
+      400,
+    );
+  }
+  const result = await mcpOauthServices.revokeToken(log, {
+    token,
+    client_id: clientId,
+    tenant: body["tenant"],
+  });
+  if (result.isErr()) {
+    const error = result.error;
+    if (error instanceof UnauthorizedError || error instanceof BadRequestError) {
+      return c.json(
+        { error: "invalid_client", error_description: error.message },
+        401,
+      );
+    }
+    throw error;
+  }
+  // RFC 7009 §2.2: 200 whether or not the token was valid.
+  return c.body(null, 200);
 }
 
 function oauthTokenError(c: Context<JacklineEnv>, error: unknown) {

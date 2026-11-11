@@ -25,7 +25,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "Opaque",
-        "description": "OAuth2 access token from POST /api/v1/oauth/token (client_credentials)."
+        "description": "OAuth2 access token: `jackline_at_` from POST /api/v1/oauth/token (client_credentials), or a short-lived `jackline_uat_` user token from POST /oauth/token (authorization_code + PKCE with resource=<api base>/api/v1, e.g. `jackline login`)."
       },
       "sessionCookie": {
         "type": "apiKey",
@@ -538,6 +538,41 @@
             "items": {
               "$ref": "#/components/schemas/MembershipContext"
             }
+          },
+          "mcpUrl": {
+            "type": "string",
+            "description": "Public MCP gateway URL for this deployment"
+          },
+          "current": {
+            "type": "object",
+            "properties": {
+              "tenantId": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "team": {
+                "type": "string",
+                "nullable": true
+              },
+              "authMethod": {
+                "type": "string",
+                "enum": [
+                  "session",
+                  "oauth_client_credentials",
+                  "oauth_authorization_code"
+                ]
+              }
+            },
+            "required": [
+              "tenantId",
+              "role",
+              "team",
+              "authMethod"
+            ],
+            "additionalProperties": false,
+            "description": "Set for OAuth bearer requests: the tenant membership (role) the token acts with. Memberships are limited to that tenant."
           }
         },
         "required": [
@@ -6838,6 +6873,15 @@
           "Auth"
         ],
         "summary": "Current user and membership contexts",
+        "description": "Works with a browser session cookie (all memberships) or an OAuth bearer token such as a `jackline login` user token (only the token's tenant, plus `current`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Authenticated session context",

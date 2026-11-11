@@ -4,8 +4,12 @@ export type AuthContext = {
   userId: string;
   tenantId: string;
   membership: { id: string; role: string; team: string | null };
-  method: "session" | "oauth_client_credentials";
-  /** Present when method is oauth_client_credentials. */
+  /**
+   * `oauth_client_credentials`: service client `jackline_at_` token.
+   * `oauth_authorization_code`: user `jackline_uat_` token (e.g. `jackline login`).
+   */
+  method: "session" | "oauth_client_credentials" | "oauth_authorization_code";
+  /** Present for both OAuth bearer methods. */
   clientId?: string;
 };
 

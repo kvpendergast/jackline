@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+  MeCurrentContextSchema,
   PublicMembershipSchema,
   PublicTenantSchema,
   PublicUserSchema,
@@ -22,6 +23,14 @@ const MeDataOpenApiSchema = z
   .strictObject({
     user: PublicUserSchema,
     memberships: z.array(MembershipContextSchema),
+    mcpUrl: z
+      .string()
+      .optional()
+      .openapi({ description: "Public MCP gateway URL for this deployment" }),
+    current: MeCurrentContextSchema.optional().openapi({
+      description:
+        "Set for OAuth bearer requests: the tenant membership (role) the token acts with. Memberships are limited to that tenant.",
+    }),
   })
   .openapi("MeData");
 
@@ -35,6 +44,9 @@ const get = createRoute({
   path: "/me",
   tags: ["Auth"],
   summary: "Current user and membership contexts",
+  description:
+    "Works with a browser session cookie (all memberships) or an OAuth bearer token such as a `jackline login` user token (only the token's tenant, plus `current`).",
+  security: [{ bearerAuth: [] }, { sessionCookie: [] }],
   responses: {
     200: {
       description: "Authenticated session context",
