@@ -45,6 +45,24 @@ Tenant is taken from the token. If you also send `X-Jackline-Tenant-Id`, it must
 - `POST /api/v1/clients/{id}/credentials` — rotate secret; revokes outstanding access tokens
 - `DELETE /api/v1/clients/{id}/credentials` — clear secret and revoke tokens
 
+## CLI login (user tokens)
+
+`jackline login --server https://jackline.example.com` signs the CLI in as **you** — no API key to paste. It uses the same authorization server as MCP OAuth, with a different audience:
+
+1. The CLI reads `/.well-known/oauth-authorization-server` (`jackline_api_resource`, `jackline_cli_client_id`, `jackline_tenancy`).
+2. It listens on `http://127.0.0.1:<random port>/callback` and opens `GET /oauth/authorize` with `client_id=jackline-cli`, PKCE (`S256`), and `resource=<api base>/api/v1`. You sign in and approve in the browser.
+3. `POST /oauth/token` returns a **15-minute** `jackline_uat_…` access token and a `jackline_urt_…` refresh token. The CLI keeps both in the OS keychain.
+
+| | |
+| --- | --- |
+| Client | Pre-registered public client `jackline-cli` (no secret, PKCE required). Loopback redirects on any port (RFC 8252). |
+| Access token | `jackline_uat_…`, 15 min, bound to one tenant and user. Role is read from the membership on every request, so a `member` stays a `member`. |
+| Refresh token | `jackline_urt_…`, single use, rotated on every refresh; expires after 30 days without use. Reusing an old one revokes the login. |
+| Revoke | `POST /oauth/revoke` (`token`, `client_id=jackline-cli`), used by `jackline logout`. |
+| Multi-tenant servers | Pass `tenant=<slug>` (CLI: `--tenant`). |
+
+Audiences are kept apart: `jackline_uat_` tokens are rejected by the MCP gateway, and `jackline_mcp_` tokens are rejected by `/api/v1`. Third-party MCP clients (CIMD / DCR) cannot request the API resource. `GET /api/v1/me` with a user token returns the user, the token's tenant and role (`current`), and the deployment's `mcpUrl`.
+
 ## Session cookies
 
 Used by the admin UI. Sign up / sign in via Better Auth (`/api/auth/*`), then send `X-Jackline-Tenant-Id` on tenant-scoped routes.

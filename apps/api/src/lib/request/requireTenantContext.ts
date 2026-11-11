@@ -7,8 +7,12 @@ import {
   BadRequestError,
   EmailNotVerifiedError,
   ForbiddenError,
+  getConfig,
   JACKLINE_ACCESS_TOKEN_PREFIX,
+  JACKLINE_API_USER_ACCESS_TOKEN_PREFIX,
+  jacklineApiResource,
   JacklineError,
+  publicApiBaseUrl,
   UnauthorizedError,
 } from "@jackline/shared";
 import type { JacklineEnv } from "../http/env.js";
@@ -20,11 +24,21 @@ function extractBearer(authorization: string | undefined): string | null {
   return match?.[1] ?? null;
 }
 
-async function resolveBearerAuth(
+export async function resolveBearerAuth(
   c: Context<JacklineEnv>,
   accessToken: string,
 ): Promise<Result<AuthContext, JacklineError>> {
-  if (!accessToken.startsWith(JACKLINE_ACCESS_TOKEN_PREFIX)) {
+  // Two accepted bearer kinds, each pinned to its own audience:
+  // - `jackline_at_`  client_credentials (service client), audience null
+  // - `jackline_uat_` user token from authorization_code + PKCE (CLI login),
+  //                   audience = `<api base>/api/v1`, never connection-bound
+  // MCP gateway tokens (`jackline_mcp_`, audience = MCP URL) are rejected.
+  const kind = accessToken.startsWith(JACKLINE_API_USER_ACCESS_TOKEN_PREFIX)
+    ? "user"
+    : accessToken.startsWith(JACKLINE_ACCESS_TOKEN_PREFIX)
+      ? "client_credentials"
+      : null;
+  if (!kind) {
     return err(new UnauthorizedError("Invalid access token"));
   }
 
@@ -42,6 +56,22 @@ async function resolveBearerAuth(
 
   if (!row) {
     return err(new UnauthorizedError("Invalid access token"));
+  }
+
+  if (kind === "client_credentials") {
+    if (row.audience !== null || row.grantType !== "client_credentials") {
+      return err(new UnauthorizedError("Invalid access token"));
+    }
+  } else {
+    const config = getConfig();
+    if (config.isErr()) return err(config.error);
+    const apiResource = jacklineApiResource(publicApiBaseUrl(config.value));
+    if (
+      (row.audience ?? "").replace(/\/$/, "") !== apiResource ||
+      row.connectionId !== null
+    ) {
+      return err(new UnauthorizedError("Invalid access token"));
+    }
   }
 
   if (row.expiresAt.getTime() <= Date.now()) {
@@ -78,7 +108,8 @@ async function resolveBearerAuth(
       role: membership.role,
       team: membership.team,
     },
-    method: "oauth_client_credentials",
+    method:
+      kind === "user" ? "oauth_authorization_code" : "oauth_client_credentials",
     clientId: row.clientId,
   });
 }

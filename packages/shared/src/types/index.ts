@@ -11,6 +11,8 @@ export {
   PublicMembershipContextSchema,
   type MeData,
   MeDataSchema,
+  MeCurrentContextSchema,
+  type MeCurrentContext,
 } from './me.js';
 export {
   type PublicServer,
@@ -108,6 +110,19 @@ export {
   mcpOauthRegisterUrl,
   mcpOauthAsMetadataUrl,
   mcpOauthProtectedResourceMetadataUrl,
+  MCP_OAUTH_REVOKE_PATH,
+  mcpOauthRevokeUrl,
+  JACKLINE_API_USER_ACCESS_TOKEN_PREFIX,
+  JACKLINE_API_USER_REFRESH_TOKEN_PREFIX,
+  JACKLINE_API_USER_ACCESS_TOKEN_TTL_SECONDS,
+  JACKLINE_API_USER_REFRESH_TOKEN_IDLE_TTL_SECONDS,
+  JACKLINE_API_SCOPE,
+  JACKLINE_CLI_CLIENT_ID,
+  JACKLINE_CLI_CLIENT_NAME,
+  JACKLINE_CLI_SYSTEM_KEY,
+  JACKLINE_CLI_REDIRECT_URIS,
+  jacklineApiResource,
+  redirectUriMatches,
 } from './mcpOauth.js';
 export {
   isCimdClientId,
