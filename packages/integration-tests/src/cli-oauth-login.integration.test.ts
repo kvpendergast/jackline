@@ -63,6 +63,18 @@ async function postForm(
   return { status: res.status, json: text ? (JSON.parse(text) as TokenJson) : {} };
 }
 
+/** Single-pass decode of the entities escapeHtml() emits. */
+function decodeHtmlAttr(value: string): string {
+  const entities: Record<string, string> = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&#39;": "'",
+  };
+  return value.replace(/&(?:amp|lt|gt|quot|#39);/g, (m) => entities[m] ?? m);
+}
+
 /** authorize (GET, consent page) → consent (POST) → code. */
 async function authorizeForCode(input: {
   client: ApiClient;
@@ -110,7 +122,7 @@ async function authorizeForCode(input: {
   const hidden = Object.fromEntries(
     [...authorizeBody.matchAll(/name="([^"]+)" value="([^"]*)"/g)].map((m) => [
       m[1]!,
-      m[2]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"'),
+      decodeHtmlAttr(m[2]!),
     ]),
   );
   const consentRes = await fetch(`${client.apiUrl}/oauth/authorize/consent`, {
