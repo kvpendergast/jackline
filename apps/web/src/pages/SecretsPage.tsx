@@ -42,13 +42,13 @@ export function SecretsPage() {
 
   async function load() {
     if (!tenantId) return;
-    const [secretPage, serverPage, userPage] = await Promise.all([
+    const [secretPage, allServers, userPage] = await Promise.all([
       jacklineApi.listSecrets(tenantId),
-      jacklineApi.listServers(tenantId),
+      jacklineApi.listAllServers(tenantId),
       jacklineApi.listUsers(tenantId),
     ]);
     setItems(secretPage.items);
-    setServers(serverPage.items);
+    setServers(allServers);
     setUsers(userPage.items);
   }
 
