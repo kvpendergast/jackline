@@ -7,7 +7,7 @@ Hobbyist-first deploy paths for Jackline on Google Cloud.
 | **[`vm/`](vm/)** (default) | Weekend demos, personal instances | One small VM + **Cloud SQL `db-f1-micro`** (~$10/mo DB + ~$12–15/mo VM). Fixed sizes = **compute bill stays flat** under bot traffic. |
 | **[`gke/`](gke/)** (advanced) | Learning Kubernetes / Autopilot | Autopilot + global HTTP LB keep burning while up. **Not** the overnight hobbyist default. |
 
-Budgets only **alert** — they do not hard-cap spend. Prefer architecture that bounds cost (`vm/`), and `pulumi destroy` (or stop the VM) when idle.
+GCP spend caps do not cover Compute Engine or Cloud SQL, and unlinking billing can delete the Cloud SQL instance (the only copy of prod data). The VM path deploys a **budget shutoff** that stops the VM and the database when spend hits the budget. Disks, the static IP, and database data stay. See [Budget shutoff](#budget-shutoff-circuit-breaker).
 
 ## Quick start (VM — recommended)
 
@@ -88,9 +88,135 @@ Expect higher idle cost (Autopilot + LB). Destroy when not demoing publicly.
 
 If you previously used project name `jackline-infra`, config keys in `Pulumi.prod.yaml` must use the `jackline-gke:` prefix (matching [`Pulumi.yaml`](gke/Pulumi.yaml)). Create a fresh `prod` stack under the new project name after destroy, or migrate state carefully.
 
+## Budget shutoff (circuit breaker)
+
+Billing notifications are estimates and can lag by many hours (sometimes up to about two days), so this is a backstop, not a realtime cap. While the VM and database are stopped, **disk, Cloud SQL storage, and the reserved static IP keep billing**.
+
+```text
+Cloud Billing budget
+  -> Pub/Sub topic jackline-budget
+  -> Eventarc push as jackline-budget-invoker (OIDC, not public)
+  -> Cloud Run function jackline-budget-shutoff (ingress internal only)
+  -> stop VM jackline (if it is not already stopping / stopped)
+  -> Cloud SQL jackline-db settings.activationPolicy = NEVER (if it is not already)
+```
+
+The function compares `costAmount` and `budgetAmount` on the [budget notification JSON](https://cloud.google.com/billing/docs/how-to/budgets-programmatic-notifications). Under budget it logs and returns. At or over budget it stops both targets. A forecast-only alert (`forecastThresholdExceeded` while cost is still under the budget) does not stop anything. Pub/Sub delivery is at-least-once: if the VM is already `TERMINATED` / `STOPPING` / `SUSPENDED` the stop is skipped, and if Cloud SQL is already `NEVER` the patch is skipped. If one call fails, the invocation returns an error so Pub/Sub retries; the side that already succeeded is left alone.
+
+The runtime service account can `get` and `stop` the VM, and `get` / `patch` that one Cloud SQL instance (`projects/PROJECT_ID/instances/jackline-db` only). It cannot delete instances, release the static IP, or change billing. The function is not invokable anonymously. If a shutoff log shows 403 from Cloud SQL, the condition did not match the instance resource name.
+
+`pulumi up` does not undo a shutoff: the VM resource does not set `desiredStatus`, and the Cloud SQL resource ignores `settings.activationPolicy`. The next Deploy prod will still fail at SSH until you start the VM.
+
+Stack outputs: `budgetTopicName`, `budgetTopicId`, `budgetShutoffFunctionName`.
+
+### Wiring the budget
+
+The topic and function are created on every VM `pulumi up`. The `gcp.billing.Budget` resource is created **only** when Pulumi config `billingAccountId` is set, so a deploy SA without billing-account permission does not fail the apply.
+
+**Before the first apply**, the deploy SA also needs to create the new resources (it already has Compute, Cloud SQL, and service-account admin). Grant once as a project owner:
+
+```bash
+# PROJECT and DEPLOY_SA are the CI deploy service account's project and email.
+for role in \
+  roles/pubsub.admin \
+  roles/cloudfunctions.admin \
+  roles/run.admin \
+  roles/eventarc.admin \
+  roles/cloudbuild.builds.editor \
+  roles/artifactregistry.admin \
+  roles/storage.admin \
+  roles/iam.roleAdmin \
+  roles/resourcemanager.projectIamAdmin \
+  roles/serviceusage.serviceUsageAdmin
+do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:${DEPLOY_SA}" --role="$role"
+done
+```
+
+`serviceusage.serviceUsageAdmin` is only needed if this SA cannot already enable APIs (the stack already enables Compute and Cloud SQL).
+
+**Option A — Pulumi creates the $35 budget.** The deploy SA (or you, locally) also needs `billing.budgets.create` on the billing account and `pubsub.topics.setIamPolicy` on the project. Cloud Billing then grants itself `roles/pubsub.publisher` on the topic. Connecting the topic requires permission to grant that publisher role; an organization policy that blocks `iam.allowedPolicyMemberDomains` must exempt the project or the grant fails.
+
+```bash
+cd deploy/pulumi/vm
+pulumi config set billingAccountId 012345-6789AB-CDEF01   # or billingAccounts/012345-6789AB-CDEF01
+# optional: pulumi config set budgetAmountUsd 35
+pulumi up
+```
+
+Thresholds are 50%, 80%, 90%, and 100% of current spend (not forecast). Billing account admins still get the usual emails. The budget is filtered to this project, monthly, USD, credits included.
+
+**Option B — create the budget yourself** and point it at the topic (use this when the deploy SA must not touch the billing account). Leave `billingAccountId` unset. After `pulumi up`, `budgetTopicId` looks like `projects/PROJECT/topics/jackline-budget`.
+
+Console: Billing → Budgets & alerts → create a $35 / month budget for this project, thresholds 50 / 80 / 90 / 100, then **Connect a Pub/Sub topic** and select `jackline-budget`.
+
+gcloud (billing-account admin):
+
+```bash
+BILLING_ACCOUNT=012345-6789AB-CDEF01
+PROJECT=your-gcp-project-id
+TOPIC="projects/${PROJECT}/topics/jackline-budget"
+gcloud billing budgets create \
+  --billing-account="$BILLING_ACCOUNT" \
+  --display-name="Jackline monthly budget" \
+  --budget-amount=35USD \
+  --calendar-period=month \
+  --filter-projects="projects/${PROJECT}" \
+  --threshold-rule=percent=0.5 \
+  --threshold-rule=percent=0.8 \
+  --threshold-rule=percent=0.9 \
+  --threshold-rule=percent=1.0 \
+  --notifications-rule-pubsub-topic="$TOPIC"
+```
+
+`--filter-projects` takes `projects/PROJECT_ID`. The Pulumi budget resource uses the project **number** (`projects/123…`), which is what the Billing API stores.
+
+### Safe test, then start things again
+
+Pub/Sub messages are delivered several times a day once a budget is connected, including when spend is under the cap. To rehearse without stopping prod, turn dry run on (the function logs the stop it would perform and does not call Compute or Cloud SQL):
+
+```bash
+cd deploy/pulumi/vm
+pulumi config set budgetShutoffDryRun true
+pulumi up
+```
+
+Publish a synthetic over-budget payload (dry run must be on, or this **stops production**):
+
+```bash
+gcloud pubsub topics publish jackline-budget --project="$PROJECT" \
+  --message='{"budgetDisplayName":"Jackline monthly budget","alertThresholdExceeded":1.0,"costAmount":35,"costIntervalStart":"2026-11-01T00:00:00Z","budgetAmount":35,"budgetAmountType":"SPECIFIED_AMOUNT","currencyCode":"USD"}'
+gcloud logging read \
+  'resource.type="cloud_run_revision" AND resource.labels.service_name="jackline-budget-shutoff"' \
+  --project="$PROJECT" --limit=20 --freshness=1h --format='value(textPayload,jsonPayload.message)'
+```
+
+Logs Explorer:
+
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name="jackline-budget-shutoff"
+```
+
+An under-budget message (`"costAmount":1`) should log and return. A malformed message is logged and acknowledged so Pub/Sub does not retry it forever.
+
+When you are satisfied, set `budgetShutoffDryRun` to `false` and `pulumi up` again.
+
+**Start prod after a real shutoff** (disks and data are still there; this does not restore from backup):
+
+```bash
+gcloud compute instances start jackline --zone=us-central1-a --project="$PROJECT"
+gcloud sql instances patch jackline-db --activation-policy=ALWAYS --project="$PROJECT"
+```
+
+Use the real zone if it is not `us-central1-a`. Cloud SQL can take several minutes to become `RUNNABLE`. Then re-run Deploy prod or `remote-deploy.sh` if the app containers are not up.
+
+From the repo root, `pnpm install` once before a local `pulumi up`. The Pulumi program packages the function (compiled JavaScript plus a lockfile, no `node_modules`) so Cloud Build installs real dependencies and does not see pnpm symlinks.
+
 ## Cost / abuse notes
 
-- **VM:** bot traffic saturates CPU/RAM; bill stays roughly machine-sized (egress can still grow if scraped). Primary safety: fixed size + destroy/stop when idle.
+- **VM:** bot traffic saturates CPU/RAM; bill stays roughly machine-sized (egress can still grow if scraped). Primary safety: fixed size, the [budget shutoff](#budget-shutoff-circuit-breaker), and destroy/stop when idle. Stopped disks and the static IP still cost money.
 - **GKE:** day-scale bills are often dominated by Autopilot, then load balancing. Removing the Ingress alone does not stop Autopilot burn.
 - Illustration only (one partial day on Autopilot): ~72% GKE / ~10% LB of ~$1.22 — not a guarantee for your project.
 
@@ -125,7 +251,7 @@ CI does **not** use your personal `gcloud` login or a long-lived JSON key.
    ```
 
 4. Enable **`iap.googleapis.com`** and **`oslogin.googleapis.com`** (IAP tunnel + OS Login SSH).
-5. The VM path creates a dedicated **`jackline-vm@…`** runtime SA (not the default Compute Engine SA) and attaches it to the instance. Set Pulumi config `deployServiceAccount` to your CI deploy SA email (CI does this automatically from `GCP_SERVICE_ACCOUNT`) so Pulumi grants `roles/iam.serviceAccountUser` on `jackline-vm` — required for OS Login and for attaching the SA at create/update time.
+5. The VM path creates a dedicated **`jackline-vm@…`** runtime SA (not the default Compute Engine SA) and attaches it to the instance. Set Pulumi config `deployServiceAccount` to your CI deploy SA email (CI does this automatically from `GCP_SERVICE_ACCOUNT`) so Pulumi grants `roles/iam.serviceAccountUser` on `jackline-vm` — required for OS Login and for attaching the SA at create/update time. The [budget shutoff](#budget-shutoff-circuit-breaker) needs extra project roles on this same deploy SA before its first apply (Pub/Sub, Cloud Functions, Cloud Run, Eventarc, Cloud Build, Artifact Registry, Storage, custom roles, project IAM).
 6. Put secrets and variables on the GitHub **`production` Environment** (both workflows set `environment: production`):
    **Settings → Environments → production**.
 
@@ -234,8 +360,10 @@ gcloud sql backups restore BACKUP_ID --restore-instance=jackline-db --project=YO
 ```text
 deploy/pulumi/
   README.md          ← you are here
-  vm/                ← hobbyist default
+  vm/                ← hobbyist default (includes the budget shutoff)
   gke/               ← advanced Autopilot path
+deploy/functions/
+  budget-shutoff/    ← Pub/Sub Cloud Run function packaged by the VM stack
 deploy/scripts/
   remote-deploy.sh              ← VM app update (CI + manual)
   ci-pulumi-apply-config.sh     ← vars + SM prefix → pulumi config

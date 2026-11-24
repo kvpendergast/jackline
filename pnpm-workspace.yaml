@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "deploy/functions/*"
 
 # Force patched hono everywhere (zudoku still pins 4.12.32 otherwise).
 overrides:
