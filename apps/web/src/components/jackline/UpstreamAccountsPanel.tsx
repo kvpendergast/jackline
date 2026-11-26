@@ -190,7 +190,7 @@ export function UpstreamAccountsPanel({
               type="email"
               value={expectedEmail}
               onChange={(e) => setExpectedEmail(e.target.value)}
-              placeholder="me@kylependergast.com"
+              placeholder="work@example.com"
               autoComplete="off"
             />
           </Field>
