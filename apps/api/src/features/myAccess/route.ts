@@ -1,7 +1,9 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+  MyAccessAccountSchema,
   MyAccessServerSchema,
   PublicSecretSchema,
+  RenameUpstreamAccountBodySchema,
   UpsertMyAccessCredentialBodySchema,
 } from "@jackline/shared";
 import { successEnvelopeSchema } from "../../lib/http/envelope.js";
@@ -35,8 +37,23 @@ const DeleteMyAccessCredentialResponseSchema = successEnvelopeSchema(
   "DeleteMyAccessCredentialResponse",
 );
 
+const AccountIdParamSchema = z
+  .object({
+    accountId: z.uuid().openapi({
+      param: { name: "accountId", in: "path" },
+      example: "00000000-0000-4000-8000-000000000000",
+    }),
+  })
+  .openapi("MyAccessAccountIdParam");
+
+const MyAccessAccountResponseSchema = successEnvelopeSchema(
+  MyAccessAccountSchema,
+  "MyAccessAccountResponse",
+);
+
 const serverNotFound = notFoundError("Server not found");
 const credentialNotFound = notFoundError("Credential not found");
+const accountNotFound = notFoundError("Account not found");
 
 const listMyServers = createRoute({
   method: "get",
@@ -107,8 +124,80 @@ const deleteMyCredential = createRoute({
   },
 });
 
+const renameAccount = createRoute({
+  method: "patch",
+  path: "/me/accounts/{accountId}",
+  tags: ["My Access"],
+  summary: "Rename one of this user’s upstream accounts",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: AccountIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: RenameUpstreamAccountBodySchema },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated account",
+      content: {
+        "application/json": { schema: MyAccessAccountResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...accountNotFound,
+  },
+});
+
+const makeDefaultAccount = createRoute({
+  method: "post",
+  path: "/me/accounts/{accountId}/default",
+  tags: ["My Access"],
+  summary: "Mark one upstream account as this user’s default on its server",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: AccountIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Updated account",
+      content: {
+        "application/json": { schema: MyAccessAccountResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...accountNotFound,
+  },
+});
+
+const deleteAccount = createRoute({
+  method: "delete",
+  path: "/me/accounts/{accountId}",
+  tags: ["My Access"],
+  summary: "Disconnect one upstream account",
+  request: {
+    headers: TenantIdHeaderSchema,
+    params: AccountIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Account deleted",
+      content: {
+        "application/json": { schema: DeleteMyAccessCredentialResponseSchema },
+      },
+    },
+    ...tenantScopedErrors,
+    ...accountNotFound,
+  },
+});
+
 export const myAccessRoutes = {
   listMyServers,
   upsertMyCredential,
   deleteMyCredential,
+  renameAccount,
+  makeDefaultAccount,
+  deleteAccount,
 } as const;

@@ -193,6 +193,12 @@ export function ServersPage() {
                     <div className="min-w-0">
                       <div className="font-medium">{row.name}</div>
                       <MonoId>{row.id.slice(0, 8)}…</MonoId>
+                      {row.connectedAccountCount > 0 ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {row.connectedAccountCount} connected{" "}
+                          {row.connectedAccountCount === 1 ? "account" : "accounts"}
+                        </p>
+                      ) : null}
                       {row.source === "catalog" || row.connectorKey ? (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {row.source === "catalog" ? (
