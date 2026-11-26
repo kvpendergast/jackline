@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { encodeOAuthSecretValue, upstreamSecretKind } from "@jackline/shared";
 import type { MyAccessServer, ServerAuthMethod } from "@jackline/shared";
@@ -13,6 +13,7 @@ import { Field, FieldSelect } from "@/components/jackline/FormBits";
 import { PageHeader, MonoId } from "@/components/jackline/PageHeader";
 import { ResponsiveDialog } from "@/components/jackline/ResponsiveDialog";
 import { KindBadge } from "@/components/jackline/StatusBadge";
+import { UpstreamAccountsPanel } from "@/components/jackline/UpstreamAccountsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,9 +68,33 @@ export function MyAccessPage() {
         const returnToParam = searchParams.get("return_to");
         const oauthError = searchParams.get("oauth_error");
         if (oauthError) {
-          setError(`OAuth failed: ${oauthError}`);
+          const cancelled = /access_denied|cancelled|canceled/i.test(oauthError);
+          setError(
+            cancelled
+              ? "Sign-in was cancelled. No account was changed."
+              : /No account was changed/i.test(oauthError)
+                ? oauthError
+                : `OAuth failed: ${oauthError}`,
+          );
         } else if (searchParams.get("connected") === "1") {
-          setInfo("Connected successfully.");
+          const email = searchParams.get("account_email");
+          const accountLabel = searchParams.get("account_label");
+          const status = searchParams.get("account_status");
+          if (status === "refreshed" && email) {
+            setInfo(
+              `${email} was already connected. Token refreshed. Agents choose with the account name, e.g. "${accountLabel ?? email}".`,
+            );
+          } else if (email) {
+            setInfo(
+              `Connected ${email}${accountLabel ? ` as “${accountLabel}”` : ""}. Agents choose with the account name, e.g. "${accountLabel ?? "work"}".`,
+            );
+          } else if (accountLabel) {
+            setInfo(
+              `Connected “${accountLabel}”. Agents choose with the account name, e.g. "${accountLabel}".`,
+            );
+          } else {
+            setInfo("Connected successfully.");
+          }
         }
 
         const deepLinkServerId = searchParams.get("server");
@@ -78,16 +103,30 @@ export function MyAccessPage() {
             (row) => row.serverId === deepLinkServerId && row.canConnect,
           );
           if (target) {
+            const several = target.accounts.length >= 2;
             if (
               target.oauthConnectAvailable &&
+              !several &&
               searchParams.get("connected") !== "1" &&
               !oauthError
             ) {
               try {
+                const only = target.accounts.length === 1 ? target.accounts[0] : undefined;
                 const result = await jacklineApi.startOauthConnect(
                   tenantId!,
                   target.serverId,
-                  returnToParam,
+                  {
+                    ...(returnToParam ? { returnTo: returnToParam } : {}),
+                    ...(only
+                      ? {
+                          mode: "reconnect" as const,
+                          accountId: only.id,
+                          ...(only.externalEmail
+                            ? { expectedEmail: only.externalEmail }
+                            : {}),
+                        }
+                      : { mode: "connect" as const }),
+                  },
                 );
                 window.location.assign(result.authorizeUrl);
                 return;
@@ -113,7 +152,10 @@ export function MyAccessPage() {
           searchParams.has("server") ||
           searchParams.has("connected") ||
           searchParams.has("oauth_error") ||
-          searchParams.has("return_to")
+          searchParams.has("return_to") ||
+          searchParams.has("account_status") ||
+          searchParams.has("account_email") ||
+          searchParams.has("account_label")
         ) {
           setSearchParams(
             (prev) => {
@@ -122,6 +164,9 @@ export function MyAccessPage() {
               next.delete("connected");
               next.delete("oauth_error");
               next.delete("return_to");
+              next.delete("account_status");
+              next.delete("account_email");
+              next.delete("account_label");
               return next;
             },
             { replace: true },
@@ -140,6 +185,27 @@ export function MyAccessPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
+
+  function accountsPanel(row: MyAccessServer) {
+    if (!tenantId) return null;
+    return (
+      <UpstreamAccountsPanel
+        tenantId={tenantId}
+        server={row}
+        onChanged={async () => {
+          await load();
+        }}
+        onInfo={(message) => {
+          setError(null);
+          setInfo(message);
+        }}
+        onError={(message) => {
+          setInfo(null);
+          setError(message || null);
+        }}
+      />
+    );
+  }
 
   async function onOauthConnect(row: MyAccessServer) {
     if (!tenantId) return;
@@ -184,12 +250,15 @@ export function MyAccessPage() {
       />
 
       {error ? (
-        <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {error}
         </p>
       ) : null}
       {info ? (
-        <p className="border border-border bg-muted/40 px-3 py-2 text-sm">
+        <p role="status" className="border border-border bg-muted/40 px-3 py-2 text-sm">
           {info}
         </p>
       ) : null}
@@ -226,6 +295,7 @@ export function MyAccessPage() {
                       <KindBadge kind={row.authMethod} />
                     </div>
                     <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
+                    {accountsPanel(row)}
                     {row.credentialMode === "either" &&
                     row.sharedFallbackAvailable ? (
                       <p>Shared org credential available as fallback</p>
@@ -235,7 +305,7 @@ export function MyAccessPage() {
                 actions={
                   row.canConnect ? (
                     <>
-                      {row.oauthConnectAvailable ? (
+                      {row.oauthConnectAvailable && row.accounts.length === 0 ? (
                         <Button
                           size="sm"
                           onClick={() => void onOauthConnect(row)}
@@ -260,7 +330,7 @@ export function MyAccessPage() {
                             ? "Rotate"
                             : "Connect"}
                       </Button>
-                      {row.status === "connected" ? (
+                      {row.accounts.length === 0 && row.status === "connected" ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -308,7 +378,8 @@ export function MyAccessPage() {
                   </TableRow>
                 ) : null}
                 {items.map((row) => (
-                  <TableRow key={row.serverId}>
+                  <Fragment key={row.serverId}>
+                  <TableRow>
                     <TableCell>
                       <div className="font-medium">{row.name}</div>
                       <MonoId>{row.serverId.slice(0, 8)}…</MonoId>
@@ -341,7 +412,7 @@ export function MyAccessPage() {
                     <TableCell className="text-right">
                       {row.canConnect ? (
                         <div className="flex justify-end gap-2">
-                          {row.oauthConnectAvailable ? (
+                          {row.oauthConnectAvailable && row.accounts.length === 0 ? (
                             <Button
                               size="sm"
                               onClick={() => void onOauthConnect(row)}
@@ -366,7 +437,7 @@ export function MyAccessPage() {
                                 ? "Rotate"
                                 : "Connect"}
                           </Button>
-                          {row.status === "connected" ? (
+                          {row.accounts.length === 0 && row.status === "connected" ? (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -383,6 +454,14 @@ export function MyAccessPage() {
                       )}
                     </TableCell>
                   </TableRow>
+                  {row.authMethod === "oauth" && row.accounts.length > 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={4} className="pt-0">
+                        {accountsPanel(row)}
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

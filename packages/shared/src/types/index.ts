@@ -43,6 +43,10 @@ export {
 export {
   type MyAccessServer,
   MyAccessServerSchema,
+  type MyAccessAccount,
+  MyAccessAccountSchema,
+  type RenameUpstreamAccountBody,
+  RenameUpstreamAccountBodySchema,
   type MyAccessCredentialStatus,
   MyAccessCredentialStatusSchema,
   type UpsertMyAccessCredentialBody,

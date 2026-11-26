@@ -162,6 +162,13 @@
       "when": 1793241851189,
       "tag": "0022_oauth_apps",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795703595314,
+      "tag": "0023_pretty_zodiak",
+      "breakpoints": true
     }
   ]
 }

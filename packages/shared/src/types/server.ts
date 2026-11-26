@@ -41,6 +41,8 @@ export const PublicServerSchema = z.strictObject({
    * self-attach tools that do not themselves require approval.
    */
   requiresApproval: z.boolean(),
+  /** How many upstream accounts members have connected on this server. */
+  connectedAccountCount: z.number().int().nonnegative(),
   tenantId: z.uuid(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

@@ -1218,6 +1218,10 @@
                     "requiresApproval": {
                       "type": "boolean"
                     },
+                    "connectedAccountCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
                     "tenantId": {
                       "type": "string",
                       "format": "uuid"
@@ -1252,6 +1256,7 @@
                     "hasOauthClientSecret",
                     "oauthAppId",
                     "requiresApproval",
+                    "connectedAccountCount",
                     "tenantId",
                     "createdAt",
                     "updatedAt"
@@ -1388,6 +1393,10 @@
               "requiresApproval": {
                 "type": "boolean"
               },
+              "connectedAccountCount": {
+                "type": "integer",
+                "minimum": 0
+              },
               "tenantId": {
                 "type": "string",
                 "format": "uuid"
@@ -1422,6 +1431,7 @@
               "hasOauthClientSecret",
               "oauthAppId",
               "requiresApproval",
+              "connectedAccountCount",
               "tenantId",
               "createdAt",
               "updatedAt"
@@ -4682,6 +4692,54 @@
                     },
                     "oauthConnectAvailable": {
                       "type": "boolean"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "externalEmail": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "externalSubject": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "isDefault": {
+                            "type": "boolean"
+                          },
+                          "lastUsedAt": {
+                            "type": "string",
+                            "nullable": true,
+                            "format": "date-time"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "connected",
+                              "missing"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "externalEmail",
+                          "externalSubject",
+                          "isDefault",
+                          "lastUsedAt",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -4692,7 +4750,8 @@
                     "status",
                     "canConnect",
                     "sharedFallbackAvailable",
-                    "oauthConnectAvailable"
+                    "oauthConnectAvailable",
+                    "accounts"
                   ],
                   "additionalProperties": false
                 }
@@ -4811,6 +4870,67 @@
             "required": [
               "deleted"
             ]
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "MyAccessAccountResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "label": {
+                "type": "string"
+              },
+              "externalEmail": {
+                "type": "string",
+                "nullable": true
+              },
+              "externalSubject": {
+                "type": "string",
+                "nullable": true
+              },
+              "isDefault": {
+                "type": "boolean"
+              },
+              "lastUsedAt": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "connected",
+                  "missing"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "externalEmail",
+              "externalSubject",
+              "isDefault",
+              "lastUsedAt",
+              "status"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -14164,6 +14284,307 @@
         }
       }
     },
+    "/api/v1/me/accounts/{accountId}": {
+      "patch": {
+        "tags": [
+          "My Access"
+        ],
+        "summary": "Rename one of this user’s upstream accounts",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "accountId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAccessAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "My Access"
+        ],
+        "summary": "Disconnect one upstream account",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "accountId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteMyAccessCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/accounts/{accountId}/default": {
+      "post": {
+        "tags": [
+          "My Access"
+        ],
+        "summary": "Mark one upstream account as this user’s default on its server",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "accountId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "00000000-0000-4000-8000-000000000000",
+              "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set)."
+            },
+            "required": false,
+            "description": "Required for session auth (send as X-Jackline-Tenant-Id). Optional for OAuth2 Bearer tokens (must match token tenant if set).",
+            "name": "x-jackline-tenant-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAccessAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or missing tenant header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member or insufficient role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/oauth/start": {
       "post": {
         "tags": [
@@ -14198,6 +14619,27 @@
                   "returnTo": {
                     "type": "string",
                     "maxLength": 2048
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "connect",
+                      "add",
+                      "reconnect"
+                    ]
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedEmail": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
                   }
                 },
                 "required": [

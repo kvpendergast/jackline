@@ -44,6 +44,7 @@ const TokenResponseSchema = z.object({
   expires_in: z.number().int().positive().optional(),
   refresh_token: z.string().min(1).optional(),
   token_type: z.string().optional(),
+  id_token: z.string().min(1).optional(),
 });
 
 export function parseUpstreamOAuthSecret(
@@ -751,6 +752,7 @@ export async function exchangeAuthorizationCode(input: {
       refreshToken?: string;
       expiresAt?: number;
       scopes?: string;
+      idToken?: string;
     },
     JacklineError
   >
@@ -782,6 +784,7 @@ export async function exchangeAuthorizationCode(input: {
     ...(token.value.expires_in
       ? { expiresAt: Date.now() + token.value.expires_in * 1000 }
       : {}),
+    ...(token.value.id_token ? { idToken: token.value.id_token } : {}),
   });
 }
 
