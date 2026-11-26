@@ -583,12 +583,43 @@ export const jacklineApi = {
   startOauthConnect: (
     tenantId: string,
     serverId: string,
-    returnTo?: string | null,
+    options?: {
+      returnTo?: string | null;
+      mode?: "connect" | "add" | "reconnect";
+      accountId?: string;
+      expectedEmail?: string;
+      label?: string;
+    },
   ) =>
     api<{ authorizeUrl: string; redirectUri: string }>("/api/v1/oauth/start", {
       tenantId,
       method: "POST",
-      body: { serverId, ...(returnTo ? { returnTo } : {}) },
+      body: {
+        serverId,
+        ...(options?.returnTo ? { returnTo: options.returnTo } : {}),
+        ...(options?.mode ? { mode: options.mode } : {}),
+        ...(options?.accountId ? { accountId: options.accountId } : {}),
+        ...(options?.expectedEmail ? { expectedEmail: options.expectedEmail } : {}),
+        ...(options?.label ? { label: options.label } : {}),
+      },
+    }),
+
+  renameUpstreamAccount: (tenantId: string, accountId: string, label: string) =>
+    api<import("@jackline/shared").MyAccessAccount>(
+      `/api/v1/me/accounts/${accountId}`,
+      { tenantId, method: "PATCH", body: { label } },
+    ),
+
+  makeDefaultUpstreamAccount: (tenantId: string, accountId: string) =>
+    api<import("@jackline/shared").MyAccessAccount>(
+      `/api/v1/me/accounts/${accountId}/default`,
+      { tenantId, method: "POST" },
+    ),
+
+  deleteUpstreamAccount: (tenantId: string, accountId: string) =>
+    api<{ deleted: true }>(`/api/v1/me/accounts/${accountId}`, {
+      tenantId,
+      method: "DELETE",
     }),
 
   upsertMyAccessCredential: (

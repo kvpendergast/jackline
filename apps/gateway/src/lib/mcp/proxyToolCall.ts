@@ -2,11 +2,16 @@ import { and, eq } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import { db, servers, tools } from "@jackline/db";
 import {
+  annotateToolResultWithAccount,
   BadRequestError,
+  formatAccountList,
   JacklineError,
   NotFoundError,
+  resolveUpstreamAccount,
+  stripAccountArg,
   UpstreamCredentialFailureError,
   isInvalidUpstreamTokenError,
+  type UpstreamAccountRef,
 } from "@jackline/shared";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { GatewayConnectionContext } from "../auth/types.js";
@@ -20,8 +25,13 @@ import {
   connectUpstream,
   formatUpstreamError,
   upstreamExpiredCredentialError,
+  type UpstreamAuthOptions,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
+import {
+  listUpstreamAccountsByServer,
+  touchUpstreamAccountUsed,
+} from "./upstreamAccounts.js";
 
 async function touchServerHealth(
   serverId: string,
@@ -58,13 +68,14 @@ async function attemptMcpToolCall(
   toolName: string,
   args: Record<string, unknown>,
   forceRefresh: boolean,
+  auth?: UpstreamAuthOptions,
 ): Promise<Result<CallToolResult, UpstreamAttemptFailure>> {
   const connected = await connectUpstream(
     ctx.log,
     ctx.tenantId,
     ctx.connection.userId,
     server,
-    forceRefresh ? { forceRefresh: true } : undefined,
+    { ...auth, ...(forceRefresh ? { forceRefresh: true } : {}) },
   );
   if (connected.isErr()) {
     await touchServerHealth(server.id, "unhealthy");
@@ -126,10 +137,11 @@ async function proxyMcpToolCall(
   server: UpstreamServerRow,
   toolName: string,
   args: Record<string, unknown>,
+  auth?: UpstreamAuthOptions,
 ): Promise<Result<CallToolResult, JacklineError>> {
   return callWithAuthRetry({
     attempt: (forceRefresh) =>
-      attemptMcpToolCall(ctx, tool, server, toolName, args, forceRefresh),
+      attemptMcpToolCall(ctx, tool, server, toolName, args, forceRefresh, auth),
     expiredError: () => upstreamExpiredCredentialError(server),
     onRetry: () =>
       ctx.log.info(
@@ -144,10 +156,27 @@ async function proxyMcpToolCall(
  */
 export async function proxyToolCall(
   ctx: GatewayConnectionContext,
-  tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name">,
+  tool: Pick<AllowedMcpTool, "toolId" | "serverId" | "name" | "synthetic">,
   args: Record<string, unknown>,
 ): Promise<Result<CallToolResult, JacklineError>> {
   const { tenantId } = ctx;
+
+  if (tool.synthetic === "list_accounts") {
+    const byServer = await listUpstreamAccountsByServer(tenantId, ctx.connection.userId, [
+      tool.serverId,
+    ]);
+    const accounts = byServer.get(tool.serverId) ?? [];
+    return ok({
+      content: [
+        {
+          type: "text",
+          text: accounts.length
+            ? `Connected accounts: ${formatAccountList(accounts)}.`
+            : "No accounts are connected.",
+        },
+      ],
+    });
+  }
 
   const [row] = await db
     .select({
@@ -187,6 +216,14 @@ export async function proxyToolCall(
     status: row.serverStatus,
   };
 
+  const prepared = await prepareAccountCall(
+    tenantId,
+    ctx.connection.userId,
+    upstreamServer,
+    args,
+  );
+  if (prepared.isErr()) return err(prepared.error);
+
   if (row.kind === "api") {
     const binding = assertHttpBinding(ctx.log, row);
     if (binding.isErr()) return err(binding.error);
@@ -200,7 +237,8 @@ export async function proxyToolCall(
         httpMethod: binding.value.httpMethod,
         pathTemplate: binding.value.pathTemplate,
       },
-      args,
+      prepared.value.args,
+      prepared.value.auth,
     );
 
     if (result.isErr()) {
@@ -209,14 +247,86 @@ export async function proxyToolCall(
     }
 
     await touchServerHealth(row.serverId, "healthy");
-    return ok(result.value);
+    return ok(await finishAccountCall(result.value, prepared.value.account));
   }
 
   if (row.kind === "mcp") {
-    return proxyMcpToolCall(ctx, tool, upstreamServer, row.toolName, args);
+    const proxied = await proxyMcpToolCall(
+      ctx,
+      tool,
+      upstreamServer,
+      row.toolName,
+      prepared.value.args,
+      prepared.value.auth,
+    );
+    if (proxied.isErr()) return proxied;
+    return ok(await finishAccountCall(proxied.value, prepared.value.account));
   }
 
   return err(
     new BadRequestError(`Unsupported server kind "${row.kind as string}"`),
   );
+}
+
+async function prepareAccountCall(
+  tenantId: string,
+  userId: string,
+  server: UpstreamServerRow,
+  args: Record<string, unknown>,
+): Promise<
+  Result<
+    {
+      args: Record<string, unknown>;
+      auth: UpstreamAuthOptions | undefined;
+      account: UpstreamAccountRef | undefined;
+    },
+    JacklineError
+  >
+> {
+  const stripped = stripAccountArg(args);
+  if (server.authMethod !== "oauth" || server.credentialMode === "shared") {
+    return ok({ args: stripped.rest, auth: undefined, account: undefined });
+  }
+  const byServer = await listUpstreamAccountsByServer(tenantId, userId, [server.id]);
+  const accounts = byServer.get(server.id) ?? [];
+  if (accounts.length === 0) {
+    return ok({ args: stripped.rest, auth: undefined, account: undefined });
+  }
+  const resolved = resolveUpstreamAccount({
+    accounts,
+    requested: stripped.requested,
+  });
+  if (!resolved.ok) return err(new BadRequestError(resolved.message));
+  return ok({
+    args: stripped.rest,
+    auth: { accountId: resolved.account.id, accountSelection: "explicit" },
+    account: resolved.account,
+  });
+}
+
+async function finishAccountCall(
+  result: CallToolResult,
+  account: UpstreamAccountRef | undefined,
+): Promise<CallToolResult> {
+  if (!account) return result;
+  await touchUpstreamAccountUsed(account.id);
+  const annotated = annotateToolResultWithAccount(
+    {
+      content: result.content.flatMap((item) =>
+        item.type === "text" ? [{ type: "text" as const, text: item.text }] : [],
+      ),
+    },
+    account,
+  );
+  return {
+    ...result,
+    content: [
+      annotated.content[0]!,
+      ...result.content,
+    ],
+    _meta: {
+      ...(result._meta ?? {}),
+      ...annotated._meta,
+    },
+  };
 }

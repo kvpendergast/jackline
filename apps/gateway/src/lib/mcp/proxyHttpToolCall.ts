@@ -13,6 +13,7 @@ import {
   isInvalidUpstreamTokenError,
   resolveUpstreamAuthHeaders,
   upstreamExpiredCredentialError,
+  type UpstreamAuthOptions,
   type UpstreamServerRow,
 } from "./upstreamClient.js";
 
@@ -126,6 +127,7 @@ export async function proxyHttpToolCall(
     pathTemplate: string;
   },
   args: Record<string, unknown>,
+  auth?: UpstreamAuthOptions,
 ): Promise<Result<CallToolResult, JacklineError>> {
   const { tenantId, connection, log } = ctx;
 
@@ -134,6 +136,7 @@ export async function proxyHttpToolCall(
     tenantId,
     connection.userId,
     server,
+    auth,
   );
   if (headersResult.isErr()) return err(headersResult.error);
 
@@ -200,7 +203,7 @@ export async function proxyHttpToolCall(
       tenantId,
       connection.userId,
       server,
-      { forceRefresh: true },
+      { ...auth, forceRefresh: true },
     );
     if (refreshed.isErr()) return err(refreshed.error);
 

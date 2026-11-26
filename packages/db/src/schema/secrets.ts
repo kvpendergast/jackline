@@ -13,11 +13,13 @@ import { tenants } from "./tenants.js";
 import { servers } from "./servers.js";
 import { user } from "./auth.js";
 import { connections } from "./connections.js";
+import { upstreamAccounts } from "./upstreamAccounts.js";
 
 /**
  * Encrypted credentials:
  * - Upstream server-level: serverId set, userId null, connectionId null
- * - Upstream per-user: serverId + userId, connectionId null
+ * - Upstream per-user (api key, or legacy oauth): serverId + userId, connectionId null, upstreamAccountId null
+ * - Upstream per-account oauth: serverId + userId + upstreamAccountId
  * - Jackline gateway token: connectionId set, serverId null
  */
 export const secrets = pgTable(
@@ -39,6 +41,11 @@ export const secrets = pgTable(
     connectionId: uuid("connection_id").references(() => connections.id, {
       onDelete: "cascade",
     }),
+    /** Set on per-user OAuth tokens. Null for api keys, shared secrets, and gateway tokens. */
+    upstreamAccountId: uuid("upstream_account_id").references(
+      () => upstreamAccounts.id,
+      { onDelete: "cascade" },
+    ),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
@@ -52,8 +59,11 @@ export const secrets = pgTable(
     uniqueIndex("secrets_user_level_kind_unique")
       .on(t.tenantId, t.serverId, t.userId, t.kind)
       .where(
-        sql`${t.serverId} is not null and ${t.userId} is not null and ${t.connectionId} is null`,
+        sql`${t.serverId} is not null and ${t.userId} is not null and ${t.connectionId} is null and ${t.upstreamAccountId} is null`,
       ),
+    uniqueIndex("secrets_user_account_kind_unique")
+      .on(t.tenantId, t.serverId, t.userId, t.upstreamAccountId, t.kind)
+      .where(sql`${t.upstreamAccountId} is not null`),
     uniqueIndex("secrets_connection_kind_unique")
       .on(t.tenantId, t.connectionId, t.kind)
       .where(sql`${t.connectionId} is not null`),

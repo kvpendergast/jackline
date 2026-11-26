@@ -27,6 +27,7 @@ const config: ZudokuConfig = {
         "/authentication",
         "/mcp-oauth",
         "/shared-oauth-apps",
+        "/multiple-accounts",
         "/a2a-agents",
       ],
     },

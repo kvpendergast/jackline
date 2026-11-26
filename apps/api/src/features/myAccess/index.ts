@@ -15,5 +15,8 @@ export const myAccessFeature: AppSlice = {
     "listMyServers",
     "upsertMyCredential",
     "deleteMyCredential",
+    "renameAccount",
+    "makeDefaultAccount",
+    "deleteAccount",
   ] as const),
 };

@@ -48,7 +48,9 @@ export async function fetchUpstreamToolMeta(
     return new Map();
   }
 
-  const connected = await connectUpstream(log, tenantId, userId, server.value);
+  const connected = await connectUpstream(log, tenantId, userId, server.value, {
+    accountSelection: "any",
+  });
   if (connected.isErr()) {
     log.warn(
       { err: connected.error, serverId },

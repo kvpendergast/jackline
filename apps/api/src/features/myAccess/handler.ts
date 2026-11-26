@@ -52,8 +52,61 @@ const deleteMyCredential: RouteHandler<
   return c.json(okEnvelope(result.value), 200);
 };
 
+const renameAccount: RouteHandler<
+  typeof myAccessRoutes.renameAccount,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { accountId } = c.req.valid("param");
+  const body = c.req.valid("json");
+  const result = await myAccessServices.renameAccount(
+    log,
+    auth.tenantId,
+    auth.userId,
+    accountId,
+    body.label,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const makeDefaultAccount: RouteHandler<
+  typeof myAccessRoutes.makeDefaultAccount,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { accountId } = c.req.valid("param");
+  const result = await myAccessServices.makeDefaultAccount(
+    log,
+    auth.tenantId,
+    auth.userId,
+    accountId,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
+const deleteAccount: RouteHandler<
+  typeof myAccessRoutes.deleteAccount,
+  JacklineEnv
+> = async (c) => {
+  const { auth, log } = c.get("tenantContext");
+  const { accountId } = c.req.valid("param");
+  const result = await myAccessServices.deleteAccount(
+    log,
+    auth.tenantId,
+    auth.userId,
+    accountId,
+  );
+  if (result.isErr()) throw result.error;
+  return c.json(okEnvelope(result.value), 200);
+};
+
 export const myAccessHandlers = {
   listMyServers,
   upsertMyCredential,
   deleteMyCredential,
+  renameAccount,
+  makeDefaultAccount,
+  deleteAccount,
 } as const;

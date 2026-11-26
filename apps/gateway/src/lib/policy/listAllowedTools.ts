@@ -1,4 +1,10 @@
-import { formatMcpToolName } from "@jackline/shared";
+import {
+  appendAccountDescription,
+  formatMcpToolName,
+  injectAccountJsonSchema,
+  listAccountsToolName,
+  type UpstreamAccountRef,
+} from "@jackline/shared";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { getAllowedTools } from "@jackline/policy";
@@ -12,6 +18,7 @@ import {
   fetchUpstreamToolMetaByServer,
   type UpstreamToolMeta,
 } from "../mcp/fetchUpstreamToolSchemas.js";
+import { listUpstreamAccountsByServer } from "../mcp/upstreamAccounts.js";
 import {
   jsonSchemaToZod,
   passthroughArgsSchema,
@@ -22,9 +29,10 @@ export type AllowedMcpTool = {
   name: string;
   description: string;
   inputSchema: z.ZodType;
-  /** Internal Jackline tool id for later tools/call. */
+  /** Internal Jackline tool id for later tools/call. Empty for synthetic tools. */
   toolId: string;
   serverId: string;
+  synthetic?: "list_accounts";
 };
 
 /** Always `serverName__toolName` so clients can distinguish shared upstream names. */
@@ -37,18 +45,27 @@ export function mcpToolName(
 function descriptionFor(
   tool: ConnectionToolRecord,
   meta: UpstreamToolMeta | undefined,
+  accounts: UpstreamAccountRef[],
 ): string {
-  if (tool.description?.trim()) return tool.description.trim();
-  if (meta?.description?.trim()) return meta.description.trim();
-  return `${tool.serverName}: ${tool.name}`;
+  const base = tool.description?.trim()
+    ? tool.description.trim()
+    : meta?.description?.trim()
+      ? meta.description.trim()
+      : `${tool.serverName}: ${tool.name}`;
+  return appendAccountDescription(base, accounts);
 }
 
 function schemaFor(
   tool: ConnectionToolRecord,
   meta: UpstreamToolMeta | undefined,
+  accounts: UpstreamAccountRef[],
 ): z.ZodType {
-  if (tool.inputSchema) return jsonSchemaToZod(tool.inputSchema);
-  if (meta?.inputSchema) return jsonSchemaToZod(meta.inputSchema);
+  const raw = tool.inputSchema ?? meta?.inputSchema ?? null;
+  const injected = injectAccountJsonSchema(raw, accounts);
+  if (injected && typeof injected === "object") return jsonSchemaToZod(injected);
+  if (accounts.length >= 2) {
+    return jsonSchemaToZod(injectAccountJsonSchema({ type: "object", properties: {} }, accounts));
+  }
   return passthroughArgsSchema;
 }
 
@@ -94,16 +111,44 @@ export async function listAllowedMcpTools(
         )
       : new Map<string, Map<string, UpstreamToolMeta>>();
 
-  const mcpTools = allowedRecords.map((tool) => {
+  const accountsByServer = await listUpstreamAccountsByServer(
+    tenantId,
+    userId,
+    [...new Set(allowedRecords.map((tool) => tool.serverId))],
+  );
+
+  const mcpTools: AllowedMcpTool[] = allowedRecords.map((tool) => {
     const meta = metaByServer.get(tool.serverId)?.get(tool.name);
+    const accounts = accountsByServer.get(tool.serverId) ?? [];
     return {
       name: mcpToolName(tool),
-      description: descriptionFor(tool, meta),
-      inputSchema: schemaFor(tool, meta),
+      description: descriptionFor(tool, meta, accounts),
+      inputSchema: schemaFor(tool, meta, accounts),
       toolId: tool.id,
       serverId: tool.serverId,
     };
   });
+
+  const serversWithChoice = new Map<string, string>();
+  for (const tool of allowedRecords) {
+    if ((accountsByServer.get(tool.serverId) ?? []).length >= 2) {
+      serversWithChoice.set(tool.serverId, tool.serverName);
+    }
+  }
+  for (const [serverId, serverName] of serversWithChoice) {
+    const accounts = accountsByServer.get(serverId) ?? [];
+    mcpTools.push({
+      name: listAccountsToolName(serverName),
+      description: appendAccountDescription(
+        `List the accounts connected to ${serverName}. Use a label or email as the account argument on other ${serverName} tools.`,
+        accounts,
+      ),
+      inputSchema: z.object({}),
+      toolId: "",
+      serverId,
+      synthetic: "list_accounts",
+    });
+  }
 
   log.info(
     {
