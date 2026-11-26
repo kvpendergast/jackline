@@ -25,6 +25,7 @@ services:
     labels:
       # Set by deploy/scripts/remote-deploy.sh; changes force a recreate.
       dev.jackline.otel-config-sha: ${JACKLINE_OTEL_CONFIG_SHA:-unset}
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_OTEL:-unset}
     # ADC via GCE metadata (jackline-vm SA). Optional GOOGLE_CLOUD_PROJECT if
     # not on GCE — set GCP_PROJECT_ID in .env.prod.
     environment:
