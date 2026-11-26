@@ -16,14 +16,14 @@ import {
 const work: UpstreamAccountRef = {
   id: "00000000-0000-4000-8000-000000000001",
   label: "Work",
-  externalEmail: "me@kylependergast.com",
+  externalEmail: "work@example.com",
   externalSubject: "sub-work",
   isDefault: true,
 };
 const personal: UpstreamAccountRef = {
   id: "00000000-0000-4000-8000-000000000002",
   label: "Personal",
-  externalEmail: "kvpendergast@gmail.com",
+  externalEmail: "personal@example.com",
   externalSubject: "sub-personal",
   isDefault: false,
 };
@@ -38,13 +38,13 @@ describe("decideOAuthAccountWrite", () => {
     const decision = decideOAuthAccountWrite({
       accounts: [],
       mode: "connect",
-      identity: { email: "Me@KylePendergast.com", subject: "sub-work" },
+      identity: { email: "Work@Example.com", subject: "sub-work" },
     });
     assert.equal(decision.type, "create");
     if (decision.type !== "create") return;
-    assert.equal(decision.email, "me@kylependergast.com");
+    assert.equal(decision.email, "work@example.com");
     assert.equal(decision.isDefault, true);
-    assert.equal(decision.label, "me");
+    assert.equal(decision.label, "work");
   });
 
   it("uses the requested label, then Account N when that label is taken", () => {
@@ -60,12 +60,12 @@ describe("decideOAuthAccountWrite", () => {
       accounts: [work, personal],
       mode: "add",
       requestedLabel: "Other",
-      identity: { email: "KVPendergast@gmail.com", subject: "sub-personal" },
+      identity: { email: "Personal@Example.com", subject: "sub-personal" },
     });
     assert.deepEqual(decision, {
       type: "update",
       accountId: personal.id,
-      email: "kvpendergast@gmail.com",
+      email: "personal@example.com",
       subject: "sub-personal",
       refreshed: true,
     });
@@ -75,13 +75,13 @@ describe("decideOAuthAccountWrite", () => {
     const decision = decideOAuthAccountWrite({
       accounts: [personal],
       mode: "add",
-      expectedEmail: "me@kylependergast.com",
-      identity: { email: "kvpendergast@gmail.com", subject: "sub-personal" },
+      expectedEmail: "work@example.com",
+      identity: { email: "personal@example.com", subject: "sub-personal" },
     });
     assert.equal(decision.type, "reject");
     if (decision.type !== "reject") return;
     assert.match(decision.message, /No account was changed/);
-    assert.match(decision.message, /me@kylependergast.com/);
+    assert.match(decision.message, /work@example.com/);
   });
 
   it("reconnect does not overwrite a different account", () => {
@@ -109,12 +109,12 @@ describe("decideOAuthAccountWrite", () => {
     const decision = decideOAuthAccountWrite({
       accounts: [migrated],
       mode: "connect",
-      identity: { email: "kvpendergast@gmail.com", subject: "sub-personal" },
+      identity: { email: "personal@example.com", subject: "sub-personal" },
     });
     assert.equal(decision.type, "update");
     if (decision.type !== "update") return;
     assert.equal(decision.accountId, work.id);
-    assert.equal(decision.email, "kvpendergast@gmail.com");
+    assert.equal(decision.email, "personal@example.com");
     assert.equal(decision.refreshed, false);
   });
 });
@@ -133,7 +133,7 @@ describe("resolveUpstreamAccount", () => {
     if (resolved.ok) return;
     assert.match(resolved.message, /Work/);
     assert.match(resolved.message, /Personal/);
-    assert.match(resolved.message, /me@kylependergast.com/);
+    assert.match(resolved.message, /work@example.com/);
   });
 
   it("resolves a label, email, or id", () => {
@@ -156,7 +156,7 @@ describe("resolveUpstreamAccount", () => {
     assert.equal(resolved.ok, false);
     if (resolved.ok) return;
     assert.match(resolved.message, /Unknown account "school"/);
-    assert.match(resolved.message, /kvpendergast@gmail.com/);
+    assert.match(resolved.message, /personal@example.com/);
   });
 });
 
@@ -201,9 +201,9 @@ describe("account argument stripping and schema", () => {
 
 describe("google identity helpers", () => {
   it("reads email and subject from an id_token payload", () => {
-    const token = `x.${b64url({ email: "me@kylependergast.com", sub: "abc" })}.y`;
+    const token = `x.${b64url({ email: "work@example.com", sub: "abc" })}.y`;
     assert.deepEqual(identityFromIdToken(token), {
-      email: "me@kylependergast.com",
+      email: "work@example.com",
       subject: "abc",
     });
   });
