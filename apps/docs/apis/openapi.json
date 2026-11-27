@@ -773,11 +773,15 @@
                   "smtp",
                   "console"
                 ]
+              },
+              "verificationSkipped": {
+                "type": "boolean"
               }
             },
             "required": [
               "deliveryReady",
-              "connectorKey"
+              "connectorKey",
+              "verificationSkipped"
             ],
             "additionalProperties": false
           }
