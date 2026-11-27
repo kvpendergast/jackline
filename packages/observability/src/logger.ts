@@ -1,4 +1,5 @@
 import pino, { type DestinationStream, type Logger } from "pino";
+import { withGcpStackTrace } from "./logFormatters.js";
 import { activeTraceLogFields } from "./traceContext.js";
 
 export type CreateLoggerOptions = {
@@ -18,6 +19,14 @@ export function createLogger(options: CreateLoggerOptions): Logger {
       level: options.logLevel,
       base: {
         service: options.service,
+      },
+      serializers: {
+        err: pino.stdSerializers.err,
+      },
+      formatters: {
+        log(object) {
+          return withGcpStackTrace(object, options.service);
+        },
       },
       mixin() {
         return activeTraceLogFields();

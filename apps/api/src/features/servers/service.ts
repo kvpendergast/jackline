@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, secrets, servers, type Server } from "@jackline/db";
+import { db, secrets, servers, upstreamAccounts, type Server } from "@jackline/db";
 import {
   discoverMcpOAuthMetadata,
   JacklineError,
@@ -89,9 +89,31 @@ async function loadOauthClientSecretFlags(
   );
 }
 
+async function loadAccountCounts(
+  tenantId: string,
+  serverIds: string[],
+): Promise<Map<string, number>> {
+  if (serverIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      serverId: upstreamAccounts.serverId,
+      n: count(),
+    })
+    .from(upstreamAccounts)
+    .where(
+      and(
+        eq(upstreamAccounts.tenantId, tenantId),
+        inArray(upstreamAccounts.serverId, serverIds),
+      ),
+    )
+    .groupBy(upstreamAccounts.serverId);
+  return new Map(rows.map((row) => [row.serverId, Number(row.n)]));
+}
+
 function toPublicServer(
   row: Server,
   hasOauthClientSecret: boolean,
+  connectedAccountCount = 0,
 ): PublicServer {
   return {
     id: row.id,
@@ -114,6 +136,7 @@ function toPublicServer(
     hasOauthClientSecret,
     oauthAppId: row.oauthAppId,
     requiresApproval: row.requiresApproval,
+    connectedAccountCount,
     tenantId: row.tenantId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -237,6 +260,10 @@ async function list(
     tenantId,
     page.items.map((r) => r.id),
   );
+  const accountCounts = await loadAccountCounts(
+    tenantId,
+    page.items.map((r) => r.id),
+  );
 
   log.debug(
     {
@@ -249,7 +276,7 @@ async function list(
 
   return ok({
     items: page.items.map((row) =>
-      toPublicServer(row, flags.has(row.id)),
+      toPublicServer(row, flags.has(row.id), accountCounts.get(row.id) ?? 0),
     ),
     nextCursor: page.nextCursor,
   });
@@ -271,8 +298,11 @@ async function get(
   }
 
   const flags = await loadOauthClientSecretFlags(tenantId, [serverId]);
+  const accountCounts = await loadAccountCounts(tenantId, [serverId]);
   log.debug({ serverId, tenantId }, "getServer");
-  return ok(toPublicServer(row, flags.has(serverId)));
+  return ok(
+    toPublicServer(row, flags.has(serverId), accountCounts.get(serverId) ?? 0),
+  );
 }
 
 async function update(
@@ -333,8 +363,11 @@ async function update(
     }
 
     const flags = await loadOauthClientSecretFlags(tenantId, [serverId]);
+    const accountCounts = await loadAccountCounts(tenantId, [serverId]);
     log.info({ serverId, tenantId }, "server updated");
-    return ok(toPublicServer(row, flags.has(serverId)));
+    return ok(
+      toPublicServer(row, flags.has(serverId), accountCounts.get(serverId) ?? 0),
+    );
   } catch (cause) {
     return err(
       fromDbWriteError(cause, "A server with this name already exists"),

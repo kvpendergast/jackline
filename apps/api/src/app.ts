@@ -25,6 +25,7 @@ import {
   authorizeGetHandler,
   dcrRegisterHandler,
   mcpTokenHandler,
+  revokeHandler,
 } from "./features/mcpOauth/index.js";
 import {
   publicV1Features,
@@ -154,6 +155,7 @@ app.post("/oauth/register", ipQuotaMiddleware("api.auth"), dcrRegisterHandler);
 app.get("/oauth/authorize", authorizeGetHandler);
 app.post("/oauth/authorize/consent", authorizeConsentHandler);
 app.post("/oauth/token", ipQuotaMiddleware("api.auth"), mcpTokenHandler);
+app.post("/oauth/revoke", ipQuotaMiddleware("api.auth"), revokeHandler);
 
 const v1 = createJacklineApp();
 
@@ -205,7 +207,7 @@ app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
   scheme: "bearer",
   bearerFormat: "Opaque",
   description:
-    "OAuth2 access token from POST /api/v1/oauth/token (client_credentials).",
+    "OAuth2 access token: `jackline_at_` from POST /api/v1/oauth/token (client_credentials), or a short-lived `jackline_uat_` user token from POST /oauth/token (authorization_code + PKCE with resource=<api base>/api/v1, e.g. `jackline login`).",
 });
 
 app.openAPIRegistry.registerComponent("securitySchemes", "sessionCookie", {

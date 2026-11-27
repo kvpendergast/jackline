@@ -4,6 +4,7 @@ build
 .env
 .env.local
 .env.prod
+.jackline-migrate-state
 *.log
 .DS_Store
 coverage

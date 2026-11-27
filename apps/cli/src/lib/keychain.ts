@@ -104,14 +104,18 @@ async function darwinDelete(account: string): Promise<void> {
   }
 }
 
-async function linuxSet(account: string, secret: string): Promise<void> {
+async function linuxSet(
+  account: string,
+  secret: string,
+  label = "Jackline CLI master key",
+): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       "secret-tool",
       [
         "store",
         "--label",
-        "Jackline CLI master key",
+        label,
         "service",
         JACKLINE_KEYCHAIN_SERVICE,
         "account",
@@ -371,4 +375,71 @@ export function fileKeyOptOutWarning(masterKeyPath: string): string {
     "(API keys, OAuth tokens, gateway bearer). " +
     "Prefer the default OS keychain storage unless you have a specific reason to opt out."
   );
+}
+
+/*
+ * Generic named secrets in the same OS credential store (service
+ * `jackline-cli`). Used for hosted-mode login tokens; account names must not
+ * collide with `master-key:*`.
+ */
+
+export async function keychainSetSecret(
+  account: string,
+  secret: string,
+  label: string,
+): Promise<void> {
+  const os = platform();
+  try {
+    if (os === "darwin") return await darwinSet(account, secret);
+    if (os === "linux") return await linuxSet(account, secret, label);
+    if (os === "win32") {
+      await windowsRun("set", account, secret);
+      return;
+    }
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new KeychainError(
+      "failed",
+      `Failed to store ${label} in the OS keychain: ${detail}. ${whichHint()}`,
+    );
+  }
+  throw new KeychainError(
+    "unsupported",
+    `OS keychain is not supported on this platform (${os}). ${whichHint()}`,
+  );
+}
+
+export async function keychainGetSecret(account: string): Promise<string | null> {
+  const os = platform();
+  try {
+    if (os === "darwin") return await darwinGet(account);
+    if (os === "linux") return await linuxGet(account);
+    if (os === "win32") {
+      const value = (await windowsRun("get", account)).trim();
+      return value.length > 0 ? value : null;
+    }
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new KeychainError(
+      "failed",
+      `Failed to read from the OS keychain: ${detail}. ${whichHint()}`,
+    );
+  }
+  throw new KeychainError(
+    "unsupported",
+    `OS keychain is not supported on this platform (${os}). ${whichHint()}`,
+  );
+}
+
+export async function keychainDeleteSecret(account: string): Promise<void> {
+  const os = platform();
+  if (os === "darwin") return darwinDelete(account);
+  if (os === "linux") return linuxDelete(account);
+  if (os === "win32") {
+    try {
+      await windowsRun("delete", account);
+    } catch {
+      // Already missing is fine.
+    }
+  }
 }

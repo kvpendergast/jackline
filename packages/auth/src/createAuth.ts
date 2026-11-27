@@ -62,6 +62,16 @@ export function generateMcpRefreshToken(): string {
   return `jackline_mrt_${randomBytes(32).toString("base64url")}`;
 }
 
+/** Opaque Jackline API user access token (CLI login; authorization_code / refresh). */
+export function generateApiUserAccessToken(): string {
+  return `jackline_uat_${randomBytes(32).toString("base64url")}`;
+}
+
+/** Opaque Jackline API user refresh token (rotated on every use). */
+export function generateApiUserRefreshToken(): string {
+  return `jackline_urt_${randomBytes(32).toString("base64url")}`;
+}
+
 /** Opaque authorization code for MCP OAuth. */
 export function generateMcpAuthorizationCode(): string {
   return `jackline_ac_${randomBytes(32).toString("base64url")}`;

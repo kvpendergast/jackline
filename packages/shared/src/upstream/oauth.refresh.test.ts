@@ -235,6 +235,54 @@ describe("resolveStoredOAuthAccessToken", () => {
     assert.ok(r.isErr());
     assert.equal(classifyOAuthRefreshFailure(r.error), "transient");
   });
+
+  it("refreshes one account without rotating another account's refresh token", async () => {
+    const live = new Map<string, number>([
+      ["rt_work", 0],
+      ["rt_personal", 0],
+    ]);
+    responder = (call) => {
+      const rt = call.body.get("refresh_token") ?? "";
+      const generation = live.get(rt);
+      if (generation == null) {
+        return json(400, { error: "invalid_grant", error_description: "wrong account" });
+      }
+      const prefix = rt.includes("work") ? "work" : "personal";
+      const next = generation + 1;
+      const nextRt = `rt_${prefix}_${next}`;
+      live.delete(rt);
+      live.set(nextRt, next);
+      return json(200, {
+        access_token: `at_${prefix}_${next}`,
+        refresh_token: nextRt,
+        expires_in: 3600,
+        token_type: "Bearer",
+      });
+    };
+
+    const work = memoryStore(secret({ refreshToken: "rt_work", accessToken: "at_work_0" }));
+    const personal = memoryStore(
+      secret({ refreshToken: "rt_personal", accessToken: "at_personal_0" }),
+    );
+    const refreshedWork = await resolveStoredOAuthAccessToken({
+      key: "account-work",
+      plaintext: work.value,
+      withLock: work.withLock,
+    });
+    const refreshedPersonal = await resolveStoredOAuthAccessToken({
+      key: "account-personal",
+      plaintext: personal.value,
+      withLock: personal.withLock,
+    });
+    assert.ok(refreshedWork.isOk());
+    assert.ok(refreshedPersonal.isOk());
+    assert.equal(refreshedWork.value.accessToken, "at_work_1");
+    assert.equal(refreshedPersonal.value.accessToken, "at_personal_1");
+    assert.match(work.value, /rt_work_1/);
+    assert.match(personal.value, /rt_personal_1/);
+    assert.doesNotMatch(work.value, /personal/);
+    assert.doesNotMatch(personal.value, /work/);
+  });
 });
 
 describe("refresh_token request shape", () => {

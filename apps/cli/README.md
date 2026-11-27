@@ -57,6 +57,9 @@ jackline serve
 | `jackline list` | Show configured servers (no secret values) |
 | `jackline tools` | List / enable / disable upstream tools |
 | `jackline serve` | Start the local MCP gateway (default `http://127.0.0.1:8081`) |
+| `jackline login --server <url>` | Sign in to a hosted or self-hosted Jackline in your browser (OAuth + PKCE). Add `--tenant <slug>` on multi-workspace servers |
+| `jackline whoami` | Show the user, workspace, role and MCP URL for your hosted login |
+| `jackline logout` | Revoke the hosted login and remove it from the keychain |
 
 Use `jackline <command> --help` for flags. Most commands accept `--dir` to use a config directory other than `~/.jackline`.
 
@@ -88,6 +91,8 @@ Default root: `~/.jackline` (override with `--dir`).
 | OS keychain (default) | AES-GCM **master key** (`jackline-cli` service) |
 | `master.key` | Only when using `--file-key` / `keyStorage: file` (mode `0600`) |
 | `secrets.json` | Encrypted upstream credentials + gateway token secret (mode `0600`) |
+| `hosted.json` | Which server `jackline login` is signed in to (no tokens) |
+| OS keychain | Hosted login access + refresh tokens (`jackline-cli` service, `hosted-session:*` account) |
 
 `jackline init` stores the master key in the **OS keychain** by default (macOS Keychain, Windows Credential Manager, Linux Secret Service via `secret-tool`).
 
@@ -98,6 +103,10 @@ jackline init --file-key
 ```
 
 `jackline init --force` overwrites an existing config and master key (and mints a new gateway token). Existing plaintext `master.key` installs are migrated into the keychain on first use when possible.
+
+## Hosted Jackline (preview)
+
+`jackline login --server https://jackline.example.com` opens your browser, you sign in and approve, and the CLI stores a 15-minute access token and a rotating refresh token in the OS keychain. It never asks for an API key. Tokens refresh automatically; `jackline logout` revokes them. Hosted mode currently covers `login`, `whoami` and `logout`; the other commands still manage the local gateway.
 
 ## Security notes
 

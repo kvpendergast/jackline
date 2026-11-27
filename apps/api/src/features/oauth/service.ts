@@ -16,6 +16,14 @@ import {
   createPkcePair,
   encodeOAuthSecretValue,
   exchangeAuthorizationCode,
+  GOOGLE_USERINFO_URL,
+  googleAuthorizeExtraParams,
+  identityFromIdToken,
+  identityFromUserInfo,
+  isGoogleAuthorizeUrl,
+  scopesWithOpenIdEmail,
+  type OAuthAccountIdentity,
+  type OAuthAccountMode,
   ForbiddenError,
   getConfig,
   getConnectorPreset,
@@ -29,12 +37,12 @@ import {
   registerDynamicOAuthClient,
   SetupError,
   UnauthorizedError,
-  upstreamSecretKind,
   type StartOauthResult,
 } from "@jackline/shared";
 import { safeFetch } from "../../lib/http/safeFetch.js";
 import { originsFromRedirectUris, validateReturnTo } from "./returnTo.js";
 import { getSecretBox, secretAad } from "../../lib/secrets/secretBox.js";
+import { persistOAuthAccount } from "./persistAccount.js";
 import {
   resolveServerOAuthClientForRow,
   type ServerOAuthClientResolution,
@@ -187,12 +195,23 @@ async function startConnect(
   tenantId: string,
   userId: string,
   serverId: string,
-  returnToRaw?: string,
+  options?: {
+    returnTo?: string;
+    mode?: OAuthAccountMode;
+    accountId?: string;
+    expectedEmail?: string;
+    label?: string;
+  },
 ): Promise<Result<StartOauthResult, JacklineError>> {
   const config = getConfig();
   if (config.isErr()) return err(config.error);
 
-  const returnTo = await resolveReturnTo(returnToRaw, config.value.WEB_ORIGIN);
+  const mode: OAuthAccountMode = options?.mode ?? "connect";
+  if (mode === "reconnect" && !options?.accountId) {
+    return err(new BadRequestError("Reconnect requires an account id."));
+  }
+
+  const returnTo = await resolveReturnTo(options?.returnTo, config.value.WEB_ORIGIN);
 
   const [server] = await db
     .select()
@@ -272,6 +291,10 @@ async function startConnect(
     tenantId,
     userId,
     serverId,
+    mode,
+    expectedEmail: options?.expectedEmail?.trim().toLowerCase() || null,
+    requestedLabel: options?.label?.trim() || null,
+    upstreamAccountId: mode === "reconnect" ? (options?.accountId ?? null) : null,
     returnTo,
     expiresAt: new Date(Date.now() + STATE_TTL_MS),
   });
@@ -281,13 +304,17 @@ async function startConnect(
       ? getConnectorPreset(server.connectorKey)
       : undefined;
 
-  const authorizeExtra: Record<string, string> = {
-    ...(catalogPreset?.oauthAuthorizeExtraParams ?? {}),
-  };
+  const google = isGoogleAuthorizeUrl(oauthAuthorizeUrl);
+  const authorizeExtra: Record<string, string> = google
+    ? googleAuthorizeExtraParams(catalogPreset?.oauthAuthorizeExtraParams)
+    : { ...(catalogPreset?.oauthAuthorizeExtraParams ?? {}) };
   const resource = effectiveResource(server);
   if (resource) {
     authorizeExtra["resource"] = resource;
   }
+  const scopes = google
+    ? scopesWithOpenIdEmail(server.oauthScopes)
+    : server.oauthScopes;
 
   const authorizeUrl = buildOAuthAuthorizeUrl({
     authorizeUrl: oauthAuthorizeUrl,
@@ -295,7 +322,7 @@ async function startConnect(
     redirectUri,
     state,
     codeChallenge: pkce.codeChallenge,
-    scopes: server.oauthScopes,
+    scopes,
     extraParams: Object.keys(authorizeExtra).length > 0 ? authorizeExtra : null,
   });
 
@@ -418,7 +445,13 @@ async function handleCallback(
           tokenUrl: oauthTokenUrl,
           clientId: oauthClientId,
           ...(clientSecretValue ? { clientSecret: clientSecretValue } : {}),
-          ...(server.oauthScopes ? { scopes: server.oauthScopes } : {}),
+          ...(server.oauthScopes || isGoogleAuthorizeUrl(client.resolved.authorizeUrl)
+            ? {
+                scopes: isGoogleAuthorizeUrl(client.resolved.authorizeUrl)
+                  ? scopesWithOpenIdEmail(server.oauthScopes)
+                  : server.oauthScopes!,
+              }
+            : {}),
           ...(resource ? { resource } : {}),
           ...(tokens.value.expiresAt
             ? { expiresAt: tokens.value.expiresAt }
@@ -434,88 +467,78 @@ async function handleCallback(
   );
   if (encoded.isErr()) return err(encoded.error);
 
-  const kind = upstreamSecretKind("oauth");
-  const boxResult = getSecretBox();
-  if (boxResult.isErr()) return err(boxResult.error);
-
-  const aad = secretAad({
-    tenantId: pending.tenantId,
-    kind,
-    serverId: pending.serverId,
-    userId: pending.userId,
-    connectionId: null,
-  });
-
-  const encrypted = boxResult.value.encrypt(
-    new TextEncoder().encode(encoded.value),
-    aad,
+  const identity = await resolveAccountIdentity(
+    tokens.value.accessToken,
+    tokens.value.idToken,
+    client.resolved.authorizeUrl,
   );
-  if (encrypted.isErr()) return err(encrypted.error);
-
-  const [existing] = await db
-    .select({ id: secrets.id })
-    .from(secrets)
-    .where(
-      and(
-        eq(secrets.tenantId, pending.tenantId),
-        eq(secrets.serverId, pending.serverId),
-        eq(secrets.userId, pending.userId),
-        eq(secrets.kind, kind),
-        isNull(secrets.connectionId),
-      ),
-    )
-    .limit(1);
-
-  const name = `${server.name} personal oauth`;
-
-  if (existing) {
-    await db
-      .update(secrets)
-      .set({
-        name,
-        ciphertext: encrypted.value.ciphertext,
-        nonce: encrypted.value.nonce,
-        keyVersion: encrypted.value.keyVersion,
-        updatedAt: new Date(),
-      })
-      .where(eq(secrets.id, existing.id));
-  } else {
-    const [created] = await db
-      .insert(secrets)
-      .values({
-        kind,
-        name,
-        ciphertext: encrypted.value.ciphertext,
-        nonce: encrypted.value.nonce,
-        keyVersion: encrypted.value.keyVersion,
-        serverId: pending.serverId,
-        userId: pending.userId,
-        connectionId: null,
-        tenantId: pending.tenantId,
-      })
-      .returning({ id: secrets.id });
-
-    if (!created) {
-      return err(new SetupError("Failed to store OAuth credential"));
-    }
-  }
+  const mode: OAuthAccountMode =
+    pending.mode === "add" || pending.mode === "reconnect" ? pending.mode : "connect";
+  const persisted = await persistOAuthAccount({
+    tenantId: pending.tenantId,
+    userId: pending.userId,
+    serverId: pending.serverId,
+    serverName: server.name,
+    plaintext: encoded.value,
+    mode,
+    reconnectAccountId: pending.upstreamAccountId,
+    expectedEmail: pending.expectedEmail,
+    requestedLabel: pending.requestedLabel,
+    identity,
+  });
+  if (persisted.isErr()) return err(persisted.error);
 
   log.info(
     {
       tenantId: pending.tenantId,
       userId: pending.userId,
       serverId: pending.serverId,
+      accountId: persisted.value.accountId,
+      status: persisted.value.status,
     },
     "Oauth.services.handleCallback",
   );
 
-  const redirectTo = `${webOrigin}/my-access?server=${encodeURIComponent(pending.serverId)}&connected=1`;
+  const params = new URLSearchParams({
+    server: pending.serverId,
+    connected: "1",
+    account_status: persisted.value.status,
+    account_label: persisted.value.label,
+  });
+  if (persisted.value.email) params.set("account_email", persisted.value.email);
+  const redirectTo = `${webOrigin}/my-access?${params.toString()}`;
   // Re-validate: the allowlist may have changed since Connect started.
   if (pending.returnTo) {
     const safe = await resolveReturnTo(pending.returnTo, config.value.WEB_ORIGIN);
     if (safe) return ok({ redirectTo: safe });
   }
   return ok({ redirectTo });
+}
+
+async function resolveAccountIdentity(
+  accessToken: string,
+  idToken: string | undefined,
+  authorizeUrl: string | null,
+): Promise<OAuthAccountIdentity> {
+  const fromToken = identityFromIdToken(idToken);
+  if (!isGoogleAuthorizeUrl(authorizeUrl) || (fromToken.email && fromToken.subject)) {
+    return fromToken;
+  }
+  try {
+    const res = await fetch(GOOGLE_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return fromToken;
+    const info = identityFromUserInfo(await res.json());
+    if (!info) return fromToken;
+    return {
+      email: fromToken.email ?? info.email,
+      subject: fromToken.subject ?? info.subject,
+    };
+  } catch {
+    return fromToken;
+  }
 }
 
 /** Resolve session user for the public callback error pages (best-effort). */

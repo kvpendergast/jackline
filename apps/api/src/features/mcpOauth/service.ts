@@ -3,6 +3,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import {
+  generateApiUserAccessToken,
+  generateApiUserRefreshToken,
   generateMcpAccessToken,
   generateMcpAuthorizationCode,
   generateMcpRefreshToken,
@@ -12,6 +14,7 @@ import {
   clients,
   connections,
   db,
+  memberships,
   oauthAccessTokens,
   oauthAuthorizationCodes,
   tenants,
@@ -25,15 +28,25 @@ import {
   isCimdClientId,
   isSingleTenancy,
   JacklineError,
+  JACKLINE_API_SCOPE,
+  JACKLINE_API_USER_ACCESS_TOKEN_TTL_SECONDS,
+  JACKLINE_API_USER_REFRESH_TOKEN_IDLE_TTL_SECONDS,
+  JACKLINE_CLI_CLIENT_ID,
+  JACKLINE_CLI_CLIENT_NAME,
+  JACKLINE_CLI_REDIRECT_URIS,
+  JACKLINE_CLI_SYSTEM_KEY,
+  jacklineApiResource,
   JACKLINE_MCP_ACCESS_TOKEN_TTL_SECONDS,
   JACKLINE_MCP_AUTH_CODE_TTL_SECONDS,
   mcpOauthAuthorizeUrl,
   mcpOauthIssuerUrl,
   mcpOauthRegisterUrl,
+  mcpOauthRevokeUrl,
   mcpOauthTokenUrl,
   NotFoundError,
   publicApiBaseUrl,
   publicMcpUrl,
+  redirectUriMatches,
   SetupError,
   UnauthorizedError,
   validateCimdMetadata,
@@ -42,6 +55,57 @@ import {
 import { verifyPkceS256 } from "./pkce.js";
 
 export { verifyPkceS256 } from "./pkce.js";
+
+/**
+ * Which resource server a token is minted for (RFC 8707 `resource`).
+ * - `mcp`: the MCP gateway (connection-bound `jackline_mcp_` tokens)
+ * - `api`: the Jackline REST API (user-bound `jackline_uat_` tokens, CLI login)
+ */
+export type TokenAudience = "mcp" | "api";
+
+function stripSlash(value: string): string {
+  return value.replace(/\/$/, "");
+}
+
+/** Canonical resource URLs for both audiences. */
+export function audienceResources(): Result<
+  { mcp: string; api: string },
+  JacklineError
+> {
+  const config = getConfig();
+  if (config.isErr()) return err(config.error);
+  return ok({
+    mcp: stripSlash(publicMcpUrl(config.value)),
+    api: stripSlash(jacklineApiResource(publicApiBaseUrl(config.value))),
+  });
+}
+
+/** Map a requested resource (or, when absent, scope) to an audience. */
+export function resolveRequestedAudience(
+  resourceParam: string | undefined,
+  scopeParam: string | undefined,
+): Result<{ audience: TokenAudience; resource: string }, JacklineError> {
+  const resources = audienceResources();
+  if (resources.isErr()) return err(resources.error);
+  const { mcp, api } = resources.value;
+
+  if (resourceParam?.trim()) {
+    const requested = stripSlash(resourceParam.trim());
+    if (requested === mcp) return ok({ audience: "mcp", resource: mcp });
+    if (requested === api) return ok({ audience: "api", resource: api });
+    return err(new BadRequestError(`resource must be ${mcp} or ${api}`));
+  }
+
+  const scopes = (scopeParam ?? "").split(/\s+/).filter(Boolean);
+  if (scopes.includes(JACKLINE_API_SCOPE)) {
+    return ok({ audience: "api", resource: api });
+  }
+  return ok({ audience: "mcp", resource: mcp });
+}
+
+function isCliClient(client: ClientRow): boolean {
+  return client.systemKey === JACKLINE_CLI_SYSTEM_KEY;
+}
 
 
 export type AsMetadata = {
@@ -55,6 +119,16 @@ export type AsMetadata = {
   token_endpoint_auth_methods_supported: string[];
   scopes_supported: string[];
   client_id_metadata_document_supported: true;
+  revocation_endpoint: string;
+  revocation_endpoint_auth_methods_supported: string[];
+  /** RFC 8707 resource for Jackline REST API user tokens (CLI login). */
+  jackline_api_resource: string;
+  /** RFC 8707 resource for MCP gateway tokens. */
+  jackline_mcp_resource: string;
+  /** Pre-registered public client id for `jackline login`. */
+  jackline_cli_client_id: string;
+  /** `multi` deployments need `tenant=<slug>` on authorize/token/revoke. */
+  jackline_tenancy: "single" | "multi";
 };
 
 export function buildAsMetadata(): Result<AsMetadata, JacklineError> {
@@ -70,8 +144,14 @@ export function buildAsMetadata(): Result<AsMetadata, JacklineError> {
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
-    scopes_supported: ["mcp"],
+    scopes_supported: ["mcp", JACKLINE_API_SCOPE],
     client_id_metadata_document_supported: true,
+    revocation_endpoint: mcpOauthRevokeUrl(issuer),
+    revocation_endpoint_auth_methods_supported: ["none"],
+    jackline_api_resource: jacklineApiResource(issuer),
+    jackline_mcp_resource: stripSlash(publicMcpUrl(config.value)),
+    jackline_cli_client_id: JACKLINE_CLI_CLIENT_ID,
+    jackline_tenancy: config.value.JACKLINE_TENANCY,
   });
 }
 
@@ -256,6 +336,62 @@ async function findClientByOauthId(
 }
 
 /**
+ * Ensure the first-party `jackline-cli` public client exists for a tenant.
+ * Pre-registered (no secret, PKCE required, loopback redirects on any port).
+ */
+export async function ensureCliClient(
+  log: Logger,
+  tenantId: string,
+): Promise<Result<ClientRow, JacklineError>> {
+  const find = async () => {
+    const [row] = await db
+      .select()
+      .from(clients)
+      .where(
+        and(
+          eq(clients.tenantId, tenantId),
+          eq(clients.systemKey, JACKLINE_CLI_SYSTEM_KEY),
+        ),
+      )
+      .limit(1);
+    return row;
+  };
+
+  const existing = await find();
+  if (existing) return ok(existing);
+
+  try {
+    const [row] = await db
+      .insert(clients)
+      .values({
+        name: JACKLINE_CLI_CLIENT_NAME,
+        kind: "interactive",
+        tenantId,
+        systemKey: JACKLINE_CLI_SYSTEM_KEY,
+        registrationType: "pre_registered",
+        redirectUris: [...JACKLINE_CLI_REDIRECT_URIS],
+        tokenEndpointAuthMethod: "none",
+        applicationType: "native",
+        oauthClientId: JACKLINE_CLI_CLIENT_ID,
+      })
+      .returning();
+    if (!row) return err(new SetupError("Failed to create CLI client"));
+    log.info({ clientId: row.id, tenantId }, "mcpOauth.cli.client.create");
+    return ok(row);
+  } catch (cause) {
+    // Concurrent first login (or a name clash): re-read.
+    const retry = await find();
+    if (retry) return ok(retry);
+    log.warn({ err: cause, tenantId }, "mcpOauth.cli.client.create failed");
+    return err(
+      new SetupError(
+        `Failed to register the ${JACKLINE_CLI_CLIENT_NAME} client for this tenant`,
+      ),
+    );
+  }
+}
+
+/**
  * Resolve the OAuth client for authorize/token. CIMD URLs are fetched+upserted.
  * For multi-tenant, tenantSlug is required when client is not yet known.
  */
@@ -268,6 +404,12 @@ export async function resolveOauthClient(
     const tenant = await resolveTenantId(tenantSlug);
     if (tenant.isErr()) return err(tenant.error);
     return resolveCimdClient(log, tenant.value.tenantId, clientId);
+  }
+
+  if (clientId === JACKLINE_CLI_CLIENT_ID) {
+    const tenant = await resolveTenantId(tenantSlug);
+    if (tenant.isErr()) return err(tenant.error);
+    return ensureCliClient(log, tenant.value.tenantId);
   }
 
   // Known client by oauthClientId or UUID across tenants (UUID is globally unique).
@@ -399,6 +541,7 @@ export async function validateAuthorizeRequest(
       client: ClientRow;
       redirectUri: string;
       resource: string;
+      audience: TokenAudience;
       scopes: string;
       codeChallenge: string;
     },
@@ -415,18 +558,9 @@ export async function validateAuthorizeRequest(
     return err(new BadRequestError("code_challenge is required"));
   }
 
-  const config = getConfig();
-  if (config.isErr()) return err(config.error);
-  const expectedResource = publicMcpUrl(config.value);
-
-  const resource = (query.resource ?? expectedResource).replace(/\/$/, "");
-  if (resource !== expectedResource.replace(/\/$/, "")) {
-    return err(
-      new BadRequestError(
-        `resource must be ${expectedResource}`,
-      ),
-    );
-  }
+  const requested = resolveRequestedAudience(query.resource, query.scope);
+  if (requested.isErr()) return err(requested.error);
+  const { audience, resource } = requested.value;
 
   const clientResult = await resolveOauthClient(
     log,
@@ -440,8 +574,25 @@ export async function validateAuthorizeRequest(
     return err(new BadRequestError("Only interactive clients can authorize"));
   }
 
+  // API user tokens are first-party only: third-party MCP clients (CIMD/DCR)
+  // cannot obtain REST API access, and the CLI client cannot mint MCP tokens.
+  if (audience === "api" && !isCliClient(client)) {
+    return err(
+      new BadRequestError(
+        "This client may not request the Jackline API resource",
+      ),
+    );
+  }
+  if (audience === "mcp" && isCliClient(client)) {
+    return err(
+      new BadRequestError(
+        `${JACKLINE_CLI_CLIENT_ID} may only request the Jackline API resource`,
+      ),
+    );
+  }
+
   const redirectUris = client.redirectUris ?? [];
-  if (!redirectUris.includes(query.redirect_uri)) {
+  if (!redirectUris.some((uri) => redirectUriMatches(uri, query.redirect_uri))) {
     return err(new BadRequestError("redirect_uri is not registered"));
   }
 
@@ -449,7 +600,9 @@ export async function validateAuthorizeRequest(
     client,
     redirectUri: query.redirect_uri,
     resource,
-    scopes: query.scope?.trim() || "mcp",
+    audience,
+    scopes:
+      audience === "api" ? JACKLINE_API_SCOPE : query.scope?.trim() || "mcp",
     codeChallenge: query.code_challenge,
   });
 }
@@ -463,15 +616,37 @@ export async function createAuthorizationCode(
     codeChallenge: string;
     codeChallengeMethod: string;
     resource: string;
+    audience?: TokenAudience | undefined;
     scopes: string;
   },
-): Promise<Result<{ code: string; connectionId: string }, JacklineError>> {
-  const connection = await ensureConnection(
-    input.client.tenantId,
-    input.client.id,
-    input.userId,
-  );
-  if (connection.isErr()) return err(connection.error);
+): Promise<
+  Result<{ code: string; connectionId: string | null }, JacklineError>
+> {
+  let connectionId: string | null = null;
+  if (input.audience === "api") {
+    // API tokens act as the user in the client's tenant; no MCP connection.
+    const [membership] = await db
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.userId, input.userId),
+          eq(memberships.tenantId, input.client.tenantId),
+        ),
+      )
+      .limit(1);
+    if (!membership) {
+      return err(new ForbiddenError("You are not a member of this tenant"));
+    }
+  } else {
+    const connection = await ensureConnection(
+      input.client.tenantId,
+      input.client.id,
+      input.userId,
+    );
+    if (connection.isErr()) return err(connection.error);
+    connectionId = connection.value.id;
+  }
 
   const code = generateMcpAuthorizationCode();
   const expiresAt = new Date(
@@ -491,7 +666,7 @@ export async function createAuthorizationCode(
       resource: input.resource,
       scopes: input.scopes,
       expiresAt,
-      connectionId: connection.value.id,
+      connectionId,
     })
     .returning();
 
@@ -502,13 +677,14 @@ export async function createAuthorizationCode(
   log.info(
     {
       clientId: input.client.id,
-      connectionId: connection.value.id,
+      connectionId,
       userId: input.userId,
+      audience: input.audience ?? "mcp",
     },
     "mcpOauth.authorize.code",
   );
 
-  return ok({ code, connectionId: connection.value.id });
+  return ok({ code, connectionId });
 }
 
 export type DcrResult = {
@@ -652,6 +828,94 @@ async function issueMcpTokens(
   });
 }
 
+/**
+ * Mint a short-lived Jackline API user access token + rotating refresh token.
+ * Not connection-bound; the API resolves membership (role) at every request.
+ */
+async function issueApiUserTokens(
+  log: Logger,
+  input: {
+    client: ClientRow;
+    userId: string;
+    audience: string;
+    grantType: "authorization_code" | "refresh_token";
+  },
+): Promise<Result<McpTokenResult, JacklineError>> {
+  const accessToken = generateApiUserAccessToken();
+  const refreshToken = generateApiUserRefreshToken();
+  const expiresIn = JACKLINE_API_USER_ACCESS_TOKEN_TTL_SECONDS;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+  const [row] = await db
+    .insert(oauthAccessTokens)
+    .values({
+      tokenHash: hashToken(accessToken),
+      clientId: input.client.id,
+      tenantId: input.client.tenantId,
+      userId: input.userId,
+      expiresAt,
+      grantType: input.grantType,
+      audience: input.audience,
+      connectionId: null,
+      refreshTokenHash: hashToken(refreshToken),
+      scopes: JACKLINE_API_SCOPE,
+    })
+    .returning();
+
+  if (!row) {
+    return err(new SetupError("Failed to issue API access token"));
+  }
+
+  log.info(
+    {
+      clientId: input.client.id,
+      userId: input.userId,
+      grantType: input.grantType,
+      audience: "api",
+    },
+    "mcpOauth.token.issue",
+  );
+
+  return ok({
+    access_token: accessToken,
+    token_type: "Bearer",
+    expires_in: expiresIn,
+    refresh_token: refreshToken,
+    scope: JACKLINE_API_SCOPE,
+  });
+}
+
+/**
+ * Resolve the token-endpoint `resource`: optional, but when present it must be
+ * a known resource and equal the one bound at authorize / original issue.
+ */
+function resolveBoundResource(
+  requested: string | undefined,
+  bound: string,
+): Result<{ audience: TokenAudience; resource: string }, JacklineError> {
+  const resources = audienceResources();
+  if (resources.isErr()) return err(resources.error);
+  const { mcp, api } = resources.value;
+  const boundNorm = stripSlash(bound);
+  const resource = requested?.trim() ? stripSlash(requested.trim()) : boundNorm;
+  if (resource !== mcp && resource !== api) {
+    return err(new BadRequestError(`resource must be ${mcp} or ${api}`));
+  }
+  if (resource !== boundNorm) {
+    return err(new BadRequestError("resource mismatch"));
+  }
+  return ok({ audience: resource === api ? "api" : "mcp", resource });
+}
+
+async function hasMembership(userId: string, tenantId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.userId, userId), eq(memberships.tenantId, tenantId)))
+    .limit(1);
+  return Boolean(row);
+}
+
 export async function exchangeAuthorizationCode(
   log: Logger,
   params: {
@@ -663,14 +927,6 @@ export async function exchangeAuthorizationCode(
     tenant?: string | undefined;
   },
 ): Promise<Result<McpTokenResult, JacklineError>> {
-  const config = getConfig();
-  if (config.isErr()) return err(config.error);
-  const expectedResource = publicMcpUrl(config.value).replace(/\/$/, "");
-  const resource = (params.resource ?? expectedResource).replace(/\/$/, "");
-  if (resource !== expectedResource) {
-    return err(new BadRequestError(`resource must be ${expectedResource}`));
-  }
-
   const clientResult = await resolveOauthClient(
     log,
     params.client_id,
@@ -698,9 +954,9 @@ export async function exchangeAuthorizationCode(
   if (authCode.redirectUri !== params.redirect_uri) {
     return err(new BadRequestError("redirect_uri mismatch"));
   }
-  if (authCode.resource.replace(/\/$/, "") !== resource) {
-    return err(new BadRequestError("resource mismatch"));
-  }
+  const bound = resolveBoundResource(params.resource, authCode.resource);
+  if (bound.isErr()) return err(bound.error);
+  const { audience, resource } = bound.value;
   if (authCode.codeChallengeMethod !== "S256") {
     return err(new BadRequestError("Unsupported code_challenge_method"));
   }
@@ -722,6 +978,18 @@ export async function exchangeAuthorizationCode(
 
   if (!marked) {
     return err(new UnauthorizedError("Authorization code already used"));
+  }
+
+  if (audience === "api") {
+    if (!isCliClient(client)) {
+      return err(new UnauthorizedError("Invalid authorization code"));
+    }
+    return issueApiUserTokens(log, {
+      client,
+      userId: authCode.userId,
+      audience: resource,
+      grantType: "authorization_code",
+    });
   }
 
   let connectionId = authCode.connectionId;
@@ -754,14 +1022,6 @@ export async function exchangeRefreshToken(
     tenant?: string | undefined;
   },
 ): Promise<Result<McpTokenResult, JacklineError>> {
-  const config = getConfig();
-  if (config.isErr()) return err(config.error);
-  const expectedResource = publicMcpUrl(config.value).replace(/\/$/, "");
-  const resource = (params.resource ?? expectedResource).replace(/\/$/, "");
-  if (resource !== expectedResource) {
-    return err(new BadRequestError(`resource must be ${expectedResource}`));
-  }
-
   const clientResult = await resolveOauthClient(
     log,
     params.client_id,
@@ -777,17 +1037,24 @@ export async function exchangeRefreshToken(
     .where(eq(oauthAccessTokens.refreshTokenHash, refreshHash))
     .limit(1);
 
-  if (
-    !existing ||
-    existing.clientId !== client.id ||
-    existing.revokedAt ||
-    !existing.connectionId
-  ) {
+  if (!existing || existing.clientId !== client.id) {
     return err(new UnauthorizedError("Invalid refresh token"));
   }
 
-  if ((existing.audience ?? "").replace(/\/$/, "") !== resource) {
-    return err(new BadRequestError("resource mismatch"));
+  if (existing.audience === null) {
+    // client_credentials rows never carry refresh tokens.
+    return err(new UnauthorizedError("Invalid refresh token"));
+  }
+  const bound = resolveBoundResource(params.resource, existing.audience);
+  if (bound.isErr()) return err(bound.error);
+  const { audience, resource } = bound.value;
+
+  if (audience === "api") {
+    return rotateApiUserRefreshToken(log, { client, existing, resource });
+  }
+
+  if (existing.revokedAt || !existing.connectionId) {
+    return err(new UnauthorizedError("Invalid refresh token"));
   }
 
   const [connection] = await db
@@ -816,6 +1083,120 @@ export async function exchangeRefreshToken(
   });
 }
 
+async function rotateApiUserRefreshToken(
+  log: Logger,
+  input: {
+    client: ClientRow;
+    existing: typeof oauthAccessTokens.$inferSelect;
+    resource: string;
+  },
+): Promise<Result<McpTokenResult, JacklineError>> {
+  const { client, existing, resource } = input;
+  const now = new Date();
+
+  if (existing.revokedAt) {
+    // Refresh token reuse (RFC 9700 §4.14.2): a rotated-out token came back.
+    // Treat the login as compromised and revoke every live API token this
+    // client holds for the user.
+    await db
+      .update(oauthAccessTokens)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(oauthAccessTokens.clientId, client.id),
+          eq(oauthAccessTokens.userId, existing.userId),
+          eq(oauthAccessTokens.audience, existing.audience ?? resource),
+          isNull(oauthAccessTokens.revokedAt),
+        ),
+      );
+    log.warn(
+      { clientId: client.id, userId: existing.userId },
+      "mcpOauth.refresh.reuse_detected",
+    );
+    return err(new UnauthorizedError("Invalid refresh token"));
+  }
+
+  const idleDeadline =
+    existing.createdAt.getTime() +
+    JACKLINE_API_USER_REFRESH_TOKEN_IDLE_TTL_SECONDS * 1000;
+  if (idleDeadline <= now.getTime()) {
+    return err(new UnauthorizedError("Refresh token expired"));
+  }
+
+  if (!(await hasMembership(existing.userId, existing.tenantId))) {
+    return err(new UnauthorizedError("Invalid refresh token"));
+  }
+
+  // Single-use: only the request that flips revokedAt may mint a successor.
+  const [rotated] = await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(oauthAccessTokens.id, existing.id),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    )
+    .returning({ id: oauthAccessTokens.id });
+  if (!rotated) {
+    return err(new UnauthorizedError("Invalid refresh token"));
+  }
+
+  return issueApiUserTokens(log, {
+    client,
+    userId: existing.userId,
+    audience: resource,
+    grantType: "refresh_token",
+  });
+}
+
+/**
+ * RFC 7009 token revocation for public clients. Accepts an access or refresh
+ * token; always succeeds (no existence oracle). Revoking either half of an
+ * issued pair revokes the row (access + refresh).
+ */
+export async function revokeToken(
+  log: Logger,
+  params: { token: string; client_id: string; tenant?: string | undefined },
+): Promise<Result<{ revoked: boolean }, JacklineError>> {
+  const clientResult = await resolveOauthClient(
+    log,
+    params.client_id,
+    params.tenant,
+  );
+  if (clientResult.isErr()) return err(clientResult.error);
+  const client = clientResult.value;
+
+  const hash = hashToken(params.token);
+  const now = new Date();
+  const byAccess = await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(oauthAccessTokens.clientId, client.id),
+        eq(oauthAccessTokens.tokenHash, hash),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    )
+    .returning({ id: oauthAccessTokens.id });
+  const byRefresh = await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(oauthAccessTokens.clientId, client.id),
+        eq(oauthAccessTokens.refreshTokenHash, hash),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    )
+    .returning({ id: oauthAccessTokens.id });
+
+  const revoked = byAccess.length + byRefresh.length > 0;
+  log.info({ clientId: client.id, revoked }, "mcpOauth.revoke");
+  return ok({ revoked });
+}
+
 export const mcpOauthServices = {
   buildAsMetadata,
   registerDcrClient,
@@ -823,6 +1204,8 @@ export const mcpOauthServices = {
   createAuthorizationCode,
   exchangeAuthorizationCode,
   exchangeRefreshToken,
+  revokeToken,
+  ensureCliClient,
   resolveOauthClient,
   ensureConnection,
 } as const;

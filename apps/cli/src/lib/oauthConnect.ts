@@ -43,7 +43,7 @@ function sendHtmlPage(
   );
 }
 
-async function openBrowser(url: string): Promise<void> {
+export async function openBrowser(url: string): Promise<void> {
   const os = platform();
   try {
     if (os === "darwin") {
