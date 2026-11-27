@@ -72,18 +72,18 @@ export function ConnectionDetailPage() {
       clientPage,
       userPage,
       rolePage,
-      toolPage,
+      allTools,
       creds,
       effective,
       upstream,
       denyPage,
-      serverPage,
+      allServers,
     ] = await Promise.all([
       jacklineApi.getConnection(tenantId, id),
       jacklineApi.listClients(tenantId),
       jacklineApi.listUsers(tenantId).catch(() => ({ items: [] as PublicUser[] })),
       jacklineApi.listRoles(tenantId).catch(() => ({ items: [] as PublicRole[] })),
-      jacklineApi.listTools(tenantId),
+      jacklineApi.listAllTools(tenantId),
       jacklineApi.listCredentials(tenantId, id),
       jacklineApi.listEffectiveTools(tenantId, id),
       jacklineApi.listUpstreamCredentials(tenantId, id),
@@ -92,23 +92,23 @@ export function ConnectionDetailPage() {
         outcome: "deny",
         limit: "10",
       }).catch(() => ({ items: [] as PublicAuditEvent[] })),
-      jacklineApi.listServers(tenantId),
+      jacklineApi.listAllServers(tenantId),
     ]);
     setDetail(conn);
     setClient(clientPage.items.find((c) => c.id === conn.clientId) ?? null);
     setSubject(userPage.items.find((u) => u.id === conn.userId) ?? null);
     setAllRoles(rolePage.items);
     setRoles(rolePage.items.filter((r) => conn.roleIds.includes(r.id)));
-    setTools(toolPage.items);
+    setTools(allTools);
     setCredentials(creds);
     setEffectiveTools(effective.items);
     setUpstreamCredentials(upstream.items);
     setDenies(denyPage.items);
-    setServers(serverPage.items.filter((s) => s.status === "active"));
+    setServers(allServers.filter((s) => s.status === "active"));
     const available = rolePage.items.find((r) => !conn.roleIds.includes(r.id));
     setAttachRoleId(available?.id ?? "");
     const overridden = new Set(conn.toolOverrides.map((o) => o.toolId));
-    const availableTool = toolPage.items.find((t) => !overridden.has(t.id));
+    const availableTool = allTools.find((t) => !overridden.has(t.id));
     setOverrideToolId(availableTool?.id ?? "");
   }
 

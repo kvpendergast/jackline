@@ -26,14 +26,14 @@ export function AccessRequestsPage() {
     if (!tenantId) return;
     setError(null);
     try {
-      const [req, serverPage, toolPage] = await Promise.all([
+      const [req, allServers, allTools] = await Promise.all([
         jacklineApi.listAccessRequests(tenantId),
-        jacklineApi.listServers(tenantId),
-        jacklineApi.listTools(tenantId),
+        jacklineApi.listAllServers(tenantId),
+        jacklineApi.listAllTools(tenantId),
       ]);
       setItems(req.items);
-      setServers(serverPage.items);
-      setTools(toolPage.items);
+      setServers(allServers);
+      setTools(allTools);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load requests");
     }

@@ -67,15 +67,15 @@ export function ServersPage() {
 
   async function load() {
     if (!tenantId) return;
-    const [page, apps] = await Promise.all([
-      jacklineApi.listServers(tenantId),
+    const [allServers, apps] = await Promise.all([
+      jacklineApi.listAllServers(tenantId),
       jacklineApi
         .listOAuthApps(tenantId)
         .then((r) => r.items)
         // Non-admins / older APIs: the selector is simply empty.
         .catch(() => [] as PublicOAuthApp[]),
     ]);
-    setItems(page.items);
+    setItems(allServers);
     setOauthApps(apps);
   }
 

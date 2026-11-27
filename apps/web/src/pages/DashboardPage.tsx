@@ -70,23 +70,23 @@ export function DashboardPage() {
       setError(null);
       try {
         const [
-          serverPage,
-          toolPage,
+          allServers,
+          allTools,
           connectionPage,
           rolePage,
           denyPage,
           clientPage,
         ] = await Promise.all([
-          jacklineApi.listServers(tenantId),
-          jacklineApi.listTools(tenantId),
+          jacklineApi.listAllServers(tenantId),
+          jacklineApi.listAllTools(tenantId),
           jacklineApi.listConnections(tenantId),
           jacklineApi.listRoles(tenantId),
           jacklineApi.listAuditEvents(tenantId, { outcome: "deny", limit: "10" }),
           jacklineApi.listClients(tenantId),
         ]);
         if (cancelled) return;
-        setServers(serverPage.items);
-        setTools(toolPage.items);
+        setServers(allServers);
+        setTools(allTools);
         setConnections(connectionPage.items);
         setRoles(rolePage.items);
         setDenials(denyPage.items);
