@@ -17,6 +17,10 @@
 # (GCP Pulumi + Cloud SQL is one recipe — see deploy/pulumi/README.md).
 #
 # Live VM updates: use deploy/scripts/remote-deploy.sh (not `up --build -d`).
+# That script sets JACKLINE_CFG_SHA_* and stores the value in
+# dev.jackline.effective-config-sha. The hash ignores the image tag (compared
+# separately by image ID) and JACKLINE_*_IMAGE env entries, which change every
+# commit even when the service config does not.
 #
 # HTTPS: set JACKLINE_SITE_ADDRESS / JACKLINE_DOCS_SITE_ADDRESS to bare hostnames
 # (no http://) and open ports 80 + 443. See apps/docs/pages/self-hosting.mdx.
@@ -52,6 +56,8 @@ services:
       API_PORT: 8080
       NODE_ENV: production
       JACKLINE_INTERNAL_MCP_URL: http://gateway:8081/mcp
+    labels:
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_API:-unset}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -77,6 +83,8 @@ services:
       GATEWAY_HOST: 0.0.0.0
       GATEWAY_PORT: 8081
       NODE_ENV: production
+    labels:
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_GATEWAY:-unset}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -94,6 +102,8 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       target: web
+    labels:
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_WEB:-unset}
     depends_on:
       - api
     healthcheck:
@@ -110,6 +120,8 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       target: docs
+    labels:
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_DOCS:-unset}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
       interval: 10s
@@ -127,6 +139,8 @@ services:
       JACKLINE_SITE_ADDRESS: ${JACKLINE_SITE_ADDRESS:-http://localhost}
       JACKLINE_DOCS_SITE_ADDRESS: ${JACKLINE_DOCS_SITE_ADDRESS:-http://docs.localhost}
       JACKLINE_CADDY_GLOBAL_OPTIONS: ${JACKLINE_CADDY_GLOBAL_OPTIONS:-}
+    labels:
+      dev.jackline.effective-config-sha: ${JACKLINE_CFG_SHA_CADDY:-unset}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

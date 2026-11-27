@@ -88,13 +88,33 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        env:
+          # Fixed epoch. A commit timestamp would change every image on every
+          # commit, so prod deploys could never skip an unchanged service.
+          SOURCE_DATE_EPOCH: "0"
         with:
           context: .
           file: deploy/Dockerfile
           target: ${{ matrix.target }}
-          push: true
+          # push lives on this exporter together with rewrite-timestamp.
+          # A separate `push: true` adds a second exporter that does not
+          # rewrite file mtimes, so the published image ID would still change
+          # whenever the git checkout mtime changes.
+          push: false
+          outputs: type=image,push=true,rewrite-timestamp=true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # metadata-action's created (build clock) and revision (git SHA)
+          # labels are part of the image config and change the image ID on
+          # every commit. Pin them. The real values stay on the manifest as
+          # annotations, which do not affect the image ID the deploy compares.
+          # provenance stays off: attestations wrap each build in a new index.
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.created=1970-01-01T00:00:00.000Z
+            org.opencontainers.image.revision=reproducible-build
+          annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            SOURCE_DATE_EPOCH=0
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
           provenance: false

@@ -1,0 +1,30 @@
+---
+title: Multiple accounts
+---
+
+One upstream server can hold several logins for the same person. A member connects a work Gmail and a personal Gmail on the single Gmail server, instead of adding the catalog preset twice.
+
+## What members do
+
+On **My Access**, each OAuth server lists the accounts already connected (email, label, default, last used).
+
+- **Connect** is the empty state. It is one button, as before.
+- **Add another account** asks for an optional label (for example `Work`) and an optional expected email, then sends the member to the provider. Google shows an account chooser (`prompt=select_account consent`) and Jackline also requests `openid email` so it can store the address.
+- If that email is already connected on the server, Jackline refreshes that account's token and does not create a second row.
+- If the expected email does not match the account that signed in, nothing is saved.
+- **Reconnect** replaces only that account's token. It never overwrites a different account.
+- **Disconnect**, **Rename label**, and **Make default** act on one account.
+
+Agents pick an account with the label, email, or id. With one account, tools work as they do today and the `account` argument is omitted. With two or more, every tool on that server accepts an optional `account` argument, and a call that omits it returns an error listing the accounts. There is no silent default. A `<server>__list_accounts` tool returns the same list. The `account` argument is removed before the call is proxied upstream, and the result says which account was used.
+
+Example: `account: "work"`.
+
+## Administrators
+
+The catalog still adds Gmail once. Account count for a server is shown on the Servers page. Tool sync uses any one valid personal token (the default account when one is marked).
+
+Roles still grant tools, not accounts. A role that allows `Gmail__search` allows every account that member has connected. Per-account allow and deny is not implemented yet.
+
+## Migration
+
+Existing per-user OAuth secrets become one **Default** account each. The ciphertext is not rewritten, so current tokens keep working and a single account needs no `account` argument. API keys and shared org credentials are unchanged.

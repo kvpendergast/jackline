@@ -17,6 +17,8 @@ export {
   generateMcpAccessToken,
   generateMcpRefreshToken,
   generateMcpAuthorizationCode,
+  generateApiUserAccessToken,
+  generateApiUserRefreshToken,
   generatePeerGrantSecret,
   generateKnockSecret,
   generateExchangeToken,

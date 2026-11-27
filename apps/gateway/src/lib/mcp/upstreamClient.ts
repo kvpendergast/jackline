@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { UrlElicitationRequiredError } from "@modelcontextprotocol/sdk/types.js";
-import { db, secrets, servers, type Secret as SecretRow } from "@jackline/db";
+import { db, secrets, servers, upstreamAccounts, type Secret as SecretRow } from "@jackline/db";
 import {
   BadRequestError,
   classifyOAuthRefreshFailure,
+  formatAccountList,
+  type UpstreamAccountRef,
   getConfig,
   isInvalidUpstreamTokenError,
   JacklineError,
@@ -101,11 +103,55 @@ export function throwUpstreamUrlElicitation(
   );
 }
 
+export type UpstreamAuthOptions = {
+  forceRefresh?: boolean;
+  /** Use this upstream account's token. */
+  accountId?: string;
+  /**
+   * explicit: a tool call. Several accounts and no accountId is an error.
+   * any: schema fetch / a caller that may use one valid token (prefers the default).
+   */
+  accountSelection?: "explicit" | "any";
+};
+
+async function loadPersonalSecrets(
+  tenantId: string,
+  serverId: string,
+  userId: string,
+  kind: string,
+  accountId?: string,
+) {
+  const conditions = [
+    eq(secrets.tenantId, tenantId),
+    eq(secrets.serverId, serverId),
+    eq(secrets.userId, userId),
+    eq(secrets.kind, kind),
+    isNull(secrets.connectionId),
+  ];
+  if (accountId) conditions.push(eq(secrets.upstreamAccountId, accountId));
+  return db
+    .select({
+      secret: secrets,
+      accountId: upstreamAccounts.id,
+      label: upstreamAccounts.label,
+      externalEmail: upstreamAccounts.externalEmail,
+      isDefault: upstreamAccounts.isDefault,
+    })
+    .from(secrets)
+    .leftJoin(upstreamAccounts, eq(upstreamAccounts.id, secrets.upstreamAccountId))
+    .where(and(...conditions))
+    .orderBy(
+      sql`${upstreamAccounts.isDefault} desc nulls last`,
+      desc(secrets.updatedAt),
+    );
+}
+
 async function loadUpstreamSecret(
   log: Logger,
   tenantId: string,
   server: UpstreamServerRow,
   userId: string,
+  options?: UpstreamAuthOptions,
 ): Promise<Result<SecretRow, JacklineError>> {
   const { id: serverId, authMethod, credentialMode } = server;
 
@@ -114,22 +160,36 @@ async function loadUpstreamSecret(
   }
 
   const kind = upstreamSecretKind(authMethod);
+  const selection = options?.accountSelection ?? "explicit";
 
   async function loadUserSecret() {
-    const [userSecret] = await db
-      .select()
-      .from(secrets)
-      .where(
-        and(
-          eq(secrets.tenantId, tenantId),
-          eq(secrets.serverId, serverId),
-          eq(secrets.userId, userId),
-          eq(secrets.kind, kind),
-          isNull(secrets.connectionId),
-        ),
-      )
-      .limit(1);
-    return userSecret ?? null;
+    const rows = await loadPersonalSecrets(
+      tenantId,
+      serverId,
+      userId,
+      kind,
+      options?.accountId,
+    );
+    if (options?.accountId) {
+      return rows[0]?.secret ?? null;
+    }
+    if (rows.length === 0) return null;
+    if (rows.length === 1 || selection === "any") {
+      return rows[0]?.secret ?? null;
+    }
+    const accounts: UpstreamAccountRef[] = rows.flatMap((row) =>
+      row.accountId
+        ? [
+            {
+              id: row.accountId,
+              label: row.label ?? "Account",
+              externalEmail: row.externalEmail,
+              isDefault: row.isDefault ?? false,
+            },
+          ]
+        : [],
+    );
+    return accounts;
   }
 
   async function loadServerSecret() {
@@ -163,13 +223,27 @@ async function loadUpstreamSecret(
     if (!userSecret) {
       return err(personalCredentialError(server, "missing_personal"));
     }
-    log.debug({ serverId, userId, kind }, "using per-user upstream secret");
+    if (Array.isArray(userSecret)) {
+      return err(
+        new BadRequestError(
+          `This server has ${userSecret.length} connected accounts. Pass account as a label, email, or id. Connected: ${formatAccountList(userSecret)}.`,
+        ),
+      );
+    }
+    log.debug({ serverId, userId, kind, secretId: userSecret.id }, "using per-user upstream secret");
     return ok(userSecret);
   }
 
   const userSecret = await loadUserSecret();
+  if (Array.isArray(userSecret)) {
+    return err(
+      new BadRequestError(
+        `This server has ${userSecret.length} connected accounts. Pass account as a label, email, or id. Connected: ${formatAccountList(userSecret)}.`,
+      ),
+    );
+  }
   if (userSecret) {
-    log.debug({ serverId, userId, kind }, "using per-user upstream secret");
+    log.debug({ serverId, userId, kind, secretId: userSecret.id }, "using per-user upstream secret");
     return ok(userSecret);
   }
 
@@ -339,13 +413,13 @@ export async function resolveUpstreamAuthHeaders(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
-  options?: { forceRefresh?: boolean },
+  options?: UpstreamAuthOptions,
 ): Promise<Result<Record<string, string>, JacklineError>> {
   if (server.status !== "active") {
     return err(new BadRequestError(`Server is ${server.status}`));
   }
 
-  const secretRow = await loadUpstreamSecret(log, tenantId, server, userId);
+  const secretRow = await loadUpstreamSecret(log, tenantId, server, userId, options);
   if (secretRow.isErr()) return err(secretRow.error);
 
   const plaintext = decryptSecret(secretRow.value);
@@ -434,7 +508,7 @@ export async function connectUpstream(
   tenantId: string,
   userId: string,
   server: UpstreamServerRow,
-  options?: { forceRefresh?: boolean },
+  options?: UpstreamAuthOptions,
 ): Promise<Result<ConnectedUpstream, JacklineError>> {
   if (server.kind !== "mcp") {
     return err(
@@ -449,7 +523,7 @@ export async function connectUpstream(
     tenantId,
     userId,
     server,
-    options?.forceRefresh ? { forceRefresh: true } : undefined,
+    options,
   );
   if (headers.isErr()) return err(headers.error);
 
@@ -474,7 +548,7 @@ export async function connectUpstream(
     tenantId,
     userId,
     server,
-    { forceRefresh: true },
+    { ...options, forceRefresh: true },
   );
   if (refreshed.isErr()) return err(refreshed.error);
 

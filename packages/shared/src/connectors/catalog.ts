@@ -73,7 +73,7 @@ const GOOGLE_OAUTH = {
   oauthTokenUrl: "https://oauth2.googleapis.com/token",
   oauthAuthorizeExtraParams: {
     access_type: "offline",
-    prompt: "consent",
+    prompt: "select_account consent",
     include_granted_scopes: "true",
   },
 } as const;

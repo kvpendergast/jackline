@@ -3,6 +3,7 @@ export * from "./auth.js";
 export * from "./memberships.js";
 export * from "./oauthApps.js";
 export * from "./servers.js";
+export * from "./upstreamAccounts.js";
 export * from "./tools.js";
 export * from "./roles.js";
 export * from "./clients.js";
