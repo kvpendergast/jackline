@@ -94,6 +94,9 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -123,6 +126,11 @@ jobs:
       - name: Install Pulumi program deps
         working-directory: ${{ steps.path.outputs.dir }}
         run: npm ci
+
+      # The VM program packages the budget shutoff function during pulumi up.
+      - name: Install budget shutoff dependencies
+        if: ${{ env.DEPLOY_PATH == 'vm' }}
+        run: pnpm install --frozen-lockfile --filter @jackline/budget-shutoff...
 
       - name: Set up Docker (GKE image builds)
         if: ${{ env.DEPLOY_PATH == 'gke' }}

@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
+import { createBudgetShutoff } from "./budgetShutoff";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -22,6 +23,10 @@ const cloudSqlDiskSize = cfg.getNumber("cloudSqlDiskSize") ?? 10;
 const cloudSqlDiskType = cfg.get("cloudSqlDiskType") ?? "PD_HDD";
 const cloudSqlAutomatedBackupRetain = cfg.getNumber("cloudSqlAutomatedBackupRetain") ?? 7;
 const cloudSqlOnDemandBackupKeep = cfg.getNumber("cloudSqlOnDemandBackupKeep") ?? 7;
+// Optional. Unset skips gcp.billing.Budget so deploys work without billing-account IAM.
+const billingAccountId = cfg.get("billingAccountId");
+const budgetAmountUsd = cfg.getNumber("budgetAmountUsd") ?? 35;
+const budgetShutoffDryRun = cfg.getBoolean("budgetShutoffDryRun") ?? false;
 
 const masterKey = cfg.requireSecret("jacklineMasterKey");
 const betterAuthSecret = cfg.requireSecret("betterAuthSecret");
@@ -113,7 +118,13 @@ const sqlInstance = new gcp.sql.DatabaseInstance(
       },
     },
   },
-  { dependsOn: [sqlAdminApi, sqlPrivateConnection] },
+  {
+    dependsOn: [sqlAdminApi, sqlPrivateConnection],
+    // The budget shutoff sets activationPolicy to NEVER at runtime. Ignoring
+    // this field keeps `pulumi up` from starting the database again. Start it
+    // with `gcloud sql instances patch` (deploy/pulumi/README.md).
+    ignoreChanges: ["settings.activationPolicy"],
+  },
 );
 
 new gcp.sql.Database(
@@ -362,6 +373,8 @@ const instance = new gcp.compute.Instance(
   },
   {
     dependsOn: [computeApi, firewall, iapSsh, vmSa, staticIp],
+    // `desiredStatus` is intentionally unset. The budget shutoff stops this VM
+    // out of band (status TERMINATED); a later `pulumi up` must not start it.
     // `image` above resolves the *newest* image in the ubuntu-2404-lts-amd64
     // family on every run. Boot disk params are ForceNew, so whenever Canonical
     // publishes a new image, `pulumi up` (run by every Deploy prod) planned
@@ -390,3 +403,22 @@ export const cloudSqlInstanceName = sqlInstance.name;
 export const cloudSqlConnectionName = pulumi.secret(cloudSqlConnName);
 export const cloudSqlPrivateIp = pulumi.secret(sqlInstance.privateIpAddress);
 export const databaseUrlHint = pulumi.secret(databaseUrl);
+
+// ---------------------------------------------------------------------------
+// Budget shutoff (optional billing budget; topic + function always)
+// ---------------------------------------------------------------------------
+const budgetShutoff = createBudgetShutoff({
+  project,
+  region,
+  zone,
+  instanceName: instance.name,
+  sqlInstanceName: sqlInstance.name,
+  deployServiceAccount,
+  billingAccountId,
+  budgetAmountUsd,
+  dryRun: budgetShutoffDryRun,
+});
+
+export const budgetTopicName = budgetShutoff.topicName;
+export const budgetTopicId = budgetShutoff.topicId;
+export const budgetShutoffFunctionName = budgetShutoff.functionName;

@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "deploy/pulumi/**"
+      - "deploy/functions/**"
       - "deploy/compose.prod.yml"
       - "deploy/Dockerfile"
       - "deploy/Caddyfile"
@@ -59,6 +60,9 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -87,6 +91,12 @@ jobs:
       - name: Install Pulumi program deps
         working-directory: ${{ steps.path.outputs.dir }}
         run: npm ci
+
+      # pulumi preview/up packages the VM budget function (tsc + npm lockfile).
+      # GKE does not build it. Deps must exist before the Pulumi program runs.
+      - name: Install budget shutoff dependencies
+        if: ${{ env.DEPLOY_PATH == 'vm' }}
+        run: pnpm install --frozen-lockfile --filter @jackline/budget-shutoff...
 
       - name: Pulumi preview
         working-directory: ${{ steps.path.outputs.dir }}

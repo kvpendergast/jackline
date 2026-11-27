@@ -23,6 +23,15 @@ config:
   # jackline-vm:cloudSqlAutomatedBackupRetain: "7"
   # jackline-vm:cloudSqlOnDemandBackupKeep: "7"
   #
+  # Budget shutoff (circuit breaker). The Pub/Sub topic and Cloud Function are
+  # always created. The Cloud Billing budget is created only when billingAccountId
+  # is set (the deploy SA needs billing.budgets.create plus pubsub.topics.setIamPolicy).
+  # Leave it unset and attach a $35 budget in the console to the budgetTopicId output
+  # if the deploy SA cannot administer the billing account. See deploy/pulumi/README.md.
+  # jackline-vm:billingAccountId: 012345-6789AB-CDEF01
+  # jackline-vm:budgetAmountUsd: "35"
+  # jackline-vm:budgetShutoffDryRun: "true"
+  #
   # After pulumi up: point DNS A/AAAA for domain (+ docs) at the publicIp output
   # (regional static address jackline-vm-ip by default — not the old global GKE jackline-ip).
   # Optional: jackline-vm:staticIpName: my-custom-ip-name
