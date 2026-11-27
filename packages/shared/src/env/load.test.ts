@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { z } from "zod";
 import { formatEnvParseError } from "./formatEnvError.js";
-import { loadConfig } from "./load.js";
+import { loadConfig, publicMcpUrl } from "./load.js";
 
 describe("formatEnvParseError", () => {
   it("lists missing fields with setup hints", () => {
@@ -89,5 +89,32 @@ describe("loadConfig", () => {
       "client-id.apps.googleusercontent.com",
     );
     assert.equal(result.value.GOOGLE_CLIENT_SECRET, "GOCSPX-test-secret");
+  });
+});
+
+describe("publicMcpUrl", () => {
+  const base = {
+    JACKLINE_MASTER_KEY: "dGVzdC1tYXN0ZXIta2V5LTEyMzQ1Njc4OTA=",
+    BETTER_AUTH_SECRET: "test-better-auth-secret-32chars!!",
+    DATABASE_URL: "postgresql://jackline:jackline@127.0.0.1:5432/jackline",
+    BETTER_AUTH_URL: "http://127.0.0.1:8080",
+    WEB_ORIGIN: "http://127.0.0.1:5173",
+  };
+
+  it("uses JACKLINE_PUBLIC_MCP_URL without a trailing slash", () => {
+    const config = loadConfig({
+      ...base,
+      JACKLINE_PUBLIC_MCP_URL: "https://jackline.example.com/mcp/",
+    });
+    assert.ok(config.isOk());
+    if (!config.isOk()) return;
+    assert.equal(publicMcpUrl(config.value), "https://jackline.example.com/mcp");
+  });
+
+  it("falls back to the local gateway port when unset", () => {
+    const config = loadConfig({ ...base, GATEWAY_PORT: "9191" });
+    assert.ok(config.isOk());
+    if (!config.isOk()) return;
+    assert.equal(publicMcpUrl(config.value), "http://127.0.0.1:9191/mcp");
   });
 });
