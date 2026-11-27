@@ -1,10 +1,10 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { db, secrets, servers, tools, type Tool } from "@jackline/db";
+import { db, secrets, servers, tools, upstreamAccounts, type Tool } from "@jackline/db";
 import {
   BadRequestError,
   JacklineError,
@@ -188,9 +188,13 @@ async function loadSyncSecret(
   }
 
   const kind = upstreamSecretKind(authMethod);
-  const [personal] = await db
-    .select()
+  const personalRows = await db
+    .select({ secret: secrets, isDefault: upstreamAccounts.isDefault })
     .from(secrets)
+    .leftJoin(
+      upstreamAccounts,
+      eq(upstreamAccounts.id, secrets.upstreamAccountId),
+    )
     .where(
       and(
         eq(secrets.tenantId, tenantId),
@@ -200,7 +204,9 @@ async function loadSyncSecret(
         isNull(secrets.connectionId),
       ),
     )
+    .orderBy(desc(upstreamAccounts.isDefault), desc(secrets.updatedAt))
     .limit(1);
+  const personal = personalRows[0]?.secret;
 
   if (personal) return decryptSecretRow(personal);
 

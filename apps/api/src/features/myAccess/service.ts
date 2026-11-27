@@ -1,11 +1,12 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { err, ok, type Result } from "neverthrow";
 import type { Logger } from "pino";
-import { db, oauthApps, secrets, servers } from "@jackline/db";
+import { db, oauthApps, secrets, servers, upstreamAccounts } from "@jackline/db";
 import {
   BadRequestError,
   JacklineError,
   NotFoundError,
+  type MyAccessAccount,
   OAUTH_CLIENT_SECRET_KIND,
   SetupError,
   upstreamSecretKind,
@@ -57,6 +58,7 @@ async function listMyServers(
       serverId: secrets.serverId,
       userId: secrets.userId,
       kind: secrets.kind,
+      upstreamAccountId: secrets.upstreamAccountId,
     })
     .from(secrets)
     .where(
@@ -84,15 +86,48 @@ async function listMyServers(
           )
       : [];
   const appsById = new Map(appRows.map((a) => [a.id, toOAuthAppClientRef(a)]));
+  const accountRows = await db
+    .select()
+    .from(upstreamAccounts)
+    .where(
+      and(
+        eq(upstreamAccounts.tenantId, tenantId),
+        eq(upstreamAccounts.userId, userId),
+        inArray(upstreamAccounts.serverId, serverIds),
+      ),
+    );
 
   const items: MyAccessServer[] = serverRows.map((server) => {
     const kind = upstreamSecretKind(server.authMethod);
-    const subjectConnected = secretRows.some(
-      (s) =>
-        s.serverId === server.id &&
-        s.userId === userId &&
-        s.kind === kind,
-    );
+    const accounts: MyAccessAccount[] = accountRows
+      .filter((account) => account.serverId === server.id)
+      .map((account) => ({
+        id: account.id,
+        label: account.label,
+        externalEmail: account.externalEmail,
+        externalSubject: account.externalSubject,
+        isDefault: account.isDefault,
+        lastUsedAt: account.lastUsedAt?.toISOString() ?? null,
+        status: (secretRows.some(
+          (secret) =>
+            secret.upstreamAccountId === account.id && secret.kind === kind,
+        )
+          ? "connected"
+          : "missing") as MyAccessAccount["status"],
+      }))
+      .sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        return a.label.localeCompare(b.label);
+      });
+    const subjectConnected =
+      accounts.some((account) => account.status === "connected") ||
+      secretRows.some(
+        (s) =>
+          s.serverId === server.id &&
+          s.userId === userId &&
+          s.kind === kind &&
+          s.upstreamAccountId == null,
+      );
     const sharedFallbackAvailable = secretRows.some(
       (s) =>
         s.serverId === server.id &&
@@ -137,6 +172,7 @@ async function listMyServers(
       canConnect,
       sharedFallbackAvailable,
       oauthConnectAvailable,
+      accounts: server.authMethod === "oauth" ? accounts : [],
     };
   });
 
@@ -177,6 +213,12 @@ async function upsertMyCredential(
     return err(new BadRequestError("mTLS upstream auth is not supported yet"));
   }
 
+  const accountId =
+    kind === "oauth"
+      ? await pasteTargetAccountId(tenantId, userId, server.id, server.name)
+      : ok<string | null, JacklineError>(null);
+  if (accountId.isErr()) return err(accountId.error);
+
   const [existing] = await db
     .select()
     .from(secrets)
@@ -187,6 +229,9 @@ async function upsertMyCredential(
         eq(secrets.userId, userId),
         eq(secrets.kind, kind),
         isNull(secrets.connectionId),
+        accountId.value
+          ? eq(secrets.upstreamAccountId, accountId.value)
+          : isNull(secrets.upstreamAccountId),
       ),
     )
     .limit(1);
@@ -259,6 +304,7 @@ async function upsertMyCredential(
         serverId,
         userId,
         connectionId: null,
+        upstreamAccountId: accountId.value,
         tenantId,
       })
       .returning();
@@ -308,6 +354,16 @@ async function deleteMyCredential(
   }
 
   const kind = upstreamSecretKind(server.authMethod);
+  const removedAccounts = await db
+    .delete(upstreamAccounts)
+    .where(
+      and(
+        eq(upstreamAccounts.tenantId, tenantId),
+        eq(upstreamAccounts.serverId, serverId),
+        eq(upstreamAccounts.userId, userId),
+      ),
+    )
+    .returning({ id: upstreamAccounts.id });
   const [row] = await db
     .delete(secrets)
     .where(
@@ -321,12 +377,12 @@ async function deleteMyCredential(
     )
     .returning();
 
-  if (!row) {
+  if (!row && removedAccounts.length === 0) {
     return err(new NotFoundError("Credential not found"));
   }
 
   log.info(
-    { secretId: row.id, tenantId, serverId, userId },
+    { secretId: row?.id ?? null, removedAccounts: removedAccounts.length, tenantId, serverId, userId },
     "MyAccess.services.deleteMyCredential",
   );
   return ok({ deleted: true });
@@ -398,9 +454,168 @@ async function listUpstreamCredentialsForSubject(
   return ok({ items });
 }
 
+async function pasteTargetAccountId(
+  tenantId: string,
+  userId: string,
+  serverId: string,
+  serverName: string,
+): Promise<Result<string, JacklineError>> {
+  const rows = await db
+    .select()
+    .from(upstreamAccounts)
+    .where(
+      and(
+        eq(upstreamAccounts.tenantId, tenantId),
+        eq(upstreamAccounts.serverId, serverId),
+        eq(upstreamAccounts.userId, userId),
+      ),
+    );
+  const target = rows.find((row) => row.isDefault) ?? (rows.length === 1 ? rows[0] : undefined);
+  if (!target && rows.length > 1) {
+    return err(
+      new BadRequestError(
+        "Several accounts are connected and none is the default. Pick an account in My Access.",
+      ),
+    );
+  }
+  if (target) return ok(target.id);
+  const [created] = await db
+    .insert(upstreamAccounts)
+    .values({
+      label: "Default",
+      isDefault: true,
+      serverId,
+      userId,
+      tenantId,
+    })
+    .returning({ id: upstreamAccounts.id });
+  if (!created) {
+    return err(new SetupError(`Failed to store an account for ${serverName}`));
+  }
+  return ok(created.id);
+}
+
+async function loadOwnAccount(tenantId: string, userId: string, accountId: string) {
+  const [row] = await db
+    .select()
+    .from(upstreamAccounts)
+    .where(
+      and(
+        eq(upstreamAccounts.id, accountId),
+        eq(upstreamAccounts.tenantId, tenantId),
+        eq(upstreamAccounts.userId, userId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+function toMyAccessAccount(
+  row: typeof upstreamAccounts.$inferSelect,
+  connected: boolean,
+): MyAccessAccount {
+  return {
+    id: row.id,
+    label: row.label,
+    externalEmail: row.externalEmail,
+    externalSubject: row.externalSubject,
+    isDefault: row.isDefault,
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    status: connected ? "connected" : "missing",
+  };
+}
+
+async function renameAccount(
+  log: Logger,
+  tenantId: string,
+  userId: string,
+  accountId: string,
+  label: string,
+): Promise<Result<MyAccessAccount, JacklineError>> {
+  const existing = await loadOwnAccount(tenantId, userId, accountId);
+  if (!existing) return err(new NotFoundError("Account not found"));
+  try {
+    const [row] = await db
+      .update(upstreamAccounts)
+      .set({ label: label.trim(), updatedAt: new Date() })
+      .where(eq(upstreamAccounts.id, existing.id))
+      .returning();
+    if (!row) return err(new NotFoundError("Account not found"));
+    log.info({ accountId, tenantId, userId }, "MyAccess.services.renameAccount");
+    return ok(toMyAccessAccount(row, true));
+  } catch (cause) {
+    return err(fromDbWriteError(cause, "An account with that label already exists"));
+  }
+}
+
+async function makeDefaultAccount(
+  log: Logger,
+  tenantId: string,
+  userId: string,
+  accountId: string,
+): Promise<Result<MyAccessAccount, JacklineError>> {
+  const existing = await loadOwnAccount(tenantId, userId, accountId);
+  if (!existing) return err(new NotFoundError("Account not found"));
+  const [row] = await db.transaction(async (tx) => {
+    await tx
+      .update(upstreamAccounts)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(upstreamAccounts.tenantId, tenantId),
+          eq(upstreamAccounts.serverId, existing.serverId),
+          eq(upstreamAccounts.userId, userId),
+        ),
+      );
+    return tx
+      .update(upstreamAccounts)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(upstreamAccounts.id, existing.id))
+      .returning();
+  });
+  if (!row) return err(new NotFoundError("Account not found"));
+  log.info({ accountId, tenantId, userId }, "MyAccess.services.makeDefaultAccount");
+  return ok(toMyAccessAccount(row, true));
+}
+
+async function deleteAccount(
+  log: Logger,
+  tenantId: string,
+  userId: string,
+  accountId: string,
+): Promise<Result<{ deleted: true }, JacklineError>> {
+  const existing = await loadOwnAccount(tenantId, userId, accountId);
+  if (!existing) return err(new NotFoundError("Account not found"));
+  await db.transaction(async (tx) => {
+    await tx.delete(upstreamAccounts).where(eq(upstreamAccounts.id, existing.id));
+    if (!existing.isDefault) return;
+    const [next] = await tx
+      .select({ id: upstreamAccounts.id })
+      .from(upstreamAccounts)
+      .where(
+        and(
+          eq(upstreamAccounts.tenantId, tenantId),
+          eq(upstreamAccounts.serverId, existing.serverId),
+          eq(upstreamAccounts.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (!next) return;
+    await tx
+      .update(upstreamAccounts)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(upstreamAccounts.id, next.id));
+  });
+  log.info({ accountId, tenantId, userId }, "MyAccess.services.deleteAccount");
+  return ok({ deleted: true });
+}
+
 export const myAccessServices = {
   listMyServers,
   upsertMyCredential,
   deleteMyCredential,
   listUpstreamCredentialsForSubject,
+  renameAccount,
+  makeDefaultAccount,
+  deleteAccount,
 } as const;

@@ -427,15 +427,15 @@ export function ConnectionDetailPage() {
                 <pre className="overflow-x-auto border border-border bg-background p-3 font-mono text-[11px]">
                   {JSON.stringify(
                     {
-                      url: "http://127.0.0.1:8081/mcp",
+                      url: detail.mcpUrl,
                     },
                     null,
                     2,
                   )}
                 </pre>
                 <p className="text-xs text-muted-foreground">
-                  Point the host at your{" "}
-                  <code className="font-mono">JACKLINE_PUBLIC_MCP_URL</code>.
+                  Point the MCP host at this URL (this instance&apos;s{" "}
+                  <code className="font-mono">JACKLINE_PUBLIC_MCP_URL</code>).
                   Auth is negotiated via protected-resource metadata.
                 </p>
               </>

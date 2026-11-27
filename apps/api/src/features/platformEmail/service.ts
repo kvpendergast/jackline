@@ -8,6 +8,7 @@ import {
   type OutboundEmail,
   type ResolvedEmailConnectorConfig,
 } from "@jackline/email";
+import { shouldBypassEmailVerification } from "@jackline/auth";
 import { db, platformEmailSettings } from "@jackline/db";
 import {
   BadRequestError,
@@ -244,9 +245,16 @@ async function getStatus(
     },
     "getEmailDeliveryStatus",
   );
+  const configResult = getConfig();
   return ok({
     deliveryReady: resolved.public.deliveryReady,
     connectorKey: resolved.public.connectorKey,
+    verificationSkipped:
+      configResult.isOk() &&
+      shouldBypassEmailVerification({
+        deliveryReady: resolved.public.deliveryReady,
+        tenancy: configResult.value.JACKLINE_TENANCY,
+      }),
   });
 }
 

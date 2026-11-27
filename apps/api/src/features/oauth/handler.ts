@@ -14,7 +14,13 @@ const start: RouteHandler<typeof oauthRoutes.start, JacklineEnv> = async (c) => 
     auth.tenantId,
     auth.userId,
     body.serverId,
-    body.returnTo,
+    {
+      ...(body.returnTo ? { returnTo: body.returnTo } : {}),
+      ...(body.mode ? { mode: body.mode } : {}),
+      ...(body.accountId ? { accountId: body.accountId } : {}),
+      ...(body.expectedEmail ? { expectedEmail: body.expectedEmail } : {}),
+      ...(body.label ? { label: body.label } : {}),
+    },
   );
   if (result.isErr()) throw result.error;
   return c.json(okEnvelope(result.value), 200);

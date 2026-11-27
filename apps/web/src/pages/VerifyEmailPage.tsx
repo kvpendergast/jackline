@@ -27,6 +27,7 @@ export function VerifyEmailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deliveryReady, setDeliveryReady] = useState<boolean | null>(null);
+  const [verificationSkipped, setVerificationSkipped] = useState(false);
 
   const returnTo = safeLoginReturnTo(
     (location.state as { returnTo?: string | null } | null)?.returnTo ??
@@ -44,7 +45,8 @@ export function VerifyEmailPage() {
       .then((status) => {
         if (cancelled) return;
         setDeliveryReady(status.deliveryReady);
-        if (!status.deliveryReady) {
+        setVerificationSkipped(status.verificationSkipped);
+        if (!status.deliveryReady && !status.verificationSkipped) {
           setError(NOT_CONFIGURED_MESSAGE);
         }
       })
@@ -134,6 +136,13 @@ export function VerifyEmailPage() {
               ? `We sent a verification link to ${email}. Open it to finish signing in.`
               : "Check your inbox for a verification link to finish signing in."}
           </p>
+        ) : verificationSkipped ? (
+          <p className="text-sm text-muted-foreground">
+            This instance can't send email yet (no Resend or SMTP is
+            configured), so email verification is skipped. Sign in again with
+            your password to continue. Set up Settings → Email before inviting
+            others; verification turns back on once email is configured.
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             {email
@@ -143,18 +152,26 @@ export function VerifyEmailPage() {
         )}
         {message ? <p className="text-sm text-primary">{message}</p> : null}
         {error ? <p className="text-sm text-deny">{error}</p> : null}
-        <Button
-          type="button"
-          className="w-full"
-          disabled={!canResend}
-          onClick={() => void onResend()}
-        >
-          {submitting
-            ? "Sending…"
-            : deliveryReady === false
-              ? "Email delivery unavailable"
-              : "Resend verification email"}
-        </Button>
+        {verificationSkipped ? (
+          <Button asChild className="w-full">
+            <Link to="/login" state={{ returnTo }}>
+              Sign in
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            className="w-full"
+            disabled={!canResend}
+            onClick={() => void onResend()}
+          >
+            {submitting
+              ? "Sending…"
+              : deliveryReady === false
+                ? "Email delivery unavailable"
+                : "Resend verification email"}
+          </Button>
+        )}
         <p className="text-center text-sm text-muted-foreground">
           <Link to="/login" className="text-primary hover:underline">
             Back to sign in
