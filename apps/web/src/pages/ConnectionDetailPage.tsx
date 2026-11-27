@@ -1,3 +1,4 @@
+import { LastUsed } from "@/components/jackline/LastUsed";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, KeyRound, ShieldBan, ShieldCheck } from "lucide-react";
@@ -339,6 +340,14 @@ export function ConnectionDetailPage() {
             </>
           }
         />
+        <p className="mt-2 text-xs text-muted-foreground">
+          Last used: <LastUsed at={detail.lastUsedAt} />
+          {detail.lastUsedAt && detail.lastAllowedAt !== detail.lastUsedAt ? (
+            <>
+              {" · "}last allowed call: <LastUsed at={detail.lastAllowedAt} />
+            </>
+          ) : null}
+        </p>
       </div>
 
       {error ? <p className="text-sm text-deny">{error}</p> : null}
